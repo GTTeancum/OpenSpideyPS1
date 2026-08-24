@@ -57,7 +57,6 @@ def main():
             ('CdWadFind', 'pre',  'Recompiled.OverlayPatches.CdWadFind'),
             ('CdWadFind', 'post', 'Recompiled.OverlayPatches.CdWadFindExit'),
             ('HeapAlloc', 'pre',  'Recompiled.OverlayPatches.HeapAlloc'),
-            ('HeapAlloc', 'post', 'Recompiled.OverlayPatches.HeapAllocExit'),
             ('HeapFree',  'pre',  'Recompiled.OverlayPatches.HeapFree')):
         if fn in names:
             patches.append({'overlay': 'main', 'function': fn, 'mode': mode, 'target': target})
@@ -67,6 +66,24 @@ def main():
     # Instrumentation for overlay residency and actor spawning; see patches/GameTrace.cs.
     for fn, mode, target in (
             ('LoadOverlay', 'pre',  'Recompiled.GameTrace.LoadOverlay'),
+            ('LoadLevel',   'pre',  'Recompiled.GameTrace.LoadLevel'),
+            ('LoadLevel',   'post', 'Recompiled.GameTrace.LoadLevelExit'),
+            ('LoadPsx',     'pre',  'Recompiled.GameTrace.LoadPsx'),
+            ('RunTriggerScript', 'pre', 'Recompiled.GameTrace.RunTriggerScript'),
+            ('LoadTriggers', 'pre', 'Recompiled.GameTrace.LoadTriggers'),
+            ('FatalHalt',    'pre', 'Recompiled.GameTrace.FatalHalt'),
+            ('RenderObjectList', 'pre', 'Recompiled.GameTrace.RenderObjectList'),
+            ('RenderObjectList', 'post', 'Recompiled.GameTrace.RenderObjectListExit'),
+            ('LevelIntro',   'pre', 'Recompiled.GameTrace.LevelIntro'),
+            ('LevelIntro',   'post','Recompiled.GameTrace.LevelIntroExit'),
+            ('ShowCover',    'pre', 'Recompiled.GameTrace.ShowCover'),
+            ('ShowCover',    'post','Recompiled.GameTrace.ShowCoverExit'),
+            ('LevelIntroDispatch','pre','Recompiled.GameTrace.LevelIntroDispatch'),
+            ('LevelIntroDispatch','post','Recompiled.GameTrace.LevelIntroDispatchExit'),
+            ('RunFrame',     'pre', 'Recompiled.GameTrace.RunFrame'),
+            ('RunFrame',     'post','Recompiled.GameTrace.RunFrameExit'),
+            ('TriggerPass',  'pre', 'Recompiled.GameTrace.TriggerPass'),
+            ('TriggerType8', 'pre', 'Recompiled.GameTrace.TriggerType8'),
             ('SpawnActor',  'pre',  'Recompiled.GameTrace.SpawnActor'),
             ('SpawnActor',  'post', 'Recompiled.GameTrace.SpawnActorExit')):
         if fn in names:

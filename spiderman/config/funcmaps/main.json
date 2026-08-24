@@ -7,17 +7,17 @@
   },
   {
    "address": "0x80010008",
-   "name": "func_80010008",
+   "name": "LevelIntro",
    "size": 120
   },
   {
    "address": "0x80010080",
-   "name": "func_80010080",
+   "name": "LevelIntroDispatch",
    "size": 332
   },
   {
    "address": "0x800101CC",
-   "name": "func_800101CC",
+   "name": "ShowCover",
    "size": 176
   },
   {
@@ -332,7 +332,7 @@
   },
   {
    "address": "0x80014D54",
-   "name": "func_80014D54",
+   "name": "LoadRleImage",
    "size": 116
   },
   {
@@ -1742,7 +1742,7 @@
   },
   {
    "address": "0x8002AA0C",
-   "name": "func_8002AA0C",
+   "name": "RunFrame",
    "size": 1768
   },
   {
@@ -2257,7 +2257,7 @@
   },
   {
    "address": "0x8002EED4",
-   "name": "ptr_8002EED4",
+   "name": "RenderObjectList",
    "size": 944
   },
   {
@@ -4422,7 +4422,7 @@
   },
   {
    "address": "0x8005ACD8",
-   "name": "func_8005ACD8",
+   "name": "LoadTriggers",
    "size": 488
   },
   {
@@ -4537,7 +4537,7 @@
   },
   {
    "address": "0x8005C7EC",
-   "name": "func_8005C7EC",
+   "name": "RunTriggerScript",
    "size": 4852
   },
   {
@@ -5082,7 +5082,7 @@
   },
   {
    "address": "0x8005DAE0",
-   "name": "func_8005DAE0",
+   "name": "TriggerPass",
    "size": 368
   },
   {
@@ -5092,7 +5092,7 @@
   },
   {
    "address": "0x8005DD34",
-   "name": "func_8005DD34",
+   "name": "TriggerType8",
    "size": 416
   },
   {
@@ -5567,7 +5567,7 @@
   },
   {
    "address": "0x80063D80",
-   "name": "func_80063D80",
+   "name": "IntroPre",
    "size": 68
   },
   {
@@ -5697,7 +5697,7 @@
   },
   {
    "address": "0x80064F74",
-   "name": "func_80064F74",
+   "name": "FatalHalt",
    "size": 340
   },
   {
@@ -6092,7 +6092,7 @@
   },
   {
    "address": "0x80069A60",
-   "name": "func_80069A60",
+   "name": "LoadPsx",
    "size": 560
   },
   {
@@ -6242,7 +6242,7 @@
   },
   {
    "address": "0x8006BF9C",
-   "name": "func_8006BF9C",
+   "name": "LoadLevel",
    "size": 1064
   },
   {

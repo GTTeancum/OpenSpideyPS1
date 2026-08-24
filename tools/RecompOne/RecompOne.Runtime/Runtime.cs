@@ -154,9 +154,13 @@ public static class Runtime
         }
 
         Diagnostics.CallRing.NoteFrame();
+        long __t0 = System.Diagnostics.Stopwatch.GetTimestamp();
         HostWindow.Present(Gpu);
         Audio.Attach(Spu);
+        long __t1 = System.Diagnostics.Stopwatch.GetTimestamp();
         FrameClock.Throttle();
+        long __t2 = System.Diagnostics.Stopwatch.GetTimestamp();
+        Diagnostics.FrameProfile.Note(__t0, __t1, __t2);
         Sdk.LibCd.Tick();
         if (Mem != null) { Bios.BiosB.RefreshPad(Mem); Sdk.LibPad.Refresh(Mem); } //is this correct?
         if (Cpu != null && Mem != null) Bios.BiosB.PumpCard(Cpu, Mem, _pumping);
@@ -177,8 +181,27 @@ public static class Runtime
     {
         if (_pumping || Cpu == null || Mem == null) return;
         _pumping = true;
-        try { Sdk.LibEtc.Pump(Cpu, Mem); }
+        try { Sdk.LibEtc.Service(Cpu, Mem); }
         finally { _pumping = false; }
+    }
+
+    /// <summary>
+    /// Everything a frame does *except* declaring that a frame happened: service the
+    /// CD, refresh the pads, run pending interrupts and keep the host window alive.
+    ///
+    /// A game that spins without ever calling VSync still needs all of that -- its wait
+    /// loop is usually waiting on exactly the CD or pad state this refreshes, and the
+    /// window stops responding without it. What it must not do is advance the vblank
+    /// counter, because every timed wait in the game is measured against that, and
+    /// inventing vblanks faster than real time makes them all finish early.
+    /// </summary>
+    public static void ServiceOnly()
+    {
+        HostWindow.Present(Gpu);
+        Audio.Attach(Spu);
+        Sdk.LibCd.Tick();
+        if (Mem != null) { Bios.BiosB.RefreshPad(Mem); Sdk.LibPad.Refresh(Mem); }
+        DispatchIrq(0);
     }
 
     public static void DispatchIrq(int irq)

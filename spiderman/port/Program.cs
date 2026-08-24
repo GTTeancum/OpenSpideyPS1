@@ -36,6 +36,23 @@ public static class Program
         string cue = ResolveCue(args);
         if (cue != null) SeedSettings(cue);
 
+        // SPIDEY_GUARD=8009c5d4 -- report whatever writes rubbish into this address.
+        var guard = Environment.GetEnvironmentVariable("SPIDEY_GUARD");
+        if (!string.IsNullOrEmpty(guard))
+            RecompOne.Runtime.Diagnostics.MemGuard.Address =
+                Convert.ToUInt32(guard.Replace("0x", ""), 16) & 0x1FFFFFFFu;
+
+        // SPIDEY_GUARD_VALUE=00a402c7 -- report wherever this exact word gets stored.
+        var gv = Environment.GetEnvironmentVariable("SPIDEY_GUARD_VALUE");
+        if (!string.IsNullOrEmpty(gv))
+        {
+            RecompOne.Runtime.Diagnostics.MemGuard.Value = Convert.ToUInt32(gv.Replace("0x", ""), 16);
+            RecompOne.Runtime.Diagnostics.MemGuard.WatchValue = true;
+        }
+
+        RecompOne.Runtime.Diagnostics.MemGuard.Lenient =
+            !string.IsNullOrEmpty(Environment.GetEnvironmentVariable("SPIDEY_LENIENT"));
+
         Diag.Install();
         RecompOne.Runtime.Runtime.DiscValidator = ValidateDisc;
         EnableLogs(Environment.GetEnvironmentVariable("SPIDEY_LOG"));

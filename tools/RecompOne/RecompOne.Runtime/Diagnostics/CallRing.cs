@@ -25,7 +25,14 @@ public static class CallRing
     static int _idx;
 
     /// <summary>Calls without an intervening frame before the stall breaker fires.</summary>
-    public static int StallCalls = 4_000_000;
+    /// <summary>
+    /// Low on purpose. It used to be four million, which meant a game spinning without
+    /// calling VSync got its CD serviced and its window pumped roughly once every
+    /// 60 ms -- the window went "Not Responding" and every wait crawled. What the
+    /// breaker runs is now cheap and rate-limited (Runtime.ServiceOnly), so it can
+    /// afford to fire often.
+    /// </summary>
+    public static int StallCalls = 50_000;
 
     static int _sinceFrame;
 

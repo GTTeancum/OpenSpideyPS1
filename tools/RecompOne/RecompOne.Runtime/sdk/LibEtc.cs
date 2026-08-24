@@ -31,6 +31,23 @@ public static class LibEtc
         c.V0 = 0;
     }
 
+    static readonly System.Diagnostics.Stopwatch _sinceService = System.Diagnostics.Stopwatch.StartNew();
+
+    /// <summary>
+    /// What the idle breakers call. Delivers a real vblank when one is due, and
+    /// otherwise just keeps the host and the hardware serviced -- see
+    /// Runtime.ServiceOnly for why those two have to be separate.
+    /// </summary>
+    public static void Service(CpuContext c, IMemory m)
+    {
+        if (_sinceFrame.Elapsed.TotalSeconds >= 1.0 / 60.0) { Pump(c, m); return; }
+        // Cheap, but not free: rate-limit it so a tight spin does not spend all its
+        // time presenting instead of running the game.
+        if (_sinceService.Elapsed.TotalMilliseconds < 4) return;
+        _sinceService.Restart();
+        Runtime.ServiceOnly();
+    }
+
     /// <summary>
     /// Advance one frame: present, and let the game see a vblank. Called by VSync, and
     /// by the idle-loop breaker when the game busy-waits on an interrupt-updated flag

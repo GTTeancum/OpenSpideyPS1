@@ -20,8 +20,10 @@ namespace Recompiled;
 /// </summary>
 public static class GameTrace
 {
+    /// <summary>Verbose by default -- this game is cheap enough that it costs nothing,
+    /// and a lock-up is unreadable without it. SPIDEY_QUIET turns it off.</summary>
     public static bool On =
-        !string.IsNullOrEmpty(Environment.GetEnvironmentVariable("SPIDEY_TRACE_GAME"));
+        string.IsNullOrEmpty(Environment.GetEnvironmentVariable("SPIDEY_QUIET"));
 
     static string _spawnName;
     static bool _spawnResident;
@@ -37,6 +39,181 @@ public static class GameTrace
             sb.Append((char)b);
         }
         return sb.ToString();
+    }
+
+    // The runtime-built level file names, filled in before LoadLevel reads them.
+    static readonly uint[] NameBufs =
+        { 0x800B5728, 0x800B5730, 0x800B5738, 0x800B5740, 0x800B5748, 0x800B5750 };
+
+    /// <summary>
+    /// pre-hook on RunTriggerScript(cmds, ...) -- the trigger command interpreter.
+    /// Opcode 126/128 load a .psx, 189 loads a code overlay, so whether this runs at
+    /// all is what decides if a level gets its resources.
+    /// </summary>
+    public static void RunTriggerScript(CpuContext c, IMemory m)
+    {
+        uint p = c.A0;
+        var ops = new System.Text.StringBuilder();
+        int n = 0;
+        bool sawLoad = false;
+        for (; n < 400; n++)
+        {
+            ushort w = m.ReadU16(p + (uint)n * 2);
+            if (w == 0xFFFF) break;
+            if (w == 126 || w == 128 || w == 189) sawLoad = true;
+            if (n < 40) ops.Append(w + " ");
+        }
+        Console.WriteLine($"[game] RunTriggerScript(0x{p:X8}) len={n} words hasLoadOpcode={sawLoad}");
+        Console.WriteLine($"[game]    {ops}");
+    }
+
+    /// <summary>
+    /// The level intro. Opcode 190 in a trigger script calls this, and every resource
+    /// the level needs is loaded by the commands that come *after* it, so if it does
+    /// not return the level gets none of them.
+    /// </summary>
+    static uint _liSp;
+
+    public static void LevelIntro(CpuContext c, IMemory m)
+    {
+        _liSp = c.SP;
+        Console.WriteLine($"[game] LevelIntro({c.A0}) enter  sp=0x{c.SP:X8} s1=0x{c.S1:X8} next=0x{m.ReadU16(c.S1):X4}");
+    }
+
+    public static void LevelIntroExit(CpuContext c, IMemory m)
+        => Console.WriteLine($"[game] LevelIntro exit   sp=0x{c.SP:X8} (delta {(int)(c.SP - _liSp)}) s1=0x{c.S1:X8}");
+
+    public static void ShowCover(CpuContext c, IMemory m)
+        => Console.WriteLine($"[game]   ShowCover(\"{Str(m, c.A0)}\") enter s1=0x{c.S1:X8} fp=0x{c.FP:X8}");
+
+    public static void ShowCoverExit(CpuContext c, IMemory m)
+        => Console.WriteLine($"[game]   ShowCover exit          s1=0x{c.S1:X8} fp=0x{c.FP:X8}");
+
+    public static void LevelIntroDispatch(CpuContext c, IMemory m)
+        => Console.WriteLine($"[game]  Dispatch({c.A0}) enter    s1=0x{c.S1:X8} fp=0x{c.FP:X8}");
+
+    public static void LevelIntroDispatchExit(CpuContext c, IMemory m)
+        => Console.WriteLine($"[game]  Dispatch exit            s1=0x{c.S1:X8} fp=0x{c.FP:X8}");
+
+    static uint _rfSp, _rfRa;
+
+    public static void RunFrame(CpuContext c, IMemory m)
+    {
+        _rfSp = c.SP; _rfRa = c.RA;
+        Console.WriteLine($"[game]    RunFrame({c.A0}) enter  sp=0x{c.SP:X8} ra=0x{c.RA:X8} s1=0x{c.S1:X8} fp=0x{c.FP:X8}");
+    }
+
+    public static void RunFrameExit(CpuContext c, IMemory m)
+        => Console.WriteLine($"[game]    RunFrame exit          sp=0x{c.SP:X8} (delta {(int)(c.SP - _rfSp)}) ra=0x{c.RA:X8} s1=0x{c.S1:X8} fp=0x{c.FP:X8}");
+
+    /// <summary>
+    /// pre-hook on the object renderer, which walks a linked list through offset 4.
+    /// One node's next pointer is landing outside RAM; this reports the node it came
+    /// from so the write that corrupted it can be found.
+    /// </summary>
+    static int _rolCalls;
+    static uint _rolPrimAtEntry;
+    static uint _rolHeadPtr;
+    static int _rolNonEmpty;
+
+    /// <summary>post-hook on the object renderer.</summary>
+    public static void RenderObjectListExit(CpuContext c, IMemory m)
+    {
+        uint node = m.ReadU32(_rolHeadPtr);
+        for (int i = 0; i < 20000 && node != 0; i++)
+        {
+            if (node < 0x80000000 || node >= 0x80800000 || (node & 3) != 0)
+            {
+                Console.WriteLine($"[game] RenderObjectList: list CORRUPTED by the body -- bad next 0x{node:X8} at depth {i}");
+                return;
+            }
+            node = m.ReadU32(node + 4);
+        }
+    }
+
+    public static void RenderObjectList(CpuContext c, IMemory m)
+    {
+        // The primitive buffer the packet writer fills. If this pointer climbs without
+        // being reset each frame it eventually walks into whatever follows it in RAM.
+        uint primPtr = m.ReadU32(0x800B5944);
+        _rolPrimAtEntry = primPtr;
+        _rolCalls++;
+        _rolHeadPtr = c.A0;
+        uint h = m.ReadU32(c.A0);
+        if (h != 0 && _rolNonEmpty++ < 12)
+        {
+            int depth = 0;
+            uint n2 = h;
+            while (n2 != 0 && depth < 20000 && n2 >= 0x80000000 && n2 < 0x80800000 && (n2 & 3) == 0)
+            { n2 = m.ReadU32(n2 + 4); depth++; }
+            var nodes = new System.Text.StringBuilder();
+            uint n3 = h;
+            for (int i = 0; i < 10 && n3 != 0 && n3 >= 0x80000000 && n3 < 0x80800000; i++)
+            { nodes.Append($"0x{n3:X8}(next=0x{m.ReadU32(n3 + 4):X8}) "); n3 = m.ReadU32(n3 + 4); }
+            Console.WriteLine($"[game] RenderObjectList #{_rolCalls}: a0=0x{c.A0:X8} sp=0x{c.SP:X8} " +
+                              $"depth={depth} nodes: {nodes}");
+        }
+
+        uint head = m.ReadU32(c.A0);
+        uint node = head;
+        var chain = new System.Text.StringBuilder();
+        for (int i = 0; i < 20000 && node != 0; i++)
+        {
+            bool ok = node >= 0x80000000 && node < 0x80800000 && (node & 3) == 0;
+            if (!ok)
+            {
+                string tailChain = chain.ToString();
+                if (tailChain.Length > 300) tailChain = "..." + tailChain.Substring(tailChain.Length - 300);
+                Console.WriteLine($"[game] RenderObjectList: bad node 0x{node:X8} at depth {i}; last nodes: {tailChain}");
+                return;
+            }
+            if (chain.Length > 4000) chain.Remove(0, 2000);
+            chain.Append($"0x{node:X8} ");
+            node = m.ReadU32(node + 4);
+        }
+    }
+
+    /// <summary>
+    /// pre-hook on the game's fatal halt (0x80064F74): it clears the screen to a
+    /// colour and then spins on `j self` forever. Whatever called it is the real
+    /// failure, and without this the only evidence is a flat coloured window.
+    /// </summary>
+    public static void FatalHalt(CpuContext c, IMemory m)
+    {
+        Console.WriteLine($"[game] FATAL HALT: screen r={c.A0} g={c.A1} b={c.A2}");
+        var tail = RecompOne.Runtime.Diagnostics.CallRing.Tail(16);
+        var sb = new System.Text.StringBuilder("[game]   callers, most recent last: ");
+        foreach (uint a in tail) sb.Append($"0x{a:X8} ");
+        Console.WriteLine(sb.ToString());
+    }
+
+    /// <summary>pre-hook on LoadTriggers(char *area)</summary>
+    public static void LoadTriggers(CpuContext c, IMemory m)
+        => Console.WriteLine($"[game] LoadTriggers(\"{Str(m, c.A0)}\")");
+
+    /// <summary>pre-hook on TriggerPass -- walks the list spawning and loading.</summary>
+    public static void TriggerPass(CpuContext c, IMemory m)
+        => Console.WriteLine("[game] TriggerPass");
+
+    /// <summary>pre-hook on TriggerType8 -- the resource entry handler.</summary>
+    public static void TriggerType8(CpuContext c, IMemory m)
+        => Console.WriteLine($"[game] TriggerType8(a0=0x{c.A0:X8} a1={c.A1})");
+
+    /// <summary>pre-hook on LoadLevel -- the driver that pulls in level geometry.</summary>
+    public static void LoadLevel(CpuContext c, IMemory m)
+    {
+        Console.WriteLine("[game] LoadLevel enter: " +
+            string.Join(" ", Array.ConvertAll(NameBufs, b => $"\"{Str(m, b, 20)}\"")));
+    }
+
+    /// <summary>post-hook on LoadLevel</summary>
+    public static void LoadLevelExit(CpuContext c, IMemory m)
+        => Console.WriteLine("[game] LoadLevel exit");
+
+    /// <summary>pre-hook on LoadPsx(char *name, int)</summary>
+    public static void LoadPsx(CpuContext c, IMemory m)
+    {
+        if (On) Console.WriteLine($"[game]   LoadPsx(\"{Str(m, c.A0)}\") from ra=0x{c.RA:X8}");
     }
 
     /// <summary>pre-hook on LoadOverlay(char *name, int heap)</summary>

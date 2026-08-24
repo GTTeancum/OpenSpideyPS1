@@ -15,6 +15,8 @@ public sealed class RecompOneConfig
     [JsonPropertyName("linearSweep")] public bool LinearSweep { get; set; } //linear sweep is to find functions when the elf doesnt ptovide then properly (fuck you sh) this can and WILL get some data as code, use it by your own risk
     [JsonPropertyName("debug")] public bool Debug { get; set; }
     [JsonPropertyName("callRing")] public bool CallRing { get; set; }
+    // Verify every function restores the stack pointer; see Diagnostics/SpAudit.cs.
+    [JsonPropertyName("spAudit")] public bool SpAudit { get; set; }
     [JsonPropertyName("addressComments")] public bool AddressComments { get; set; }
     [JsonPropertyName("disasmComments")] public bool DisasmComments { get; set; }
     [JsonPropertyName("overlays")] public OverlayConfig[] Overlays { get; set; } = [];

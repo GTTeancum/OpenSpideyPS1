@@ -4,10 +4,12 @@ A [RecompOne](https://github.com/BlackLabelHQ/RecompOne) port of the PlayStation
 Spider-Man (Neversoft, 2000), built from the retail USA disc following
 `../RECOMP-PLAYBOOK.md`.
 
-**State: boots and reaches the front end.** Logos, the title screen, the main menu and
-the difficulty screen all render and respond to input. The intro FMV plays (badly — see
-below). Entering a level gets as far as the loading cover, then fails. See
-[TO_DO.md](TO_DO.md) for exactly where and what is known about it.
+**State: loads a level, dies on the first gameplay frame.** Logos, title screen, main
+menu and difficulty select all render and respond to input; the intro FMV plays (badly).
+Selecting a difficulty loads level 1 completely — trigger list, both actor code overlays,
+actor models and the level geometry — and actors spawn. It then crashes in the object
+renderer on the first gameplay frame. Runs at ~59 fps. See [TO_DO.md](TO_DO.md) for the
+diagnosis and what has been ruled out.
 
 ---
 
@@ -162,6 +164,27 @@ destination-register fix, jump tables that leave the function, the idle-loop bre
 `VSync(-1)` advancing off the wall clock, and re-offering card completions.
 
 ---
+
+## Diagnostics
+
+One log per run, `spidey.log`, written beside the executable and flushed as it goes, so
+there is exactly one place to look after a lock-up. It carries a frame-tagged trace of
+overlay loads, actor spawns, archive lookups and trigger scripts, a watchdog that dumps
+the CPU context and the tail of the call ring collapsed into runs when frames stop, and
+a per-frame breakdown of present / throttle / game time.
+
+```
+SPIDEY_QUIET=1              turn the verbose game trace off
+SPIDEY_LOG_STAMP=1          keep a timestamped log per run instead of overwriting
+SPIDEY_STALL=12             seconds without a frame before the watchdog dumps
+SPIDEY_GUARD=8009c5d4       report writes to an address, with the call ring
+SPIDEY_GUARD_VALUE=00a402c7 report wherever this exact word gets stored
+SPIDEY_LENIENT=1            survive unmapped reads instead of throwing, and log them
+```
+
+The recompiler has two matching switches: `"spAudit": true` in `config/spiderman.json`
+checks that every function restores the stack pointer and the callee-saved registers,
+and `"callRing": true` keeps the ring the watchdog prints.
 
 ## Verifying
 

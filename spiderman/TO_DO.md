@@ -3,131 +3,146 @@
 Ordered by what blocks the most. Ruling things out is most of the value here, so the
 things that turned out *not* to be the cause are recorded with their evidence.
 
+**Where it stands.** The port boots, plays the intro FMV, reaches the title screen and
+menus, and now loads a level completely: the `l1a1` trigger list, both actor code
+overlays (`thug`, `blackcat`), the actor models, and the level geometry
+(`L1A1_L/_O/_G.psx`). Actors spawn and gameplay trigger scripts run. It holds ~59 fps.
+It then dies on the first gameplay frame inside the object renderer — item 1 below.
+
 ---
 
-## 1. Entering a level: actor resources are never loaded  — BLOCKER
-
-**Symptom.** New Game → difficulty → intro FMV → the level cover (`L1COV.rle`) draws,
-then on the first trigger tick:
+## 1. Crash on the first gameplay frame  — BLOCKER
 
 ```
-unmapped call: 0x00000000
-  s1=00000000                       <- the object pointer itself is null
-  active overlays: main, shell
-  at func_8005B014   (level trigger interpreter)
-  at func_8005DAE0   (trigger list walk)
+unmapped address: 0x00A402CB
+  at RenderObjectList (0x8002EED4)   <- lw s0, 4(s0) at 0x8002F248
+  at func_8002DA0C -> func_8003565C -> func_8002BD5C -> func_8002C174 -> main loop
+  overlays: main, shell, thug, blackcat
 ```
 
-**What is actually happening.** `func_8005DAE0` walks the trigger list loaded from
-`l1a1_t.trg`. Type-1 entries pass a filter (`func_8005AFAC`, a `0xFF`-terminated byte
-list membership test — it legitimately passes) and reach `func_8005B014`, which is a
-~28-case switch that spawns one actor kind per case by name. Each case calls
-`SpawnActor` (`0x8001BEC4`) and then dereferences the pointer it returns.
+`RenderObjectList` walks a linked list through offset 4 and renders each node via
+`func_8007C4D8(node + 100, 0, 1)`. The faulting address is exactly `s0 + 4`, so a
+node's `next` pointer has become `0x00A402C7`.
 
-`SpawnActor` hashes the name, walks the list of **resident** overlays at `gp+1480`, and
-calls a constructor out of the matching overlay's table. On a miss it returns *without
-writing its out-pointer*, so the caller reads a stale stack slot and dereferences it.
-That is why the failure surfaces as a null vtable call far from its cause.
+**What is known:**
 
-**The real gap is data, not code.** Tracing every archive lookup
-(`SPIDEY_TRACE_WAD=1`) shows the level asks for exactly:
-
-```
-sp_tex00.psx  l1a1.VAB  l1a1.SFX  l1a1_t.trg  L1COV.rle
-```
-
-and then stops. It never asks for `l1a1_l.psx`, `l1a1_o.psx`, `l1a1_g.psx` (the level
-geometry) or `thug.psx` (the actor's model) — all of which are present in CD.WAD and
-resolve fine when asked for. Every lookup the game *does* make succeeds.
-
-**The same machinery works elsewhere.** The main menu's attract demo runs the whole
-sequence correctly on its own:
-
-```
-dem1.VAB  dem1.SFX  dem1_t.trg  Dem1_L.psx  henchman.psx  expgrnd.psx
-Dem1_O.psx  Dem1_G.psx  -> LoadOverlay("thug") -> SpawnActor("thug")
-```
-
-Geometry, actor models, and the actor's code overlay, loaded by the game itself with no
-help. So the loader, the archive reader, the overlay path and the spawn path are all
-functional; what is missing is whatever kicks that sequence off for a *real* level after
-the cover screen. That is the next thing to find.
+- The list is **valid on entry** every time. A hook that walks it before the body runs
+  finds a clean chain terminating at 0 — including on the call that crashes:
+  `0x8009C5D0 -> 0x801D48CC -> 0x801D4840 -> 0x801D47B4 -> 0x801D4728 -> 0`. So the
+  corruption happens *during* the walk.
+- `0x8009C5D0` is a legitimate node: it is a 168-byte block from the game's small-block
+  pool, which `HeapInit` (0x800650C8) lays out at `0x8009C5C8` in the executable's BSS.
+  A fresh one is prepended each frame.
+- The bad value `0x00A402C7` is only ever seen written to the **stack** (0x807FFE98),
+  not to any node, per a value guard over every tracked 32-bit write.
+- The values involved (`0x00A402C7`, `0x00A502C6`, `0x0FCE08F1`, `0x03FF040B`) look
+  like packed GTE output rather than pointers, and this renderer is GTE-heavy.
 
 **Ruled out, with evidence:**
 
-- *The FMV corrupting the CD state.* Skipping the movie entirely (START during
-  playback — no 24bpp frames captured at all) produces a byte-identical failure at the
-  same point.
-- *The overlay code never loading.* `patches/GameTrace.cs` loads a missing overlay
-  on demand at spawn (`SPIDEY_NO_ONDEMAND=1` disables it). `thug` then loads and its
-  constructor runs — and fails one level deeper, reading `0xFFFFFFFF` out of the
-  resource table at `0x800A0904 + idx*64 + 0x10`. Uninitialised because the *model*
-  was never loaded. Code residency was a real gap but not the root one.
-- *The overlay-load script command being unreachable.* `call_8005CAF8` (the trigger
-  command that calls `LoadOverlay`) is emitted and dispatched from four jump tables. It
-  is reachable; it simply never runs.
-- *My own instrumentation.* An early version of the `SpawnActor` hook zeroed `a3` "so
-  a miss is unambiguous". `a3` is passed straight to the overlay constructor and is not
-  always a writable word, so that corrupted the front end. The hook is read-only now —
-  but removing it did **not** change the crash, so it was never the cause of this one.
+- *Stack or saved-register corruption.* A stack-balance and callee-saved-register audit
+  over all 3,314 functions (`"spAudit": true`, see `Diagnostics/SpAudit.cs`) reports
+  **zero** violations in this build. It did find real ones earlier — see item 6.
+- *Missing GTE opcodes.* The only GTE function codes these two routines use are
+  0x01, 0x06, 0x10, 0x12, 0x29, 0x2A, 0x3D and 0x3E, and the runtime implements all of
+  them. Their *results* have not been checked against hardware, which is the obvious
+  next step.
+- *Unaligned load/store.* `LWL`/`LWR`/`SWL`/`SWR` in `PSMemory` were checked against the
+  R3000 definition case by case and are correct, including the C# shift-count masking
+  that makes a 32-bit shift silently wrong.
+- *Heap exhaustion.* Fixed, and separately — see item 2.
 
-**Where to look next.** The cover-screen state is the seam: the demo path has no cover
-and works, the real path shows a cover and stops. Find what displays `L*COV.rle` and
-what it is supposed to hand off to. `func_8006F294` is the shell driver and does
-`LoadOverlay(name, 1)` then `SpawnActor(name, 1, ...)` at `0x8006F4DC` — the game's own
-load-then-spawn idiom, and a good place to start reading.
+**Next step.** Run the same scene with `SPIDEY_LENIENT=1` (unmapped reads return zero
+instead of throwing) and it survives: exactly five bad reads at that one instant, then
+2,500 clean frames. So this is one localised bad pointer, not a subsystem writing
+rubbish. The screen stays flat yellow because nothing reaches the ordering table. The
+thing to check next is whether the GTE gives the same numbers as hardware for the
+`RTPT`/`NCLIP`/`AVSZ` sequence this renderer runs.
 
 ---
 
-## 2. Memory corruption in the attract demo
+## 2. Fixed: the loading-screen freeze was an out-of-memory halt
 
-Letting the main menu sit long enough for the attract demo to play loads everything
-correctly, renders black, and then dies:
+Worth recording because the symptom pointed nowhere near the cause. The window went
+"Not Responding" on the level loading screen, with no recompiled code executing at all.
 
-```
-unmapped address: 0x80800004     (RAM top + 4)
-```
+`0x80064F98` is `j 0x80064F98` — a jump to itself. The function at `0x80064F74` clears
+the screen to a colour and then spins there forever: it is Spider-Man's fatal-error
+halt, and its only caller is the failure path of `HeapAlloc`.
 
-preceded by a garbage filename ending in `.bin` printed from a corrupted name buffer —
-so something is scribbling before this, and the wild read is a consequence.
-
-Not caused by the 8 MB RAM. `PSMemory` resolves RAM as `phys % ram.Length`; at 8 MB
-`0x80800004` is genuinely outside the array, and it is outside RAM on real hardware too.
-The address is a corrupted pointer, not a mirroring artefact.
-
-Timing-sensitive: it moves or disappears depending on how much logging is on, because
-the game paces off the wall clock. Reproduce with a fixed script and match captures by
-content, never by frame number.
+The heap was being exhausted by the overlay loader, and that was **self-inflicted**.
+`OverlayPatches` used to let the allocator run and then overwrite the pointer it
+returned with the overlay's fixed base. The real heap block — tens of kilobytes per
+overlay — was then never freed, because the game only ever frees the fixed address it
+was handed, which is not a heap block. The pre-hook now returns `false` so the
+allocator never runs for those allocations.
 
 ---
 
-## 3. FMV decodes to garbage
+## 3. Fixed: 15 fps and an unresponsive window
+
+The game busy-polls `VSync(-1)` — 117,714 calls in 500 frames — and its wait loops never
+call `VSync(0)`. Frames, CD service and pad refresh therefore only happened when the
+call-ring stall breaker fired, which was set to **four million calls**: roughly one
+service every 60 ms, so the window stopped responding and everything crawled.
+
+Splitting `Runtime.ServiceOnly()` out of `PresentFrame()` fixed it. The breaker now runs
+the cheap part often (rate-limited to 4 ms) and only delivers a real vblank when one is
+due, because the vblank counter has to track real time or every timed wait in the game
+finishes early. 15 fps → 59 fps, and game time per frame 60 ms → 16 ms.
+
+---
+
+## 4. FMV decodes to garbage
 
 The intro movie plays — MDEC runs, the display switches to 320x240 24bpp, frames
-advance — but the picture is a green/magenta dither pattern rather than an image. The
-display mode is right, so this is the decode or the path into VRAM, not the mode switch.
-Untouched so far; the level blocker mattered more.
+advance — but the picture is a green/magenta dither rather than an image. The mode
+switch is right, so this is the decode or the path into VRAM.
+
+Spider-Man's `.STR` files are ordinary Sony STR with BS v2 frames, which is thoroughly
+documented and has a mature reference decoder in
+[jpsxdec](https://github.com/m35/jpsxdec/blob/readme/jpsxdec/PlayStation1_STR_format.txt);
+[psx-spx](https://psx-spx.consoledev.net/macroblockdecodermdec/) covers the MDEC side.
+Comparing one decoded frame against jpsxdec's output for the same sector would settle
+where it diverges. Not attempted yet.
 
 ---
 
-## 4. Audio unverified
+## 5. Audio unverified
 
-`SpuInit`, `SpuSetCommonAttr`, `SpuSetKey` and `SpuWrite` are all recovered and routed,
-and the game loads `menu.VAB` / `l1a1.VAB` / `.SFX` banks, but nothing has actually been
-listened to. `StSetStream`/`StGetNext`/`StSetRing` are recovered, so the XA path from
-`COMPILED.XA` (190 MB) has its entry points; it has not been exercised.
+`SpuInit`, `SpuSetCommonAttr`, `SpuSetKey` and `SpuWrite` are recovered and routed, and
+the game loads `menu.VAB` / `l1a1.VAB` / `.SFX` banks, but nothing has been listened to.
+`StSetStream`/`StGetNext`/`StSetRing` are recovered, so the XA path from `COMPILED.XA`
+has its entry points; it has not been exercised.
 
 ---
 
-## 5. Smaller things
+## 6. RecompOne fixes made along the way
+
+All game-agnostic; see `tools/recompone-spiderman-changes.patch`.
+
+- **`CdInit` returned the wrong value.** libcd returns 1 on success, not 0, so the
+  game's retry loop spun forever on a black screen.
+- **`jr ra` is not always a return.** Hand-written routines call their own interior
+  entry points with `jal`, so the matching `jr ra` comes back *inside* the function.
+  Emitting that as a function return skipped the epilogue and leaked the frame, which
+  is what stopped the level's init script dead: `s1` held the script pointer across the
+  call and came back as 0. Told apart by whether an `lw ra` precedes the `jr` — with a
+  24-instruction window, because a full epilogue is a dozen instructions and a shorter
+  window misreads ordinary returns. Self-recursion is excluded: a `jal` to the
+  function's own first instruction makes a fresh frame and must return normally.
+- **Diagnostics** worth keeping: `spAudit` (stack and callee-saved-register audit over
+  every function), `MemGuard` (watch an address, or watch for a value, and print the
+  call ring at the write), `FrameProfile` (present / throttle / game time per frame),
+  register context on a failed dispatch, and the local-image overlay source (`path`).
+
+---
+
+## 7. Smaller things
 
 - **Four libgpu symbols were not recovered**: `DrawOTagEnv`, `DrawSyncCallback`,
   `GetODE`, `ClearOTag`. `tools/mkconfig.py` deliberately emits no patch for a name it
-  cannot find, so these are simply left recompiled rather than silently no-op'd. If any
-  of them turns out to reach hardware through libgpu's queue it will need pinning by
-  hand in `manual.json`. Nothing so far suggests the game calls them.
-- **17 residual unmapped-call targets** after closure converges. Expected: jump-table
-  analysis running off the end of a real table into the data after it. Chasing them to
-  zero is chasing noise.
-- **`Trace.cs` is inherited from the X-Men port** and its hooks are not wired to
-  anything here. Harmless, but it is dead weight.
+  cannot find, so these are left recompiled rather than silently no-op'd.
+- **17 residual unmapped-call targets** after closure converges — jump-table analysis
+  running off the end of a real table into data. Chasing them to zero is chasing noise.
+- **`Trace.cs` is inherited from the X-Men port** and is not wired to anything here.

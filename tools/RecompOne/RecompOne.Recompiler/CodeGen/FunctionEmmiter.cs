@@ -32,7 +32,7 @@ public static class FunctionEmitter
             sb.AppendLine($"    public static void {name}(CpuContext c, IMemory m) {{ }}");
             return sb.ToString();
         }
-        bool hooked = func.PreHookTargets.Count > 0 || func.PostHookTargets.Count > 0;
+        bool hooked = func.PreHookTargets.Count > 0 || func.PostHookTargets.Count > 0 || ctx.SpAudit;
 
         if (func.IsPatch)
         {
@@ -44,7 +44,7 @@ public static class FunctionEmitter
             }
             sb.AppendLine($"    public static void {name}(CpuContext c, IMemory m)");
             sb.AppendLine("    {");
-            EmitHooks(sb, func, $"        {func.PatchTarget}(c, m);");
+            EmitHooks(sb, func, $"        {func.PatchTarget}(c, m);", ctx);
             sb.AppendLine("    }");
             return sb.ToString();
         }
@@ -53,7 +53,7 @@ public static class FunctionEmitter
             sb.AppendLine(noInline);
             sb.AppendLine($"    public static void {name}(CpuContext c, IMemory m)");
             sb.AppendLine("    {");
-            EmitHooks(sb, func, $"        {name}_Impl(c, m);");
+            EmitHooks(sb, func, $"        {name}_Impl(c, m);", ctx);
             sb.AppendLine("    }");
             name += "_Impl";
         }
@@ -100,13 +100,25 @@ public static class FunctionEmitter
         return sb.ToString();
     }
 
-    static void EmitHooks(StringBuilder sb, MipsFunction func, string body)
+    static void EmitHooks(StringBuilder sb, MipsFunction func, string body, FunctionContext ctx = null)
     {
+        bool audit = ctx != null && ctx.SpAudit;
+        if (audit)
+        {
+            sb.AppendLine("        uint __sp0 = c.SP;");
+            sb.AppendLine("        var __r0 = RecompOne.Runtime.Diagnostics.SpAudit.Snapshot(c);");
+        }
         foreach (var pre in func.PreHookTargets)
             sb.AppendLine($"        if (!RecompOne.Runtime.Context.PreHook.Run({pre}, c, m)) return;");
         sb.AppendLine(body);
         foreach (var post in func.PostHookTargets)
             sb.AppendLine($"        {post}(c, m);");
+        if (audit)
+        {
+            sb.AppendLine($"        RecompOne.Runtime.Diagnostics.SpAudit.Check(0x{func.Start:X8}u, \"{func.EmittedName}\", __sp0, c.SP);");
+            sb.AppendLine($"        RecompOne.Runtime.Diagnostics.SpAudit.CheckRegs(0x{func.Start:X8}u, \"{func.EmittedName}\", __r0, c);");
+            sb.AppendLine("        RecompOne.Runtime.Diagnostics.SpAudit.Release(__r0);");
+        }
     }
 
     //some hand-written asm (crt0 stubs, etc) has no jr/j/branch at its declared end at all and just

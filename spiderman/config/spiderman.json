@@ -209,12 +209,6 @@
     },
     {
       "overlay": "main",
-      "function": "HeapAlloc",
-      "mode": "post",
-      "target": "Recompiled.OverlayPatches.HeapAllocExit"
-    },
-    {
-      "overlay": "main",
       "function": "HeapFree",
       "mode": "pre",
       "target": "Recompiled.OverlayPatches.HeapFree"
@@ -224,6 +218,114 @@
       "function": "LoadOverlay",
       "mode": "pre",
       "target": "Recompiled.GameTrace.LoadOverlay"
+    },
+    {
+      "overlay": "main",
+      "function": "LoadLevel",
+      "mode": "pre",
+      "target": "Recompiled.GameTrace.LoadLevel"
+    },
+    {
+      "overlay": "main",
+      "function": "LoadLevel",
+      "mode": "post",
+      "target": "Recompiled.GameTrace.LoadLevelExit"
+    },
+    {
+      "overlay": "main",
+      "function": "LoadPsx",
+      "mode": "pre",
+      "target": "Recompiled.GameTrace.LoadPsx"
+    },
+    {
+      "overlay": "main",
+      "function": "RunTriggerScript",
+      "mode": "pre",
+      "target": "Recompiled.GameTrace.RunTriggerScript"
+    },
+    {
+      "overlay": "main",
+      "function": "LoadTriggers",
+      "mode": "pre",
+      "target": "Recompiled.GameTrace.LoadTriggers"
+    },
+    {
+      "overlay": "main",
+      "function": "FatalHalt",
+      "mode": "pre",
+      "target": "Recompiled.GameTrace.FatalHalt"
+    },
+    {
+      "overlay": "main",
+      "function": "RenderObjectList",
+      "mode": "pre",
+      "target": "Recompiled.GameTrace.RenderObjectList"
+    },
+    {
+      "overlay": "main",
+      "function": "RenderObjectList",
+      "mode": "post",
+      "target": "Recompiled.GameTrace.RenderObjectListExit"
+    },
+    {
+      "overlay": "main",
+      "function": "LevelIntro",
+      "mode": "pre",
+      "target": "Recompiled.GameTrace.LevelIntro"
+    },
+    {
+      "overlay": "main",
+      "function": "LevelIntro",
+      "mode": "post",
+      "target": "Recompiled.GameTrace.LevelIntroExit"
+    },
+    {
+      "overlay": "main",
+      "function": "ShowCover",
+      "mode": "pre",
+      "target": "Recompiled.GameTrace.ShowCover"
+    },
+    {
+      "overlay": "main",
+      "function": "ShowCover",
+      "mode": "post",
+      "target": "Recompiled.GameTrace.ShowCoverExit"
+    },
+    {
+      "overlay": "main",
+      "function": "LevelIntroDispatch",
+      "mode": "pre",
+      "target": "Recompiled.GameTrace.LevelIntroDispatch"
+    },
+    {
+      "overlay": "main",
+      "function": "LevelIntroDispatch",
+      "mode": "post",
+      "target": "Recompiled.GameTrace.LevelIntroDispatchExit"
+    },
+    {
+      "overlay": "main",
+      "function": "RunFrame",
+      "mode": "pre",
+      "target": "Recompiled.GameTrace.RunFrame"
+    },
+    {
+      "overlay": "main",
+      "function": "RunFrame",
+      "mode": "post",
+      "target": "Recompiled.GameTrace.RunFrameExit"
+    },
+    {
+      "overlay": "main",
+      "function": "TriggerPass",
+      "mode": "pre",
+      "target": "Recompiled.GameTrace.TriggerPass"
+    },
+    {
+      "overlay": "main",
+      "function": "TriggerType8",
+      "mode": "pre",
+      "target": "Recompiled.GameTrace.TriggerType8"
     },
     {
       "overlay": "main",
@@ -304,5 +406,6 @@
       "target": "Recompiled.GpuPatches.SetGraphDebug"
     }
   ],
-  "callRing": true
+  "callRing": true,
+  "spAudit": false
 }

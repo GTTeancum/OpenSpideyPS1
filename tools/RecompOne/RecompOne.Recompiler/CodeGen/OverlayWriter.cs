@@ -245,7 +245,7 @@ public static class OverlayWriter
         foreach (var result in overlayResults)
         {
             Console.WriteLine($"[Recompiler] emiting {result.Name}.cs ({result.Functions.Count} functions)");
-            EmitOverlayFile(result.Name, result.Functions, className, knownFuncs, result.Debug, config.CallRing, config.AddressComments, config.DisasmComments, result.LbaStart,  result.Base, result.Size, result.Instructions, outDir);
+            EmitOverlayFile(result.Name, result.Functions, className, knownFuncs, result.Debug, config.CallRing, config.SpAudit, config.AddressComments, config.DisasmComments, result.LbaStart,  result.Base, result.Size, result.Instructions, outDir);
         }
 
         Console.WriteLine("[Recompiler] Emitting Entry.cs");
@@ -295,7 +295,7 @@ public static class OverlayWriter
         Console.WriteLine($"[Recompiler] linear sweep found {swept.Count} function(s) (+{callees.Count} callees) in {overlayName}");
     }
 
-    static void EmitOverlayFile(string overlayName, List<MipsFunction> funcs, string className, Dictionary<uint, string> knownFuncs, bool debug, bool callRing, bool addressComments, bool disasmComments, int lbaStart, uint ovlBase, uint ovlSize, MipsInstruction[] instrs, string outDir)
+    static void EmitOverlayFile(string overlayName, List<MipsFunction> funcs, string className, Dictionary<uint, string> knownFuncs, bool debug, bool callRing, bool spAudit, bool addressComments, bool disasmComments, int lbaStart, uint ovlBase, uint ovlSize, MipsInstruction[] instrs, string outDir)
     {
         var sb = new StringBuilder();
         sb.AppendLine("using RecompOne.Runtime.Context;");
@@ -316,8 +316,11 @@ public static class OverlayWriter
                 FuncEnd = func.End,
                 KnownFunctions = knownFuncs,
                 Labels = labels,
+                LocalReturns = Analysis.LabelManager.LocalReturns(func),
+                LocalReturnJrs = Analysis.LabelManager.LocalReturnJrs(func),
                 Debug = debug,
                 CallRing = callRing,
+                SpAudit = spAudit,
                 AddressComments = addressComments,
                 DisasmComments = disasmComments,
                 JumpTablesByJr = func.JumpTables.ToDictionary(j => j.JrVram),

@@ -277,7 +277,19 @@ public static class InstructionEmitter
         if (op == 0 && fn == 8)
         {
             Ds();
-            if (rs == 31 || ctx.RaReturnJrs.Contains(pc)) sb.AppendLine(ctx.Trail(ctrl, $"{indent}return;"));
+            if (rs == 31 && ctx.LocalReturnJrs.Contains(pc))
+            {
+                // `ra` may hold a point inside this function, put there by a `jal` to
+                // one of its own local subroutines. Returning outright would skip the
+                // epilogue and leak the frame, so dispatch on the value.
+                sb.AppendLine(ctx.Trail(ctrl, $"{indent}switch (c.RA)"));
+                sb.AppendLine(ctx.Trail(ctrl, $"{indent}{{"));
+                foreach (uint back in ctx.LocalReturns.OrderBy(a => a))
+                    sb.AppendLine(ctx.Trail(ctrl, $"{indent}    case 0x{back:X8}u: goto L{back:X8};"));
+                sb.AppendLine(ctx.Trail(ctrl, $"{indent}    default: return;"));
+                sb.AppendLine(ctx.Trail(ctrl, $"{indent}}}"));
+            }
+            else if (rs == 31 || ctx.RaReturnJrs.Contains(pc)) sb.AppendLine(ctx.Trail(ctrl, $"{indent}return;"));
             else if (ctx.JumpTablesByJr.TryGetValue(pc, out var jtbl))
             {
                 sb.AppendLine(ctx.Trail(ctrl, $"{indent}switch ({RS})"));
@@ -324,8 +336,11 @@ public sealed class FunctionContext
     public uint FuncEnd;
     public Dictionary<uint, string> KnownFunctions = [];
     public HashSet<uint> Labels = [];
+    public HashSet<uint> LocalReturns = [];
+    public HashSet<uint> LocalReturnJrs = [];
     public bool Debug;
     public bool CallRing;
+    public bool SpAudit;
     public bool AddressComments;
     public bool DisasmComments;
     public Dictionary<uint, JumpTable> JumpTablesByJr = [];

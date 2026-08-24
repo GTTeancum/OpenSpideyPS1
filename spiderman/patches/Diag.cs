@@ -48,7 +48,10 @@ public static class Diag
 
     public static void Install()
     {
-        string dir = Environment.GetEnvironmentVariable("SPIDEY_LOG_DIR") ?? "logs";
+        // Beside the executable, under a stable name, so there is exactly one place to
+        // look after a lock-up. SPIDEY_LOG_DIR still redirects it, and SPIDEY_LOG_STAMP
+        // keeps per-run copies when comparing two runs matters.
+        string dir = Environment.GetEnvironmentVariable("SPIDEY_LOG_DIR") ?? ".";
         if (double.TryParse(Environment.GetEnvironmentVariable("SPIDEY_STALL"),
                             NumberStyles.Float, CultureInfo.InvariantCulture, out var sv))
             _stallSeconds = sv;
@@ -57,7 +60,10 @@ public static class Diag
         try
         {
             Directory.CreateDirectory(dir);
-            _path = Path.Combine(dir, $"spidey-{DateTime.Now:yyyyMMdd-HHmmss}.log");
+            _path = Path.Combine(dir,
+                string.IsNullOrEmpty(Environment.GetEnvironmentVariable("SPIDEY_LOG_STAMP"))
+                    ? "spidey.log"
+                    : $"spidey-{DateTime.Now:yyyyMMdd-HHmmss}.log");
             _stream = new FileStream(_path, FileMode.Create, FileAccess.Write, FileShare.ReadWrite);
             Console.SetOut(new Tee(Console.Out));
             Console.SetError(new Tee(Console.Error));
@@ -192,6 +198,28 @@ public static class Diag
     public static string Name(uint addr)
         => _symbols != null && _symbols.TryGetValue(addr, out var n) ? n : $"0x{addr:X8}";
 
+    /// <summary>
+    /// The addresses that dominate the recent call ring. When a frame's time is all
+    /// game code, this says which code.
+    /// </summary>
+    static string HotFunctions(int top)
+    {
+        var tail = CallRing.Tail(CallRing.Size);
+        if (tail.Length == 0) return "(nothing)";
+        var counts = new Dictionary<uint, int>();
+        foreach (uint a in tail) counts[a] = counts.TryGetValue(a, out var n) ? n + 1 : 1;
+        var best = new List<KeyValuePair<uint, int>>(counts);
+        best.Sort((x, y) => y.Value.CompareTo(x.Value));
+        var sb = new StringBuilder();
+        for (int i = 0; i < top && i < best.Count; i++)
+        {
+            uint a = best[i].Key;
+            string nm = _symbols != null && _symbols.TryGetValue(a, out var s2) ? s2 : $"0x{a:X8}";
+            sb.Append($"{nm} x{best[i].Value}  ");
+        }
+        return sb.ToString();
+    }
+
     // ---- watchdog ---------------------------------------------------------------
 
     // A hang does not necessarily freeze the frame counter: the call-ring stall breaker
@@ -228,7 +256,9 @@ public static class Diag
                 // Straight to the log, not through Console: this is the line that proves
                 // the watchdog is alive when the game thread has stopped being.
                 Write($"[diag] frame {f}, {fps:F1} fps, {CallRing.TotalCalls} calls, " +
-                      $"{CallRing.StallBreaks} stall breaks");
+                      $"{CallRing.StallBreaks} stall breaks; " +
+                      RecompOne.Runtime.Diagnostics.FrameProfile.Summary());
+                Write("[diag] hottest: " + HotFunctions(6));
             }
 
             if (fps >= SlowFps)

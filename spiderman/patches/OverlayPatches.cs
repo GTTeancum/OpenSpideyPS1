@@ -76,9 +76,10 @@ public static class OverlayPatches
 
     /// <summary>Every archive lookup, in order -- set SPIDEY_TRACE_WAD.</summary>
     public static readonly bool TraceWad =
-        !string.IsNullOrEmpty(System.Environment.GetEnvironmentVariable("SPIDEY_TRACE_WAD"));
+        string.IsNullOrEmpty(System.Environment.GetEnvironmentVariable("SPIDEY_QUIET"));
 
     static string _lastLookup;
+    static uint _lastRa;
 
     /// <summary>pre-hook on CdWadFind(char *name)</summary>
     public static void CdWadFind(CpuContext c, IMemory m)
@@ -86,6 +87,7 @@ public static class OverlayPatches
         _pendingName = null;
         string name = ReadCString(m, c.A0);
         _lastLookup = name;
+        _lastRa = c.RA;
         if (name.Length > 4 && name.EndsWith(".bin", StringComparison.OrdinalIgnoreCase))
         {
             string key = name.Substring(0, name.Length - 4);
@@ -97,19 +99,30 @@ public static class OverlayPatches
     public static void CdWadFindExit(CpuContext c, IMemory m)
     {
         if (TraceWad)
-            System.Console.WriteLine($"[wad] {_lastLookup} -> {(c.V0 == 0 ? "NOT FOUND" : c.V0 + " bytes")}");
+            System.Console.WriteLine($"[wad] {_lastLookup,-16} <- ra=0x{_lastRa:X8}  {(c.V0 == 0 ? "NOT FOUND" : c.V0 + " bytes")}");
         if (_pendingName != null) _pendingSize = c.V0;
     }
 
-    /// <summary>pre-hook on HeapAlloc(size, heap, flag)</summary>
-    public static void HeapAlloc(CpuContext c, IMemory m) => _allocSize = c.A0;
-
-    /// <summary>post-hook on HeapAlloc -- v0 is the block.</summary>
-    public static void HeapAllocExit(CpuContext c, IMemory m)
+    /// <summary>
+    /// pre-hook on HeapAlloc(size, heap, flag). Returning false skips the allocator
+    /// entirely and leaves v0 as the answer.
+    ///
+    /// The overlay's block must not come from the game's heap at all. Letting the
+    /// allocator run and then overwriting the pointer it returned leaks the whole
+    /// block -- the game only ever frees the fixed address it was handed, which is not
+    /// a heap block -- and an overlay is tens of kilobytes. A few level loads of that
+    /// exhausted the heap, and Spider-Man's response to a failed allocation is to
+    /// clear the screen and spin forever at 0x80064F98, which looks exactly like a
+    /// hang on the loading screen.
+    /// </summary>
+    public static bool HeapAlloc(CpuContext c, IMemory m)
     {
-        if (_pendingName == null || _allocSize != _pendingSize) return;
+        _allocSize = c.A0;
+        if (_pendingName == null || _allocSize != _pendingSize) return true;
+
         uint fixedBase = Bases[_pendingName];
-        Log.Sdk($"overlay '{_pendingName}': load redirected 0x{c.V0:X8} -> 0x{fixedBase:X8} ({_allocSize} bytes)");
+        Log.Sdk($"overlay '{_pendingName}': {_allocSize} bytes served from 0x{fixedBase:X8} " +
+                "instead of the heap");
         c.V0 = fixedBase;
 
         // Activate the overlay's function table. The dispatcher normally does this
@@ -121,6 +134,7 @@ public static class OverlayPatches
 
         _pendingName = null;
         Redirected++;
+        return false;
     }
 
     /// <summary>

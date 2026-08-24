@@ -70,6 +70,15 @@ public sealed class PSMemory : IMemory
     private void TrackWrite(uint phys, int size)
     {
         _readsSinceWrite = 0;
+        if (Diagnostics.MemGuard.Address != 0 &&
+            phys <= Diagnostics.MemGuard.Address && Diagnostics.MemGuard.Address < phys + (uint)size)
+            Diagnostics.MemGuard.Hit(this);
+        if (Diagnostics.MemGuard.WatchValue && size == 4 && phys < (uint)_ram.Length)
+        {
+            uint off = phys % (uint)_ram.Length;
+            uint w = (uint)(_ram[off] | (_ram[off + 1] << 8) | (_ram[off + 2] << 16) | (_ram[off + 3] << 24));
+            Diagnostics.MemGuard.HitValue(phys, w);
+        }
         if (phys < MemoryMap.RamWindow)
         {
             uint off = phys % (uint)_ram.Length;
@@ -107,6 +116,14 @@ public sealed class PSMemory : IMemory
         if (phys >= MemoryMap.BiosBase && phys < MemoryMap.BiosBase + MemoryMap.BiosSize)
             return _bios.AsSpan((int)(phys - MemoryMap.BiosBase), size);
 
+        // Lenient mode: keep going past a bad pointer instead of stopping at the first
+        // one. It is a probe, not a fix -- it says whether a crash is one stray pointer
+        // or a whole subsystem writing rubbish, which decides where to look next.
+        if (Diagnostics.MemGuard.Lenient)
+        {
+            Diagnostics.MemGuard.NoteUnmapped(address);
+            return _scratchpad.AsSpan(0, size);
+        }
         throw new InvalidOperationException($"unmapped address: 0x{address:X8}");
     }
 
