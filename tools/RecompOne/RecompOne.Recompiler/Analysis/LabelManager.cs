@@ -60,8 +60,23 @@ public static class LabelManager
         var sites = new HashSet<uint>();
         foreach (var instr in func.Instructions)
         {
-            if ((instr.Word >> 26) != 3) continue;             // jal
-            uint target = instr.JumpTarget;
+            uint op = instr.Word >> 26;
+            uint target;
+
+            if (op == 3)                                        // jal
+            {
+                target = instr.JumpTarget;
+            }
+            else if (op == 1 && (((instr.Word >> 16) & 31) is 0x10 or 0x11))
+            {
+                // BLTZAL / BGEZAL: branch-and-link. These set ra exactly as jal does,
+                // and hand-written code uses them as conditional calls to its own
+                // interior routines. Missing them leaves the matching `jr ra` looking
+                // like a function return, which drops the epilogue.
+                target = instr.BranchTarget;
+            }
+            else continue;
+
             if (target <= func.Start || target >= func.End) continue;   // > Start: not recursion
             uint back = instr.Vram + 8;                        // past the delay slot
             if (back >= func.Start && back < func.End) sites.Add(back);

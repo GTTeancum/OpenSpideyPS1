@@ -4,64 +4,60 @@ Ordered by what blocks the most. Ruling things out is most of the value here, so
 things that turned out *not* to be the cause are recorded with their evidence.
 
 **Where it stands.** The port boots, plays the intro FMV, reaches the title screen and
-menus, and now loads a level completely: the `l1a1` trigger list, both actor code
-overlays (`thug`, `blackcat`), the actor models, and the level geometry
-(`L1A1_L/_O/_G.psx`). Actors spawn and gameplay trigger scripts run. It holds ~59 fps.
-It then dies on the first gameplay frame inside the object renderer — item 1 below.
+menus, and loads and runs a level: the `l1a1` trigger list, both actor code overlays
+(`thug`, `blackcat`), the actor models and the level geometry (`L1A1_L/_O/_G.psx`).
+Actors spawn, gameplay trigger scripts run, and it holds ~57 fps with no crash. What it
+does not do is draw the level — item 1 below.
 
 ---
 
-## 1. Crash on the first gameplay frame  — BLOCKER
+## 1. The level runs but draws nothing  — BLOCKER
 
-```
-unmapped address: 0x00A402CB
-  at RenderObjectList (0x8002EED4)   <- lw s0, 4(s0) at 0x8002F248
-  at func_8002DA0C -> func_8003565C -> func_8002BD5C -> func_8002C174 -> main loop
-  overlays: main, shell, thug, blackcat
-```
+The level loads, spawns its actors, runs its trigger scripts and holds ~57 fps with no
+crash. The screen is a flat fill.
 
-`RenderObjectList` walks a linked list through offset 4 and renders each node via
-`func_8007C4D8(node + 100, 0, 1)`. The faulting address is exactly `s0 + 4`, so a
-node's `next` pointer has become `0x00A402C7`.
+The geometry *is* reaching the GPU: a primitive dump on a level frame
+(`SPIDEY_PRIMS=2500`) shows **1,422 primitives** — textured, gouraud-shaded quads with
+sensible screen coordinates. They are all being clipped away. Each one carries a
+drawing area of `[1023,1023..1023,1023]`, which admits nothing.
 
-**What is known:**
+Where that comes from, and what it is not:
 
-- The list is **valid on entry** every time. A hook that walks it before the body runs
-  finds a clean chain terminating at 0 — including on the call that crashes:
-  `0x8009C5D0 -> 0x801D48CC -> 0x801D4840 -> 0x801D47B4 -> 0x801D4728 -> 0`. So the
-  corruption happens *during* the walk.
-- `0x8009C5D0` is a legitimate node: it is a 168-byte block from the game's small-block
-  pool, which `HeapInit` (0x800650C8) lays out at `0x8009C5C8` in the executable's BSS.
-  A fresh one is prepended each frame.
-- The bad value `0x00A402C7` is only ever seen written to the **stack** (0x807FFE98),
-  not to any node, per a value guard over every tracked 32-bit write.
-- The values involved (`0x00A402C7`, `0x00A502C6`, `0x0FCE08F1`, `0x03FF040B`) look
-  like packed GTE output rather than pointers, and this renderer is GTE-heavy.
+- The frame starts correctly. `GP0(0xE3)/(0xE4)` set `(0,0)-(511,239)` and
+  `(0,256)-(511,495)` — the two buffers — exactly as expected.
+- Interleaved with those, the game issues `0xE30FFFFF` / `0xE40FFFFF`, i.e. every
+  coordinate bit set. The background fill and the first few primitives are drawn under
+  a correct area; everything after the maximised pair is clipped.
+- **Not `PutDrawEnv`.** A check for a clip that is empty or outside the framebuffer
+  never fires, so libgpu is not being handed a bad DRAWENV.
+- **Not `ClearImage`.** The runtime implements it with `GP0(0x02)`, a direct VRAM fill
+  that ignores the drawing area entirely, so it neither sets nor restores one.
 
-**Ruled out, with evidence:**
+That leaves the game submitting those as `DR_AREA` primitives inside the ordering
+table, which `DrawOTag` walks. The thing to check next is the order they come out in:
+an OT is a back-to-front linked list, and if the walk emits a clip-change primitive
+before the geometry it guards instead of after, this is exactly what it would look
+like. Worth confirming against `GP0(0xE3)`'s real field widths too — on the retail
+(old, 160-pin) GPU the Y coordinate is **9 bits**, 0..511, and the runtime masks it
+with `0x3FF`. That is a genuine inaccuracy even though it is not the whole story here,
+because `(1023,511)` clips just as thoroughly as `(1023,1023)`.
 
-- *Stack or saved-register corruption.* A stack-balance and callee-saved-register audit
-  over all 3,314 functions (`"spAudit": true`, see `Diagnostics/SpAudit.cs`) reports
-  **zero** violations in this build. It did find real ones earlier — see item 6.
-- *Missing GTE opcodes.* The only GTE function codes these two routines use are
-  0x01, 0x06, 0x10, 0x12, 0x29, 0x2A, 0x3D and 0x3E, and the runtime implements all of
-  them. Their *results* have not been checked against hardware, which is the obvious
-  next step.
-- *Unaligned load/store.* `LWL`/`LWR`/`SWL`/`SWR` in `PSMemory` were checked against the
-  R3000 definition case by case and are correct, including the C# shift-count masking
-  that makes a 32-bit shift silently wrong.
-- *Heap exhaustion.* Fixed, and separately — see item 2.
+## 2. Fixed: the first-gameplay-frame crash was a missed branch-and-link
 
-**Next step.** Run the same scene with `SPIDEY_LENIENT=1` (unmapped reads return zero
-instead of throwing) and it survives: exactly five bad reads at that one instant, then
-2,500 clean frames. So this is one localised bad pointer, not a subsystem writing
-rubbish. The screen stays flat yellow because nothing reaches the ordering table. The
-thing to check next is whether the GTE gives the same numbers as hardware for the
-`RTPT`/`NCLIP`/`AVSZ` sequence this renderer runs.
+Recorded because the mechanism is easy to hit again. The object renderer walks a linked
+list and keeps the current node in `s0` across a call to the packet writer at
+`0x8007C4D8`. `s0` came back as rubbish, and the crash landed on the next
+`lw s0, 4(s0)`.
 
----
+The packet writer is hand-written and calls its own interior routines with **`bltzal`
+and `bgezal`** — REGIMM *branch-and-link*. Those set `ra` exactly as `jal` does, so the
+matching `jr ra` returns to a point inside the same function. The local-return analysis
+only recognised `jal`, so those returns were emitted as ordinary function returns: the
+epilogue never ran, the frame was never popped, and the caller's saved registers came
+back from the wrong addresses. Fixed by treating `bltzal`/`bgezal` with an interior
+target the same as `jal`.
 
-## 2. Fixed: the loading-screen freeze was an out-of-memory halt
+## 3. Fixed: the loading-screen freeze was an out-of-memory halt
 
 Worth recording because the symptom pointed nowhere near the cause. The window went
 "Not Responding" on the level loading screen, with no recompiled code executing at all.
@@ -79,7 +75,7 @@ allocator never runs for those allocations.
 
 ---
 
-## 3. Fixed: 15 fps and an unresponsive window
+## 4. Fixed: 15 fps and an unresponsive window
 
 The game busy-polls `VSync(-1)` — 117,714 calls in 500 frames — and its wait loops never
 call `VSync(0)`. Frames, CD service and pad refresh therefore only happened when the
@@ -93,7 +89,7 @@ finishes early. 15 fps → 59 fps, and game time per frame 60 ms → 16 ms.
 
 ---
 
-## 4. FMV decodes to garbage
+## 5. FMV decodes to garbage
 
 The intro movie plays — MDEC runs, the display switches to 320x240 24bpp, frames
 advance — but the picture is a green/magenta dither rather than an image. The mode
@@ -108,7 +104,7 @@ where it diverges. Not attempted yet.
 
 ---
 
-## 5. Audio unverified
+## 6. Audio unverified
 
 `SpuInit`, `SpuSetCommonAttr`, `SpuSetKey` and `SpuWrite` are recovered and routed, and
 the game loads `menu.VAB` / `l1a1.VAB` / `.SFX` banks, but nothing has been listened to.
@@ -117,7 +113,7 @@ has its entry points; it has not been exercised.
 
 ---
 
-## 6. RecompOne fixes made along the way
+## 7. RecompOne fixes made along the way
 
 All game-agnostic; see `tools/recompone-spiderman-changes.patch`.
 
@@ -131,6 +127,7 @@ All game-agnostic; see `tools/recompone-spiderman-changes.patch`.
   24-instruction window, because a full epilogue is a dozen instructions and a shorter
   window misreads ordinary returns. Self-recursion is excluded: a `jal` to the
   function's own first instruction makes a fresh frame and must return normally.
+  `bltzal`/`bgezal` count as calls here too — see item 2.
 - **Diagnostics** worth keeping: `spAudit` (stack and callee-saved-register audit over
   every function), `MemGuard` (watch an address, or watch for a value, and print the
   call ring at the write), `FrameProfile` (present / throttle / game time per frame),
@@ -138,7 +135,7 @@ All game-agnostic; see `tools/recompone-spiderman-changes.patch`.
 
 ---
 
-## 7. Smaller things
+## 8. Smaller things
 
 - **Four libgpu symbols were not recovered**: `DrawOTagEnv`, `DrawSyncCallback`,
   `GetODE`, `ClearOTag`. `tools/mkconfig.py` deliberately emits no patch for a name it

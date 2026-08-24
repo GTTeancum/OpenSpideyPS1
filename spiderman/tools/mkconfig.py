@@ -71,6 +71,8 @@ def main():
             ('LoadPsx',     'pre',  'Recompiled.GameTrace.LoadPsx'),
             ('RunTriggerScript', 'pre', 'Recompiled.GameTrace.RunTriggerScript'),
             ('LoadTriggers', 'pre', 'Recompiled.GameTrace.LoadTriggers'),
+            ('DrawPrimSet',  'pre', 'Recompiled.GameTrace.DrawPrimSet'),
+            ('DrawPrimSet',  'post','Recompiled.GameTrace.DrawPrimSetExit'),
             ('FatalHalt',    'pre', 'Recompiled.GameTrace.FatalHalt'),
             ('RenderObjectList', 'pre', 'Recompiled.GameTrace.RenderObjectList'),
             ('RenderObjectList', 'post', 'Recompiled.GameTrace.RenderObjectListExit'),

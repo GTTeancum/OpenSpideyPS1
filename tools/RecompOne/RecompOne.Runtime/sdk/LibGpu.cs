@@ -56,6 +56,12 @@ public static class LibGpu
         byte isbg = m.ReadU8(env + 0x18);
         byte r0 = m.ReadU8(env + 0x19), g0 = m.ReadU8(env + 0x1A), b0 = m.ReadU8(env + 0x1B);
 
+        // A zero-sized clip turns into right = clipX - 1, which the GP0 command masks
+        // to 1023 -- a degenerate area that silently clips away everything drawn after
+        // it. Worth saying out loud rather than rendering an empty screen.
+        if (clipW <= 0 || clipH <= 0)
+            Diagnostics.DrawEnvWarn.Degenerate(env, clipX, clipY, clipW, clipH);
+
         gpu.WriteGp0(GetCs(clipX, clipY));
         gpu.WriteGp0(GetCe((short)(clipX + clipW - 1), (short)(clipY + clipH - 1)));
         gpu.WriteGp0(GetOfs(ofsX, ofsY));

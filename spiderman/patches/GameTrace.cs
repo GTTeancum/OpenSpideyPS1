@@ -111,6 +111,10 @@ public static class GameTrace
     /// One node's next pointer is landing outside RAM; this reports the node it came
     /// from so the write that corrupted it can be found.
     /// </summary>
+    /// <summary>Per-frame render tracing is off unless SPIDEY_TRACE_RENDER is set.</summary>
+    public static readonly bool TraceRender =
+        !string.IsNullOrEmpty(Environment.GetEnvironmentVariable("SPIDEY_TRACE_RENDER"));
+
     static int _rolCalls;
     static uint _rolPrimAtEntry;
     static uint _rolHeadPtr;
@@ -119,6 +123,7 @@ public static class GameTrace
     /// <summary>post-hook on the object renderer.</summary>
     public static void RenderObjectListExit(CpuContext c, IMemory m)
     {
+        if (!TraceRender) return;
         uint node = m.ReadU32(_rolHeadPtr);
         for (int i = 0; i < 20000 && node != 0; i++)
         {
@@ -133,6 +138,7 @@ public static class GameTrace
 
     public static void RenderObjectList(CpuContext c, IMemory m)
     {
+        if (!TraceRender) return;
         // The primitive buffer the packet writer fills. If this pointer climbs without
         // being reset each frame it eventually walks into whatever follows it in RAM.
         uint primPtr = m.ReadU32(0x800B5944);
@@ -185,6 +191,33 @@ public static class GameTrace
         var sb = new System.Text.StringBuilder("[game]   callers, most recent last: ");
         foreach (uint a in tail) sb.Append($"0x{a:X8} ");
         Console.WriteLine(sb.ToString());
+    }
+
+    static uint _dpsS0;
+    static int _dpsCount;
+
+    /// <summary>
+    /// pre/post on the packet writer the object renderer calls per node. The renderer
+    /// keeps the node it is walking in s0 across this call and reads s0->next straight
+    /// afterwards, so whether s0 survives here decides whether the crash is a clobbered
+    /// register or genuinely corrupt memory.
+    /// </summary>
+    public static void DrawPrimSet(CpuContext c, IMemory m)
+    {
+        if (!TraceRender) return;
+        _dpsS0 = c.S0;
+        _dpsNext = (c.S0 >= 0x80000000 && c.S0 < 0x80800000) ? m.ReadU32(c.S0 + 4) : 0xDEADBEEF;
+    }
+
+    static uint _dpsNext;
+
+    public static void DrawPrimSetExit(CpuContext c, IMemory m)
+    {
+        if (!TraceRender) return;
+        uint nextNow = (c.S0 >= 0x80000000 && c.S0 < 0x80800000) ? m.ReadU32(c.S0 + 4) : 0xDEADBEEF;
+        if ((c.S0 != _dpsS0 || nextNow != _dpsNext) && _dpsCount++ < 10)
+            Console.WriteLine($"[game] DrawPrimSet changed things: s0 0x{_dpsS0:X8}->0x{c.S0:X8}, " +
+                              $"s0->next 0x{_dpsNext:X8}->0x{nextNow:X8}, ra on exit 0x{c.RA:X8}");
     }
 
     /// <summary>pre-hook on LoadTriggers(char *area)</summary>

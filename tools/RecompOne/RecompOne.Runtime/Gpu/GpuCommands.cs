@@ -52,8 +52,14 @@ public sealed partial class Gpu
             case >= 0xC0 and <= 0xDF: BeginImageRead(); break;
             case 0xE1: SetDrawMode(word); break;
             case 0xE2: SetTextureWindow(word); break;
-            case 0xE3: _drawAreaLeft = (int)(word & 0x3FF); _drawAreaTop = (int)((word >> 10) & 0x3FF); break;
-            case 0xE4: _drawAreaRight = (int)(word & 0x3FF); _drawAreaBottom = (int)((word >> 10) & 0x3FF); break;
+            case 0xE3:
+                _drawAreaLeft = (int)(word & 0x3FF); _drawAreaTop = (int)((word >> 10) & 0x3FF);
+                Diagnostics.DrawEnvWarn.Area(0xE3, word, _drawAreaLeft, _drawAreaTop);
+                break;
+            case 0xE4:
+                _drawAreaRight = (int)(word & 0x3FF); _drawAreaBottom = (int)((word >> 10) & 0x3FF);
+                Diagnostics.DrawEnvWarn.Area(0xE4, word, _drawAreaRight, _drawAreaBottom);
+                break;
             case 0xE5:
                 _drawOffsetX = SignExtend11(word & 0x7FF);
                 _drawOffsetY = SignExtend11((word >> 11) & 0x7FF);

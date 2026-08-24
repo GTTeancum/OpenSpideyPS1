@@ -4,11 +4,12 @@ A [RecompOne](https://github.com/BlackLabelHQ/RecompOne) port of the PlayStation
 Spider-Man (Neversoft, 2000), built from the retail USA disc following
 `../RECOMP-PLAYBOOK.md`.
 
-**State: loads a level, dies on the first gameplay frame.** Logos, title screen, main
-menu and difficulty select all render and respond to input; the intro FMV plays (badly).
+**State: the level loads and runs, but does not draw.** Logos, title screen, main menu
+and difficulty select all render and respond to input; the intro FMV plays (badly).
 Selecting a difficulty loads level 1 completely — trigger list, both actor code overlays,
-actor models and the level geometry — and actors spawn. It then crashes in the object
-renderer on the first gameplay frame. Runs at ~59 fps. See [TO_DO.md](TO_DO.md) for the
+actor models and the level geometry — actors spawn, trigger scripts run, and it holds
+~57 fps with no crash. 1,422 primitives per frame reach the GPU and are all clipped away
+by a drawing area of `[1023,1023..1023,1023]`. See [TO_DO.md](TO_DO.md) for the
 diagnosis and what has been ruled out.
 
 ---
@@ -180,6 +181,8 @@ SPIDEY_STALL=12             seconds without a frame before the watchdog dumps
 SPIDEY_GUARD=8009c5d4       report writes to an address, with the call ring
 SPIDEY_GUARD_VALUE=00a402c7 report wherever this exact word gets stored
 SPIDEY_LENIENT=1            survive unmapped reads instead of throwing, and log them
+SPIDEY_TRACE_RENDER=1       per-frame object-list and packet-writer tracing
+SPIDEY_PRIMS=2500           dump every primitive drawn on these frames
 ```
 
 The recompiler has two matching switches: `"spAudit": true` in `config/spiderman.json`

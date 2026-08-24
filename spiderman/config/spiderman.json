@@ -251,6 +251,18 @@
     },
     {
       "overlay": "main",
+      "function": "DrawPrimSet",
+      "mode": "pre",
+      "target": "Recompiled.GameTrace.DrawPrimSet"
+    },
+    {
+      "overlay": "main",
+      "function": "DrawPrimSet",
+      "mode": "post",
+      "target": "Recompiled.GameTrace.DrawPrimSetExit"
+    },
+    {
+      "overlay": "main",
       "function": "FatalHalt",
       "mode": "pre",
       "target": "Recompiled.GameTrace.FatalHalt"
