@@ -1,0 +1,50 @@
+{
+  "_comment": "Hand-identified symbols, verified by reading the code at each address. Names here are hard seeds for fixmaps.py and the handles config/spiderman.json patches by.",
+  "functions": [
+    {
+      "address": "0x8001B990",
+      "name": "LoadOverlay",
+      "size": 428
+    },
+    {
+      "address": "0x8001BF58",
+      "name": "OverlayRelocate",
+      "size": 236
+    },
+    {
+      "address": "0x800651C8",
+      "name": "HeapAlloc",
+      "size": 800
+    },
+    {
+      "address": "0x800654E8",
+      "name": "HeapFree",
+      "size": 156
+    },
+    {
+      "address": "0x80064B3C",
+      "name": "CdWadFind",
+      "size": 492
+    },
+    {
+      "address": "0x80064D28",
+      "name": "CdWadRead",
+      "size": 124
+    },
+    {
+      "address": "0x80064F3C",
+      "name": "CdWadWait",
+      "size": 56
+    },
+    {
+      "address": "0x8008AFBC",
+      "name": "PadInitMtap",
+      "size": 568
+    },
+    {
+      "address": "0x8001BEC4",
+      "name": "SpawnActor",
+      "size": 148
+    }
+  ]
+}

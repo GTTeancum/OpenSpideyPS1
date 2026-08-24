@@ -1,0 +1,1060 @@
+diff --git a/RecompOne.Recompiler/Analysis/JumpTableAnalyzer.cs b/RecompOne.Recompiler/Analysis/JumpTableAnalyzer.cs
+index f1629e0..cb2acb7 100644
+--- a/RecompOne.Recompiler/Analysis/JumpTableAnalyzer.cs
++++ b/RecompOne.Recompiler/Analysis/JumpTableAnalyzer.cs
+@@ -141,17 +141,32 @@ public static class JumpTableAnalyzer
+             regs[rd].Invalidate();
+     }
+ 
++    const int MaxEntries = 4096;
++
++    // A switch table does not have to stay inside the function: a case that is just a
++    // tail jump lands on the next function, and stopping at the first such entry threw
++    // away every case after it. Those became the runtime's indirect fallback, which
++    // fails on any input that selects one. Keep reading while the words are plausible
++    // code addresses for this module and let the emitter decide how to reach each one.
+     static uint[] ReadEntries(FunctionInfo elf, uint tableVram, MipsFunction func)
+     {
+         var  entries = new List<uint>();
+         uint vram = tableVram;
+-        while (TryReadWord(elf, vram, out uint word))
++        uint textLo = elf.TextBase;
++        uint textHi = elf.TextBase + (uint)elf.TextData.Length;
++        bool sawOwn = false;
++
++        while (entries.Count < MaxEntries && TryReadWord(elf, vram, out uint word))
+         {
+-            if (word < func.Start || word >= func.End) break;
++            bool own = word >= func.Start && word < func.End;
++            bool code = (word & 3) == 0 && word >= textLo && word < textHi;
++            if (!own && !code) break;
++            // A table that never targets its own function is not a switch we recognised.
++            sawOwn |= own;
+             entries.Add(word);
+             vram += 4;
+         }
+-        return entries.ToArray();
++        return sawOwn ? entries.ToArray() : [];
+     }
+ 
+     static bool TryReadWord(FunctionInfo elf, uint vram, out uint value)
+diff --git a/RecompOne.Recompiler/CodeGen/FunctionEmmiter.cs b/RecompOne.Recompiler/CodeGen/FunctionEmmiter.cs
+index 47e000e..8d12523 100644
+--- a/RecompOne.Recompiler/CodeGen/FunctionEmmiter.cs
++++ b/RecompOne.Recompiler/CodeGen/FunctionEmmiter.cs
+@@ -61,6 +61,8 @@ public static class FunctionEmitter
+         sb.AppendLine(noInline);
+         sb.AppendLine($"    public static void {name}(CpuContext c, IMemory m)");
+         sb.AppendLine("    {");
++        if (ctx.CallRing)
++            sb.AppendLine($"        RecompOne.Runtime.Diagnostics.CallRing.Enter(0x{func.Start:X8}u);");
+         if (ctx.Debug)
+             sb.AppendLine($"        System.Console.WriteLine(\"{func.EmittedName} @ {func.OverlayName} @ 0x{func.Start:X8}\");");
+ 
+diff --git a/RecompOne.Recompiler/CodeGen/InstructionEmitter.cs b/RecompOne.Recompiler/CodeGen/InstructionEmitter.cs
+index 9ac9043..60e5cac 100644
+--- a/RecompOne.Recompiler/CodeGen/InstructionEmitter.cs
++++ b/RecompOne.Recompiler/CodeGen/InstructionEmitter.cs
+@@ -283,7 +283,14 @@ public static class InstructionEmitter
+                 sb.AppendLine(ctx.Trail(ctrl, $"{indent}switch ({RS})"));
+                 sb.AppendLine(ctx.Trail(ctrl, $"{indent}{{"));
+                 foreach (uint entry in jtbl.Entries.Distinct())
+-                    sb.AppendLine(ctx.Trail(ctrl, $"{indent}    case 0x{entry:X8}u: goto L{entry:X8};"));
++                {
++                    if (InFunc(entry))
++                        sb.AppendLine(ctx.Trail(ctrl, $"{indent}    case 0x{entry:X8}u: goto L{entry:X8};"));
++                    else if (ctx.KnownFunctions.TryGetValue(entry, out var jname))
++                        sb.AppendLine(ctx.Trail(ctrl, $"{indent}    case 0x{entry:X8}u: {jname}(c, m); return;"));
++                    else
++                        sb.AppendLine(ctx.Trail(ctrl, $"{indent}    case 0x{entry:X8}u: Dispatcher.Call(c, m, 0x{entry:X8}u); return;"));
++                }
+                 sb.AppendLine(ctx.Trail(ctrl, $"{indent}    default: Dispatcher.Call(c, m, {RS}); return;"));
+                 sb.AppendLine(ctx.Trail(ctrl, $"{indent}}}"));
+             }
+@@ -318,6 +325,7 @@ public sealed class FunctionContext
+     public Dictionary<uint, string> KnownFunctions = [];
+     public HashSet<uint> Labels = [];
+     public bool Debug;
++    public bool CallRing;
+     public bool AddressComments;
+     public bool DisasmComments;
+     public Dictionary<uint, JumpTable> JumpTablesByJr = [];
+diff --git a/RecompOne.Recompiler/CodeGen/OverlayWriter.cs b/RecompOne.Recompiler/CodeGen/OverlayWriter.cs
+index 14104c5..178cb6e 100644
+--- a/RecompOne.Recompiler/CodeGen/OverlayWriter.cs
++++ b/RecompOne.Recompiler/CodeGen/OverlayWriter.cs
+@@ -13,7 +13,7 @@ namespace RecompOne.Recompiler.CodeGen;
+ 
+ public static class OverlayWriter
+ {
+-    record OverlayResult(string Name, List<MipsFunction> Functions, int LbaStart, uint Base, uint Size, MipsInstruction[] Instructions);
++    record OverlayResult(string Name, List<MipsFunction> Functions, int LbaStart, uint Base, uint Size, MipsInstruction[] Instructions, bool Debug);
+ 
+     public static void Write(RecompOneConfig config, DiscFs fs, string outDir)
+     {
+@@ -110,7 +110,7 @@ public static class OverlayWriter
+             AnalyzeJumpTables(funcs, elfInfo!, "main");
+ 
+             ApplyStubsAndIgnored(funcs, config.Stubs, config.Ignored);
+-            overlayResults.Add(new OverlayResult("main", funcs, -1, 0, 0, mainInstrs));
++            overlayResults.Add(new OverlayResult("main", funcs, -1, 0, 0, mainInstrs, config.Debug));
+         }
+ 
+         foreach (var overlayConfig in config.Overlays)
+@@ -118,7 +118,8 @@ public static class OverlayWriter
+             var analysis = AnalyzeOverlay(config, overlayConfig, fs);
+             if (analysis == null) continue;
+             overlayResults.Add(new OverlayResult(overlayConfig.Name, analysis.Functions, analysis.Lba,
+-                analysis.Base, (uint)analysis.DiscBin.Length, analysis.Instructions));
++                analysis.Base, (uint)analysis.DiscBin.Length, analysis.Instructions,
++                overlayConfig.Debug ?? config.Debug));
+         }
+ 
+         var allFuncs = overlayResults.SelectMany(o => o.Functions).ToList();
+@@ -244,7 +245,7 @@ public static class OverlayWriter
+         foreach (var result in overlayResults)
+         {
+             Console.WriteLine($"[Recompiler] emiting {result.Name}.cs ({result.Functions.Count} functions)");
+-            EmitOverlayFile(result.Name, result.Functions, className, knownFuncs, config.Debug, config.AddressComments, config.DisasmComments, result.LbaStart,  result.Base, result.Size, result.Instructions, outDir);
++            EmitOverlayFile(result.Name, result.Functions, className, knownFuncs, result.Debug, config.CallRing, config.AddressComments, config.DisasmComments, result.LbaStart,  result.Base, result.Size, result.Instructions, outDir);
+         }
+ 
+         Console.WriteLine("[Recompiler] Emitting Entry.cs");
+@@ -294,7 +295,7 @@ public static class OverlayWriter
+         Console.WriteLine($"[Recompiler] linear sweep found {swept.Count} function(s) (+{callees.Count} callees) in {overlayName}");
+     }
+ 
+-    static void EmitOverlayFile(string overlayName, List<MipsFunction> funcs, string className, Dictionary<uint, string> knownFuncs, bool debug, bool addressComments, bool disasmComments, int lbaStart, uint ovlBase, uint ovlSize, MipsInstruction[] instrs, string outDir)
++    static void EmitOverlayFile(string overlayName, List<MipsFunction> funcs, string className, Dictionary<uint, string> knownFuncs, bool debug, bool callRing, bool addressComments, bool disasmComments, int lbaStart, uint ovlBase, uint ovlSize, MipsInstruction[] instrs, string outDir)
+     {
+         var sb = new StringBuilder();
+         sb.AppendLine("using RecompOne.Runtime.Context;");
+@@ -316,6 +317,7 @@ public static class OverlayWriter
+                 KnownFunctions = knownFuncs,
+                 Labels = labels,
+                 Debug = debug,
++                CallRing = callRing,
+                 AddressComments = addressComments,
+                 DisasmComments = disasmComments,
+                 JumpTablesByJr = func.JumpTables.ToDictionary(j => j.JrVram),
+@@ -368,6 +370,18 @@ public static class OverlayWriter
+     {
+         try
+         {
++            if (cfg.Path != null)
++            {
++                if (!File.Exists(cfg.Path))
++                {
++                    Console.WriteLine($"[Recompiler] WARNING: overlay image not found: {cfg.Path}");
++                    return (null, -1);
++                }
++                byte[] local = File.ReadAllBytes(cfg.Path);
++                int from = cfg.Offset + cfg.Skip;
++                int len = cfg.Size ?? (local.Length - from);
++                return (Decrypt(local.AsSpan(from, len).ToArray(), cfg.Decrypt), -1);
++            }
+             if (cfg.Lba >= 0)
+             {
+                 int sz = cfg.Size ?? throw new InvalidOperationException($"'size' is required when using 'lba' for overlay '{cfg.Name}'");
+@@ -386,7 +400,7 @@ public static class OverlayWriter
+                 int length = cfg.Size ?? (full.Length - start);
+                 return (Decrypt(full.AsSpan(start, length).ToArray(), cfg.Decrypt), absLba);
+             }
+-            Console.WriteLine($"[Recompiler] WARNING: overlay '{cfg.Name}' has no 'file' or 'lba' source defined");
++            Console.WriteLine($"[Recompiler] WARNING: overlay '{cfg.Name}' has no 'path', 'file' or 'lba' source defined");
+             return (null, -1);
+         }
+         catch (Exception ex)
+diff --git a/RecompOne.Recompiler/Config/ConfigLoader.cs b/RecompOne.Recompiler/Config/ConfigLoader.cs
+index 5101a1f..d51d9d6 100644
+--- a/RecompOne.Recompiler/Config/ConfigLoader.cs
++++ b/RecompOne.Recompiler/Config/ConfigLoader.cs
+@@ -14,6 +14,7 @@ public sealed class RecompOneConfig
+     [JsonPropertyName("functions")] public FunctionEntry[] Functions { get; set; } = [];
+     [JsonPropertyName("linearSweep")] public bool LinearSweep { get; set; } //linear sweep is to find functions when the elf doesnt ptovide then properly (fuck you sh) this can and WILL get some data as code, use it by your own risk
+     [JsonPropertyName("debug")] public bool Debug { get; set; }
++    [JsonPropertyName("callRing")] public bool CallRing { get; set; }
+     [JsonPropertyName("addressComments")] public bool AddressComments { get; set; }
+     [JsonPropertyName("disasmComments")] public bool DisasmComments { get; set; }
+     [JsonPropertyName("overlays")] public OverlayConfig[] Overlays { get; set; } = [];
+@@ -97,6 +98,10 @@ public sealed class OverlayConfig
+     [JsonPropertyName("funcMap")] public string? FuncMap { get; set; }
+     [JsonPropertyName("base")] public string? Base { get; set; }
+     [JsonPropertyName("file")] public string? File { get; set; }
++    // A local file holding the overlay image already in the form it has in RAM.
++    // Games that relocate an overlay while loading it have no byte range on the disc
++    // that matches what actually executes, so the bytes have to be prepared outside.
++    [JsonPropertyName("path")] public string? Path { get; set; }
+     [JsonPropertyName("offset")] public int Offset { get; set; } = 0;
+     [JsonPropertyName("skip")] public int Skip { get; set; } = 0;
+     [JsonPropertyName("lba")] public int Lba { get; set; } = -1;
+@@ -105,6 +110,7 @@ public sealed class OverlayConfig
+     [JsonPropertyName("rebase")] public int Rebase { get; set; } = 0;
+     [JsonPropertyName("functions")] public FunctionEntry[] Functions { get; set; } = [];
+     [JsonPropertyName("linearSweep")] public bool? LinearSweep { get; set; }
++    [JsonPropertyName("debug")] public bool? Debug { get; set; }
+     [JsonPropertyName("stubs")] public string[] Stubs { get; set; } = [];
+     [JsonPropertyName("ignored")] public string[] Ignored { get; set; } = [];
+ }
+diff --git a/RecompOne.Recompiler/Program.cs b/RecompOne.Recompiler/Program.cs
+index fd2f46d..09843da 100644
+--- a/RecompOne.Recompiler/Program.cs
++++ b/RecompOne.Recompiler/Program.cs
+@@ -35,6 +35,7 @@ foreach (var overlay in config.Overlays)
+     overlay.Elf = ResolvePath(overlay.Elf);
+     overlay.Map = ResolvePath(overlay.Map);
+     overlay.FuncMap = ResolvePath(overlay.FuncMap);
++    overlay.Path = ResolvePath(overlay.Path);
+ }
+ 
+ string cuePath = Path.GetFullPath(Path.Combine(configDir, config.Cue));
+@@ -73,6 +74,7 @@ static int GenerateFunctionFile(string[] args)
+     string? discPath = null, discFile = null, baseAddr = null;
+     bool linearSweep = false;
+     int offset = 0, skip = 0, lba = -1, size = -1;
++    string? localPath = null;
+     bool decrypt = false;
+     int rebase = 0;
+ 
+@@ -86,6 +88,7 @@ static int GenerateFunctionFile(string[] args)
+             case "-linear-sweep": linearSweep = true; break;
+             case "-disc": discPath = args[++i]; break;
+             case "-file": discFile = args[++i]; break;
++            case "-path": localPath = args[++i]; break;
+             case "-base": baseAddr = args[++i]; break;
+             case "-offset": offset = Convert.ToInt32(args[++i], 16); break;
+             case "-skip": skip = Convert.ToInt32(args[++i], 16); break;
+@@ -107,12 +110,12 @@ static int GenerateFunctionFile(string[] args)
+ 
+     if (linearSweep)
+     {
+-        if (discPath == null || baseAddr == null || (discFile == null && lba < 0))
++        if (baseAddr == null || (localPath == null && (discPath == null || (discFile == null && lba < 0))))
+         {
+-            Console.Error.WriteLine("-linear-sweep needs -disc <cue>, -base <hex> and eiter -file <path in disc> or -lba <n> -size <hex>");
++            Console.Error.WriteLine("-linear-sweep needs -base <hex> and either -path <local image>, or -disc <cue> with -file <path in disc> or -lba <n> -size <hex>");
+             return 1;
+         }
+-        return GenerateFromLinearSweep(discPath, discFile, baseAddr, offset, skip, lba, size, decrypt, rebase, outPath);
++        return GenerateFromLinearSweep(discPath, discFile, localPath, baseAddr, offset, skip, lba, size, decrypt, rebase, outPath);
+     }
+ 
+     if (elfPath == null && mapPath == null)
+@@ -161,20 +164,29 @@ static int GenerateFunctionFile(string[] args)
+     return 0;
+ }
+ 
+-static int GenerateFromLinearSweep(string discPath, string? discFile, string baseAddr,
++static int GenerateFromLinearSweep(string? discPath, string? discFile, string? localPath, string baseAddr,
+     int offset, int skip, int lba, int size, bool decrypt, int rebase, string outPath)
+ {
+-    discPath = Path.GetFullPath(discPath);
+-    if (!File.Exists(discPath))
++    if (localPath != null && !File.Exists(localPath))
+     {
+-        Console.Error.WriteLine($"disc file not found: {discPath}");
++        Console.Error.WriteLine($"overlay image not found: {localPath}");
+         return 1;
+     }
++    if (localPath == null)
++    {
++        discPath = Path.GetFullPath(discPath!);
++        if (!File.Exists(discPath))
++        {
++            Console.Error.WriteLine($"disc file not found: {discPath}");
++            return 1;
++        }
++    }
+ 
+     var overlay = new OverlayConfig
+     {
+         Name = Path.GetFileNameWithoutExtension(outPath),
+         Base = baseAddr,
++        Path = localPath,
+         File = discFile,
+         Offset = offset,
+         Skip = skip,
+@@ -185,9 +197,9 @@ static int GenerateFromLinearSweep(string discPath, string? discFile, string bas
+         LinearSweep = true,
+     };
+ 
+-    Console.WriteLine($"[RecompOne] sweeping {discFile ?? $"lba {lba}"} from {discPath}");
++    Console.WriteLine($"[RecompOne] sweeping {localPath ?? discFile ?? $"lba {lba}"}");
+ 
+-    var fs = DiscFs.Open(discPath);
++    var fs = localPath != null ? null! : DiscFs.Open(discPath!);
+     var analysis = OverlayWriter.AnalyzeOverlay(new RecompOneConfig(), overlay, fs);
+     if (analysis == null)
+     {
+diff --git a/RecompOne.Runtime/Assets/Textures/TextureDumper.cs b/RecompOne.Runtime/Assets/Textures/TextureDumper.cs
+index c50f0f5..a45ad3b 100644
+--- a/RecompOne.Runtime/Assets/Textures/TextureDumper.cs
++++ b/RecompOne.Runtime/Assets/Textures/TextureDumper.cs
+@@ -170,11 +170,11 @@ public static class TextureDumper
+ 
+     static void OfferPage(ushort[] vram, in TileRect tile, ulong clutHash, int tpage, int clut)
+     {
+-        if (!Pages || tile.Bpp == 16) return;
++        if (!Pages) return;
+ 
+-        int widthTexels = tile.Bpp == 4 ? 256 : 128;
+-        var pageRect = TextureTile.Describe(tpage, clut, 0, 0, widthTexels, 256);
+-        if (VramTracker.IsGpuDirty(pageRect.VramX, pageRect.VramY, pageRect.VramW, pageRect.H)) return;
++        // The same derivation the resolver uses, so the hash written here is the hash
++        // looked up later. See TextureResolver.TryDescribeRegion.
++        if (!TextureResolver.TryDescribeRegion(tile, out var pageRect)) return;
+         if (!TextureTile.Hash(vram, pageRect, out ulong pageIndexHash, out ulong pageClutHash)) return;
+ 
+         ulong pageId = 0x9E3779B97F4A7C15UL ^ pageIndexHash ^ (pageClutHash * 1099511628211UL);
+@@ -227,6 +227,12 @@ public static class TextureDumper
+         {
+             string page = Path.Combine(_pageRoot, $"{job.IndexHash:x16}_{job.ClutHash:x16}");
+             PngWriter.WriteRgba(page + ".png", TextureTile.DecodeFrom(job.Window, job.Clut, r), r.W, r.H);
++            // The raw VRAM words as well as the picture. A PNG says what a texture looks
++            // like; only the words say what it *is*, which is what a search of the game's
++            // own archive can be run against when a texture turns out not to come from
++            // anywhere obvious.
++            File.WriteAllBytes(page + ".bin", TextureTile.RawBytes(job.Window));
++            File.WriteAllBytes(page + ".clut.bin", TextureTile.RawBytes(job.Clut));
+             File.WriteAllText(page + ".json", $$"""
+             {
+               "kind": "page",
+diff --git a/RecompOne.Runtime/Assets/Textures/TextureResolver.cs b/RecompOne.Runtime/Assets/Textures/TextureResolver.cs
+index 7fb30e3..6585009 100644
+--- a/RecompOne.Runtime/Assets/Textures/TextureResolver.cs
++++ b/RecompOne.Runtime/Assets/Textures/TextureResolver.cs
+@@ -49,12 +49,131 @@ public static class TextureResolver
+                           (distorted ? "  WARNING: aspect differs from the original, the image will be stretched" : ""));
+     }
+ 
+-    static TextureAsset? ResolvePage(ushort[] vram, int tpage, int clut, int bpp, bool dirty, out TileRect pageRect)
++    /// <summary>
++    /// How wide a whole texture page is, in texels. Always 256, whatever the depth.
++    ///
++    /// A texpage is 64 VRAM words wide, which is 256 texels at 4bpp but only 128 at 8bpp
++    /// and 64 at 16bpp -- yet UVs are 8-bit at every depth, so a texture can address 256
++    /// texels and simply runs on into the neighbouring texpage columns. Sizing the page
++    /// by the hardware's 64 words left the rest of that UV range off the end of the
++    /// replacement, and the shader normalises tile UVs across the page rect, so
++    /// everything past the edge clamped and smeared into horizontal streaks.
++    /// </summary>
++    public static int PageWidthTexels(int bpp) => 256;
++
++    static int TexelsPerWord(int bpp) => bpp switch { 4 => 4, 8 => 2, _ => 1 };
++
++    /// <summary>Why a region lookup ended the way it did, counted per depth.</summary>
++    public enum RegionOutcome { Upload, Ok, Outside, Empty, Dirty, Size }
++
++    static readonly int[] _regionStats = new int[3 * 6];
++
++    static int DepthSlot(int bpp) => bpp == 4 ? 0 : bpp == 8 ? 1 : 2;
++
++    static bool NoteRegion(int bpp, RegionOutcome why)
++    {
++        Interlocked.Increment(ref _regionStats[DepthSlot(bpp) * 6 + (int)why]);
++        return why is RegionOutcome.Ok or RegionOutcome.Upload;
++    }
++
++    /// <summary>
++    /// The uploaded texture a tile belongs to, as a VRAM rectangle.
++    ///
++    /// A fixed 256x256 page is the wrong unit when a game keeps textures in the same
++    /// VRAM rows as its framebuffers: the window always catches blocks the GPU is
++    /// drawing into, the whole thing reads as dynamic, and the tile gets no replacement
++    /// however complete the pack is. That is the case here for every 16bpp texture,
++    /// which is most of the character art.
++    ///
++    /// The dirty tracker already distinguishes blocks the CPU uploaded from blocks the
++    /// GPU rendered, so the uploaded extent can be recovered from it: take the aligned
++    /// page-sized cell the tile sits in and trim whole block rows and columns off the
++    /// edges until nothing GPU-written is left inside. Trimming stops at the tile, so a
++    /// texture wedged against live framebuffer gives up rather than hashing pixels that
++    /// change every frame.
++    ///
++    /// Both the dumper and the resolver call this, so they agree on the rectangle by
++    /// construction, and it is derived from VRAM state alone -- no side channel.
++    /// </summary>
++    public static bool TryDescribeRegion(in TileRect tile, out TileRect region)
++    {
++        region = default;
++
++        const int B = VramTracker.BlockW;
++        int perWord = TexelsPerWord(tile.Bpp);
++        int maxWords = PageWidthTexels(tile.Bpp) / perWord;
++
++        // Anchor on the tile's own texpage, not an absolute grid. UVs are relative to the
++        // texpage base and 8-bit, so [PageX, PageX + 256 texels) x [PageY, PageY + 256)
++        // contains every tile that page can address -- and every tile of one texture
++        // starts from the same rectangle, which is what keeps the hash stable. An
++        // absolute grid instead cuts across texpage bases, and any 16bpp tile reaching
++        // past its cell was thrown out.
++        int x0 = tile.PageX;
++        int x1 = Math.Min(x0 + maxWords, 1024);
++        int y0 = tile.PageY;
++        int y1 = Math.Min(y0 + 256, 512);
++
++        int tx0 = tile.VramX, tx1 = tile.VramX + tile.VramW;
++        int ty0 = tile.VramY, ty1 = tile.VramY + tile.H;
++
++        // The image the game uploaded, when there is one covering this tile. That is the
++        // texture's real extent, so the hash covers the texture and nothing else --
++        // which is what makes a replacement built from the disc's own TIMs addressable,
++        // and what stops a dump from being a slab of unrelated neighbours.
++        if (VramTracker.TryFindUpload(tx0, ty0, tx1 - tx0, ty1 - ty0, out var up)
++            && !VramTracker.IsGpuDirty(up.X, up.Y, up.W, up.H)
++            && Describe(tile, up.X, up.Y, up.W, up.H, perWord, out region))
++            return NoteRegion(tile.Bpp, RegionOutcome.Upload);
++
++        if (tx0 < x0 || ty0 < y0 || tx1 > x1 || ty1 > y1) return NoteRegion(tile.Bpp, RegionOutcome.Outside);
++
++        while (y0 < ty0 && VramTracker.IsGpuDirty(x0, y0, x1 - x0, B)) y0 += B;
++        while (y1 > ty1 && VramTracker.IsGpuDirty(x0, y1 - B, x1 - x0, B)) y1 -= B;
++        while (x0 < tx0 && VramTracker.IsGpuDirty(x0, y0, B, y1 - y0)) x0 += B;
++        while (x1 > tx1 && VramTracker.IsGpuDirty(x1 - B, y0, B, y1 - y0)) x1 -= B;
++
++        if (x1 <= x0 || y1 <= y0) return NoteRegion(tile.Bpp, RegionOutcome.Empty);
++        if (VramTracker.IsGpuDirty(x0, y0, x1 - x0, y1 - y0)) return NoteRegion(tile.Bpp, RegionOutcome.Dirty);
++
++        if (!Describe(tile, x0, y0, x1 - x0, y1 - y0, perWord, out region))
++            return NoteRegion(tile.Bpp, RegionOutcome.Size);
++        return NoteRegion(tile.Bpp, RegionOutcome.Ok);
++    }
++
++    /// <summary>Turn a VRAM rectangle into a tile rect in the sampling tile's UV space.</summary>
++    static bool Describe(in TileRect tile, int x0, int y0, int words, int rows, int perWord,
++        out TileRect region)
+     {
+-        int widthTexels = bpp == 4 ? 256 : 128;
+-        pageRect = TextureTile.Describe(tpage, clut, 0, 0, widthTexels, 256);
++        region = default;
++        int w = words * perWord, h = rows;
++        if (w <= 0 || h <= 0 || w * h > TextureTile.MaxTexels) return false;
+ 
+-        long key = ((long)(tpage & 0x1FF) << 32) ^ (clut & 0x7FFF);
++        region = new TileRect
++        {
++            // Anchored on the tile's own texpage so U0/V0 stay in the UV space the
++            // shader normalises against, even when the region starts before the page.
++            PageX = tile.PageX,
++            PageY = tile.PageY,
++            U0 = (x0 - tile.PageX) * perWord,
++            V0 = y0 - tile.PageY,
++            W = w,
++            H = h,
++            Bpp = tile.Bpp,
++            ClutX = tile.ClutX,
++            ClutY = tile.ClutY,
++            ClutCount = tile.ClutCount,
++        };
++        return true;
++    }
++
++    static TextureAsset? ResolvePage(ushort[] vram, int tpage, int clut, in TileRect tile, bool dirty, out TileRect pageRect)
++    {
++        if (!TryDescribeRegion(tile, out pageRect)) return null;
++
++        long key = ((long)(pageRect.VramX & 0x3FF) << 42) ^ ((long)(pageRect.VramY & 0x1FF) << 33)
++                   ^ ((long)(pageRect.W & 0x1FF) << 24) ^ ((long)(pageRect.H & 0x1FF) << 15)
++                   ^ (clut & 0x7FFF);
+         int generation = VramTracker.Generation(pageRect.VramX, pageRect.VramY, pageRect.VramW, pageRect.H)
+                          ^ VramTracker.Generation(pageRect.ClutX, pageRect.ClutY, pageRect.ClutCount, 1);
+ 
+@@ -108,6 +227,7 @@ public static class TextureResolver
+         Volatile.Write(ref _statRejectDirty, 0);
+         Volatile.Write(ref _statHashed, 0);
+         Volatile.Write(ref _statMemo, 0);
++        Array.Clear(_regionStats);
+     }
+ 
+     public static string StatsLine() =>
+@@ -115,6 +235,31 @@ public static class TextureResolver
+         $"rejected-size={Volatile.Read(ref _statRejectSize)} rejected-gpudirty={Volatile.Read(ref _statRejectDirty)} " +
+         $"hashed={Volatile.Read(ref _statHashed)} memo-hits={Volatile.Read(ref _statMemo)} tiles={CachedTiles}";
+ 
++    /// <summary>
++    /// Why whole-texture regions are being refused, split by depth.
++    ///
++    /// A tile with no replacement of its own falls back to the region it came from, so
++    /// when a depth shows no accepted regions, nothing at that depth can ever be
++    /// replaced -- and the reason it is being refused is the thing worth knowing. The
++    /// 16bpp row is the one to read: those are the character skins.
++    /// </summary>
++    public static string RegionStatsLine()
++    {
++        var sb = new System.Text.StringBuilder("regions");
++        for (int slot = 0; slot < 3; slot++)
++        {
++            int bpp = slot == 0 ? 4 : slot == 1 ? 8 : 16;
++            sb.Append($" {bpp}bpp[");
++            for (int why = 0; why < 6; why++)
++                sb.Append(why == 0 ? "" : " ")
++                  .Append(((RegionOutcome)why).ToString().ToLowerInvariant())
++                  .Append('=')
++                  .Append(Volatile.Read(ref _regionStats[slot * 6 + why]));
++            sb.Append(']');
++        }
++        return sb.ToString();
++    }
++
+     public static void Invalidate()
+     {
+         lock (_memo)
+@@ -239,8 +384,8 @@ public static class TextureResolver
+                     entry.Clut = mgr.ResolveClut(entry.ClutHash);
+                 }
+ 
+-                if (entry.Texture == null && rect.Bpp != 16)
+-                    entry.PageTexture = ResolvePage(gpu.Vram, tpage, clut, rect.Bpp, dirty, out entry.PageRect);
++                if (entry.Texture == null)
++                    entry.PageTexture = ResolvePage(gpu.Vram, tpage, clut, rect, dirty, out entry.PageRect);
+ 
+                 if (entry.Texture != null || entry.Clut != null || entry.PageTexture != null) mgr.Stats.TextureHits++;
+                 else mgr.Stats.TextureMisses++;
+diff --git a/RecompOne.Runtime/Assets/Textures/VramTracker.cs b/RecompOne.Runtime/Assets/Textures/VramTracker.cs
+index 2a01025..2e94c75 100644
+--- a/RecompOne.Runtime/Assets/Textures/VramTracker.cs
++++ b/RecompOne.Runtime/Assets/Textures/VramTracker.cs
+@@ -11,11 +11,76 @@ public static class VramTracker
+     static readonly bool[] _gpuDirty = new bool[Cols * Rows];
+     static int _clock;
+ 
++    /// <summary>One image the CPU uploaded into VRAM, as the rectangle it landed in.</summary>
++    public readonly struct Upload
++    {
++        public readonly int X, Y, W, H;
++        public readonly int Stamp;
++        public Upload(int x, int y, int w, int h, int stamp) { X = x; Y = y; W = w; H = h; Stamp = stamp; }
++        public readonly bool Contains(int x, int y, int w, int h) =>
++            x >= X && y >= Y && x + w <= X + W && y + h <= Y + H;
++        public readonly int Area => W * H;
++    }
++
++    // The last few uploads overlapping each block. A texture is whatever the game
++    // uploaded as one image, and that is the only honest answer to "which pixels are
++    // this texture" -- a fixed page window instead takes in whatever else shares those
++    // VRAM rows. Several images can land inside one 16x16 block, so keep a few per
++    // block and let the lookup pick between them.
++    const int PerBlock = 4;
++    static readonly Upload[] _uploads = new Upload[Cols * Rows * PerBlock];
++    static int _uploadClock;
++
+     public static void Reset()
+     {
+         Array.Clear(_gen);
+         Array.Clear(_gpuDirty);
++        Array.Clear(_uploads);
+         _clock = 0;
++        _uploadClock = 0;
++    }
++
++    /// <summary>Record an image the CPU DMA'd into VRAM. Call this for uploads only.</summary>
++    public static void NoteUpload(int x, int y, int w, int h)
++    {
++        if (w <= 0 || h <= 0 || w > 1024 || h > 512) return;
++        var up = new Upload(x, y, w, h, ++_uploadClock);
++        Bounds(x, y, w, h, out int c0, out int r0, out int c1, out int r1);
++        for (int r = r0; r <= r1; r++)
++            for (int c = c0; c <= c1; c++)
++            {
++                int slot = (r * Cols + c) * PerBlock;
++                // Shuffle down; oldest falls off the end.
++                for (int i = PerBlock - 1; i > 0; i--) _uploads[slot + i] = _uploads[slot + i - 1];
++                _uploads[slot] = up;
++            }
++    }
++
++    /// <summary>
++    /// The smallest still-recorded upload that wholly contains this rectangle.
++    ///
++    /// Smallest rather than newest: a large background image and the small sprite drawn
++    /// over the same rows both contain the sprite's tile, and the sprite is the texture
++    /// being sampled. Ties break towards the more recent upload.
++    /// </summary>
++    public static bool TryFindUpload(int x, int y, int w, int h, out Upload found)
++    {
++        found = default;
++        bool any = false;
++        int c = Math.Clamp(x / BlockW, 0, Cols - 1);
++        int r = Math.Clamp(y / BlockH, 0, Rows - 1);
++        int slot = (r * Cols + c) * PerBlock;
++        for (int i = 0; i < PerBlock; i++)
++        {
++            var up = _uploads[slot + i];
++            if (up.Stamp == 0 || !up.Contains(x, y, w, h)) continue;
++            if (!any || up.Area < found.Area || (up.Area == found.Area && up.Stamp > found.Stamp))
++            {
++                found = up;
++                any = true;
++            }
++        }
++        return any;
+     }
+ 
+     static void Bounds(int x, int y, int w, int h, out int c0, out int r0, out int c1, out int r1)
+diff --git a/RecompOne.Runtime/Bios/BiosB.cs b/RecompOne.Runtime/Bios/BiosB.cs
+index 3b05fc8..e6ff3fa 100644
+--- a/RecompOne.Runtime/Bios/BiosB.cs
++++ b/RecompOne.Runtime/Bios/BiosB.cs
+@@ -27,6 +27,7 @@ public static class BiosB
+         Array.Clear(_evCBs);
+         Array.Clear(_tcbs);
+         Array.Clear(_intChain);
++        _cardDone.Clear();
+         IntrEnvInInterruptAddr = 0u;
+         _padBuf = 0u;
+         _padCardBuf1 = _padCardBuf2 = 0u;
+@@ -40,11 +41,13 @@ public static class BiosB
+                 _evCBs[i].Status = 4u;
+     }
+     
+-    public static void DeliverEventIntr(CpuContext c, IMemory m, uint @class, uint spec)
++    public static int DeliverEventIntr(CpuContext c, IMemory m, uint @class, uint spec)
+     {
++        int hits = 0;
+         for (int i = 0; i < MaxEvents; i++)
+         {
+             if (_evCBs[i].Status != 2u || _evCBs[i].Class != @class || _evCBs[i].Spec != spec) continue;
++            hits++;
+             if ((_evCBs[i].Mode & 0x1000u) != 0 && _evCBs[i].Func != 0u)
+             {
+                 var snap = c.Snapshot();
+@@ -56,15 +59,52 @@ public static class BiosB
+                 _evCBs[i].Status = 4u;
+             }
+         }
++        return hits;
+     }
+     
++    static readonly List<(uint Port, int Delay)> _cardDone = new();
++
++    /// <summary>How long a card completion stays available for re-delivery, in frames.</summary>
++    public static int CardMaxAgeFrames = 240;
++
++    /// <summary>
++    /// Card operations finish asynchronously on hardware. libmcrd starts one, then
++    /// clears its event flags and only afterwards waits for them, so a completion
++    /// delivered inside (or immediately after) the BIOS call gets wiped by the game's
++    /// own clear and the wait never ends. A real directory load takes several frames
++    /// of sector reads, so hold the completion for a few frames and let the game reach
++    /// its wait first.
++    /// </summary>
+     public static void CardComplete(CpuContext c, IMemory m, uint port)
++        => _cardDone.Add((port, 0));
++
++    /// <param name="idle">
++    /// True when the game is spinning rather than running its frame loop.
++    ///
++    /// libmcrd starts a card operation, and only some frames later clears its event
++    /// flags and waits on them -- so a completion handed over once, at any fixed
++    /// delay, is as likely to be wiped by that clear as to be seen. Instead a pending
++    /// completion stays available: it is re-delivered on every idle spin until it
++    /// ages out, which means whichever wait the game reaches first observes it. The
++    /// callbacks only store a flag, so repeating them is harmless.
++    /// </param>
++    public static void PumpCard(CpuContext c, IMemory m, bool idle)
+     {
+-        var card = (port & 0x10u) != 0 ? Runtime.CardB : Runtime.CardA;
+-        uint spec = card.Enabled ? 0x0004u : 0x0100u;
+-        
+-        DeliverEventIntr(c, m, 0xF4000001u, spec);
+-        DeliverEventIntr(c, m, 0xF0000011u, spec);
++        for (int k = _cardDone.Count - 1; k >= 0; k--)
++        {
++            var (p, d) = _cardDone[k];
++            int age = d + 1;
++            _cardDone[k] = (p, age);
++            if (age > CardMaxAgeFrames) { _cardDone.RemoveAt(k); continue; }
++            if (!idle) continue;
++            uint port = p;
++            var card = (port & 0x10u) != 0 ? Runtime.CardB : Runtime.CardA;
++            uint spec = card.Enabled ? 0x0004u : 0x0100u;
++
++            int a = DeliverEventIntr(c, m, 0xF4000001u, spec);
++            int b = DeliverEventIntr(c, m, 0xF0000011u, spec);
++            if (age == 1) Log.Bios($"  PumpCard port=0x{port:X} spec=0x{spec:X4} delivered {a}+{b}");
++        }
+     }
+ 
+     static void CardRead(CpuContext c, IMemory m)
+@@ -189,12 +229,12 @@ public static class BiosB
+             case 0x04: break;
+             case 0x05: break;
+             case 0x06: break;
+-            case 0x07: DeliverEvent(c.A0, c.A1); break;
+-            case 0x08: c.V0 = OpenEvent(c.A0, c.A1, c.A2, c.A3); break;
++            case 0x07: Log.Bios($"  DeliverEvent(class=0x{c.A0:X8} spec=0x{c.A1:X4})"); DeliverEvent(c.A0, c.A1); break;
++            case 0x08: c.V0 = OpenEvent(c.A0, c.A1, c.A2, c.A3); Log.Bios($"  OpenEvent(class=0x{c.A0:X8} spec=0x{c.A1:X4} mode=0x{c.A2:X4} func=0x{c.A3:X8}) -> 0x{c.V0:X8}"); break;
+             case 0x09: CloseEvent(c.A0); c.V0 = 1u; break;
+             case 0x0A: c.V0 = WaitEvent(c.A0); break;
+-            case 0x0B: c.V0 = TestEvent(c.A0); break;
+-            case 0x0C: EnableEvent(c.A0); c.V0 = 1u; break;
++            case 0x0B: c.V0 = TestEvent(c.A0); Log.Bios($"  TestEvent(0x{c.A0:X8}) -> {c.V0}"); break;
++            case 0x0C: Log.Bios($"  EnableEvent(0x{c.A0:X8})"); EnableEvent(c.A0); c.V0 = 1u; break;
+             case 0x0D: DisableEvent(c.A0); c.V0 = 1u; break;
+             case 0x0E: c.V0 = OpenTh(c.A0, c.A1, c.A2); break;
+             case 0x0F: CloseTh(c.A0); c.V0 = 1u; break;
+diff --git a/RecompOne.Runtime/Config/ViewConfig.cs b/RecompOne.Runtime/Config/ViewConfig.cs
+index 4e8501f..674f27b 100644
+--- a/RecompOne.Runtime/Config/ViewConfig.cs
++++ b/RecompOne.Runtime/Config/ViewConfig.cs
+@@ -66,6 +66,18 @@ public class ViewConfig
+         set => SetBool("VSync", value);
+     }
+ 
++    public int WindowWidth
++    {
++        get => Math.Clamp(GetInt("WindowWidth", 1280), 320, 7680);
++        set => SetInt("WindowWidth", Math.Clamp(value, 320, 7680));
++    }
++
++    public int WindowHeight
++    {
++        get => Math.Clamp(GetInt("WindowHeight", 960), 240, 4320);
++        set => SetInt("WindowHeight", Math.Clamp(value, 240, 4320));
++    }
++
+     public string GpuBackend
+     {
+         get => GetString("GpuBackend", "auto");
+diff --git a/RecompOne.Runtime/Dispatch/Dispatcher.cs b/RecompOne.Runtime/Dispatch/Dispatcher.cs
+index 76a8457..6d98d2b 100644
+--- a/RecompOne.Runtime/Dispatch/Dispatcher.cs
++++ b/RecompOne.Runtime/Dispatch/Dispatcher.cs
+@@ -177,10 +177,20 @@ public static class Dispatcher
+     {
+         if (BiosKernel.TryDispatch(c, m, addr)) return;
+         if (!_funcMap.TryGetValue(addr, out var fn))
+-            throw new InvalidOperationException($"unmapped call: 0x{addr:X8}");
++            throw new InvalidOperationException($"unmapped call: 0x{addr:X8}\n{Context(c)}");
+         fn(c, m);
+     }
+ 
++    /// <summary>
++    /// Registers at the point of a failed dispatch. An address alone says nothing about
++    /// why it was reached: a call through a vtable slot needs the object it came from,
++    /// and a jump-table default needs the index that selected it.
++    /// </summary>
++    static string Context(CpuContext c) =>
++        $"  a0={c.A0:X8} a1={c.A1:X8} a2={c.A2:X8} a3={c.A3:X8} v0={c.V0:X8} v1={c.V1:X8} ra={c.RA:X8}\n" +
++        $"  s0={c.S0:X8} s1={c.S1:X8} s2={c.S2:X8} s3={c.S3:X8} s4={c.S4:X8} s5={c.S5:X8} s6={c.S6:X8} s7={c.S7:X8}\n" +
++        $"  active overlays: {string.Join(", ", ActiveNames)}";
++
+     static void Rebuild()
+     {
+         _funcMap.Clear();
+diff --git a/RecompOne.Runtime/Gpu/Backends/Common/GlCore.cs b/RecompOne.Runtime/Gpu/Backends/Common/GlCore.cs
+index 79ebec0..072c452 100644
+--- a/RecompOne.Runtime/Gpu/Backends/Common/GlCore.cs
++++ b/RecompOne.Runtime/Gpu/Backends/Common/GlCore.cs
+@@ -317,6 +317,17 @@ public sealed class GlCore : IGpuBackend
+     readonly Dictionary<Assets.ReplacementTexture, uint> _repTextures = [];
+     readonly Dictionary<Assets.ReplacementClut, uint> _repCluts = [];
+ 
++    // Replacement textures were uploaded once and kept forever. That is fine for a pack
++    // of a few hundred, but an upscaled pack can hold tens of thousands, and at 4x each
++    // one is sixteen times the area of the original -- a long session would upload its
++    // way through all the video memory the machine has. Track what a texture cost and
++    // drop the ones the game has stopped drawing.
++    readonly Dictionary<Assets.ReplacementTexture, (uint Handle, long Bytes, long Frame)> _repUse = [];
++    long _repBytes;
++
++    /// <summary>Video memory to spend on replacement textures before evicting.</summary>
++    public static long RepTextureBudget = 512L * 1024 * 1024;
++
+     void ResolveReplacement(in PrimFlags f, int uMin, int vMin, int uMax, int vMax)
+     {
+         _pendingRepTex = 0;
+@@ -349,7 +360,12 @@ public sealed class GlCore : IGpuBackend
+ 
+     unsafe uint EnsureRepTexture(Assets.ReplacementTexture tex)
+     {
+-        if (_repTextures.TryGetValue(tex, out uint handle)) return handle;
++        if (_repTextures.TryGetValue(tex, out uint handle))
++        {
++            var was = _repUse[tex];
++            _repUse[tex] = (was.Handle, was.Bytes, _frame);
++            return handle;
++        }
+ 
+         _gl.ActiveTexture(TextureUnit.Texture7);
+         handle = _gl.GenTexture();
+@@ -363,9 +379,40 @@ public sealed class GlCore : IGpuBackend
+         _gl.ActiveTexture(TextureUnit.Texture0);
+ 
+         _repTextures[tex] = handle;
++        long bytes = (long)tex.Width * tex.Height * 4;
++        _repUse[tex] = (handle, bytes, _frame);
++        _repBytes += bytes;
++        if (_repBytes > RepTextureBudget) EvictReplacements();
+         return handle;
+     }
+ 
++    /// <summary>
++    /// Drop least-recently-drawn replacement textures until back inside the budget.
++    /// Anything touched this frame is left alone: the batch being built still refers to
++    /// it, and deleting a bound texture would draw the wrong thing.
++    /// </summary>
++    void EvictReplacements()
++    {
++        var order = new List<KeyValuePair<Assets.ReplacementTexture, (uint Handle, long Bytes, long Frame)>>(_repUse);
++        order.Sort((a, b) => a.Value.Frame.CompareTo(b.Value.Frame));
++
++        long target = RepTextureBudget * 3 / 4;
++        int freed = 0;
++        foreach (var (tex, info) in order)
++        {
++            if (_repBytes <= target) break;
++            if (info.Frame >= _frame) continue;
++            _gl.DeleteTexture(info.Handle);
++            _repTextures.Remove(tex);
++            _repUse.Remove(tex);
++            _repBytes -= info.Bytes;
++            freed++;
++        }
++        if (freed > 0)
++            Console.WriteLine($"[assets] evicted {freed} replacement texture(s), " +
++                              $"{_repBytes / (1024 * 1024)} MB still resident");
++    }
++
+     unsafe uint EnsureRepClut(Assets.ReplacementClut clut)
+     {
+         if (_repCluts.TryGetValue(clut, out uint handle)) return handle;
+@@ -521,6 +568,27 @@ public sealed class GlCore : IGpuBackend
+         _vram.ReadRect(x, y, w, h, px);
+     }
+ 
++    public unsafe byte[]? ReadScaled(int x, int y, int w, int h, out int outW, out int outH)
++    {
++        outW = outH = 0;
++        if (!Ready || w <= 0 || h <= 0) return null;
++
++        Flush();
++        WritebackDirtyIntersecting(x, y, w, h);
++
++        int s = GlVram.Scale;
++        outW = w * s;
++        outH = h * s;
++        var buf = new byte[outW * outH * 4];
++
++        _gl.BindFramebuffer(FramebufferTarget.Framebuffer, _vram.Fbo);
++        fixed (byte* p = buf)
++            _gl.ReadPixels(x * s, y * s, (uint)outW, (uint)outH,
++                           PixelFormat.Rgba, PixelType.UnsignedByte, p);
++        _gl.BindFramebuffer(FramebufferTarget.Framebuffer, 0);
++        return buf;
++    }
++
+     public int RegisterImage(ReadOnlySpan<byte> rgba, int width, int height)
+     {
+         _gl.ActiveTexture(TextureUnit.Texture7);
+diff --git a/RecompOne.Runtime/Gpu/Backends/IGpuBackend.cs b/RecompOne.Runtime/Gpu/Backends/IGpuBackend.cs
+index 456af0d..ccfcc2e 100644
+--- a/RecompOne.Runtime/Gpu/Backends/IGpuBackend.cs
++++ b/RecompOne.Runtime/Gpu/Backends/IGpuBackend.cs
+@@ -17,6 +17,18 @@ public interface IGpuBackend
+     void CopyVram(int sx, int sy, int dx, int dy, int w, int h);
+     void WriteVram(int x, int y, int w, int h, ReadOnlySpan<ushort> px);
+     void ReadVram(int x, int y, int w, int h, Span<ushort> px);
++
++    /// <summary>
++    /// A region of VRAM at full internal resolution, as RGBA8, bottom row first.
++    /// ReadVram downsamples back to console resolution; this is what the rasteriser
++    /// actually produced, which is the only honest way to capture an upscaled frame.
++    /// Returns null on backends that cannot do it.
++    /// </summary>
++    byte[]? ReadScaled(int x, int y, int w, int h, out int outW, out int outH)
++    {
++        outW = outH = 0;
++        return null;
++    }
+     
+     //add other stuff
+     int RegisterImage(ReadOnlySpan<byte> rgba, int width, int height);
+diff --git a/RecompOne.Runtime/Gpu/GpuCommands.cs b/RecompOne.Runtime/Gpu/GpuCommands.cs
+index 280fb23..3679016 100644
+--- a/RecompOne.Runtime/Gpu/GpuCommands.cs
++++ b/RecompOne.Runtime/Gpu/GpuCommands.cs
+@@ -157,6 +157,11 @@ public sealed partial class Gpu
+         {
+             _loadImage = false;
+             Assets.Textures.VramTracker.MarkCpuWrite(_loadX, _loadY, _loadW, _loadH);
++            // An image load is the game saying "this rectangle is one picture". Nothing
++            // else in the GPU command set says that, and it is what lets a texture be
++            // identified by its own extent instead of by the VRAM page it happens to
++            // share with its neighbours.
++            Assets.Textures.VramTracker.NoteUpload(_loadX, _loadY, _loadW, _loadH);
+             HleLoadFlush();
+         }
+     }
+diff --git a/RecompOne.Runtime/Host/Window/HostWindow.cs b/RecompOne.Runtime/Host/Window/HostWindow.cs
+index 2bb1c3b..cdcc6da 100644
+--- a/RecompOne.Runtime/Host/Window/HostWindow.cs
++++ b/RecompOne.Runtime/Host/Window/HostWindow.cs
+@@ -105,7 +105,7 @@ public static class HostWindow
+             {
+                 var options = WindowOptions.Default with
+                 {
+-                    Size = new Vector2D<int>(1280, 720),
++                    Size = new Vector2D<int>(ConfigManager.View.WindowWidth, ConfigManager.View.WindowHeight),
+                     Title = title,
+                     VSync = ConfigManager.View.VSync,
+                     UpdatesPerSecond = 0,
+diff --git a/RecompOne.Runtime/Memory/PSMemory.cs b/RecompOne.Runtime/Memory/PSMemory.cs
+index b1680f2..f00dbe8 100644
+--- a/RecompOne.Runtime/Memory/PSMemory.cs
++++ b/RecompOne.Runtime/Memory/PSMemory.cs
+@@ -62,8 +62,14 @@ public sealed class PSMemory : IMemory
+         _hwregs[o + 3] = (byte)(v >> 24);
+     }
+ 
++    // Consecutive reads with no write in between. A game spinning on an interrupt flag
++    // does nothing else; real work writes memory constantly. See Runtime.IdleTick.
++    private int _readsSinceWrite;
++    public static int IdleReadThreshold = 50000;
++
+     private void TrackWrite(uint phys, int size)
+     {
++        _readsSinceWrite = 0;
+         if (phys < MemoryMap.RamWindow)
+         {
+             uint off = phys % (uint)_ram.Length;
+@@ -77,6 +83,12 @@ public sealed class PSMemory : IMemory
+     {
+         if (RamLogger.TrackReads && phys < MemoryMap.RamWindow)
+             Runtime.RamLog.RecordRead(phys % (uint)_ram.Length, size);
++
++        if (++_readsSinceWrite >= IdleReadThreshold)
++        {
++            _readsSinceWrite = 0;
++            Runtime.IdleTick();
++        }
+     }
+ 
+     private Span<byte> Resolve(uint address, int size)
+diff --git a/RecompOne.Runtime/Runtime.cs b/RecompOne.Runtime/Runtime.cs
+index 4c8834d..7e2bfc9 100644
+--- a/RecompOne.Runtime/Runtime.cs
++++ b/RecompOne.Runtime/Runtime.cs
+@@ -153,14 +153,34 @@ public static class Runtime
+             throw new HardResetSignal();
+         }
+ 
++        Diagnostics.CallRing.NoteFrame();
+         HostWindow.Present(Gpu);
+         Audio.Attach(Spu);
+         FrameClock.Throttle();
+         Sdk.LibCd.Tick();
+         if (Mem != null) { Bios.BiosB.RefreshPad(Mem); Sdk.LibPad.Refresh(Mem); } //is this correct?
++        if (Cpu != null && Mem != null) Bios.BiosB.PumpCard(Cpu, Mem, _pumping);
+         DispatchIrq(0); //using this to dispatch irqs too if necessary, probably not needed after the rest of stuff is reimplemented
+     }
+ 
++    static bool _pumping;
++
++    /// <summary>
++    /// Games wait for an interrupt by spinning on a variable their IRQ handler writes.
++    /// Nothing advances that variable in a static recompile, because interrupts are
++    /// only delivered while presenting a frame -- so a wait loop that does not call
++    /// VSync itself never exits. The memory layer notices a long run of reads with no
++    /// intervening write and calls this, which presents a frame and delivers the
++    /// vblank exactly as the hardware would have done asynchronously.
++    /// </summary>
++    public static void IdleTick()
++    {
++        if (_pumping || Cpu == null || Mem == null) return;
++        _pumping = true;
++        try { Sdk.LibEtc.Pump(Cpu, Mem); }
++        finally { _pumping = false; }
++    }
++
+     public static void DispatchIrq(int irq)
+     {
+         if (Cpu != null && Mem != null)
+diff --git a/RecompOne.Runtime/sdk/LibCd.cs b/RecompOne.Runtime/sdk/LibCd.cs
+index 2c0862a..b3f7f10 100644
+--- a/RecompOne.Runtime/sdk/LibCd.cs
++++ b/RecompOne.Runtime/sdk/LibCd.cs
+@@ -72,7 +72,13 @@ public static class LibCd
+     public static void CdInit(CpuContext c, IMemory m)
+     {
+         CdResetState();
+-        c.V0 = CdInitInternal() ? 0u : 1u;
++        // libcd's CdInit returns 1 on success and 0 on failure -- the opposite of the
++        // usual "0 means ok" convention, and worth stating because this was backwards.
++        // You can read it off any game that links libcd statically: Spider-Man's copy
++        // at 0x8008A16C retries five times, sets v0 = 1 on the way out of the success
++        // path, and only falls through to `v0 = 0` after printing "CdInit: Init
++        // failed". A game that checks the result spins forever if this is inverted.
++        c.V0 = CdInitInternal() ? 1u : 0u;
+     }
+ 
+     public static void CdReset(CpuContext c, IMemory m)
+diff --git a/RecompOne.Runtime/sdk/LibEtc.cs b/RecompOne.Runtime/sdk/LibEtc.cs
+index b3647ed..7c76cb5 100644
+--- a/RecompOne.Runtime/sdk/LibEtc.cs
++++ b/RecompOne.Runtime/sdk/LibEtc.cs
+@@ -8,16 +8,39 @@ public static class LibEtc
+ {
+     static int _vcount;
+     static readonly VSyncEvent _vsyncEvent = new();
++    static readonly System.Diagnostics.Stopwatch _sinceFrame = System.Diagnostics.Stopwatch.StartNew();
+ 
+     public static void VSync(CpuContext c, IMemory m)
+     {
+         int mode = (int)c.A0;
+         Log.Sdk($"VSync({mode})");
+-        if (mode < 0) { c.V0 = (uint)_vcount; return; }
++        if (mode < 0)
++        {
++            // VSync(-1) reads the vblank counter without waiting. On hardware that
++            // counter advances on its own, so a game can poll it to wait; here it only
++            // moves when a frame is presented, and a poll loop would spin forever.
++            // Present one once enough real time has passed, which is when the console
++            // would have counted a vblank anyway.
++            if (_sinceFrame.Elapsed.TotalSeconds >= 1.0 / 60.0) Runtime.IdleTick();
++            c.V0 = (uint)_vcount;
++            return;
++        }
+         //if (mode == 1) { c.V0 = 0; return; }
+         
++        Pump(c, m);
++        c.V0 = 0;
++    }
++
++    /// <summary>
++    /// Advance one frame: present, and let the game see a vblank. Called by VSync, and
++    /// by the idle-loop breaker when the game busy-waits on an interrupt-updated flag
++    /// instead of calling VSync itself.
++    /// </summary>
++    public static void Pump(CpuContext c, IMemory m)
++    {
+         Runtime.PresentFrame();
+         _vcount++;
++        _sinceFrame.Restart();
+ 
+         if (Event.HasAnyListeners<VSyncEvent>())
+         {
+@@ -26,7 +49,5 @@ public static class LibEtc
+             e.Frame = _vcount;
+             Event.Dispatch(e);
+         }
+-
+-        c.V0 = 0;
+     }
+ }
+diff --git a/RecompOne.Runtime/sdk/LibGpu.cs b/RecompOne.Runtime/sdk/LibGpu.cs
+index 8392a54..7492829 100644
+--- a/RecompOne.Runtime/sdk/LibGpu.cs
++++ b/RecompOne.Runtime/sdk/LibGpu.cs
+@@ -206,9 +206,10 @@ public static class LibGpu
+         ushort w = m.ReadU16(rect + 4), h = m.ReadU16(rect + 6);
+         if (w == 0 || h == 0) { c.V0 = 0u; return; }
+ 
++        // MoveImage(RECT *rect, int x, int y): the destination is a1/a2, not a2/a3.
+         gpu.WriteGp0(0x80000000u);
+         gpu.WriteGp0(((uint)sy << 16) | sx);
+-        gpu.WriteGp0(((c.A3 & 0xFFFFu) << 16) | (c.A2 & 0xFFFFu));
++        gpu.WriteGp0(((c.A2 & 0xFFFFu) << 16) | (c.A1 & 0xFFFFu));
+         gpu.WriteGp0(((uint)h << 16) | w);
+ 
+         c.V0 = 0u;

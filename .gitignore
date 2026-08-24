@@ -1,0 +1,31 @@
+# Disc images (700MB+ each, never commit)
+*.bin
+*.img
+*.sub
+*.ccd
+*.chd
+
+# .NET build output
+bin/
+obj/
+dist/
+publish/
+
+# Generated recompiler output
+spiderman/port/generated/
+generated/
+
+# Runtime artifacts
+*.log
+shots/
+logs/
+*.sav
+
+# Extracted disc data
+spiderman/extracted/
+
+# Published single-file build
+spiderman/port/dist/
+# Capture output
+spiderman/port/**/shots*/
+run*.txt

@@ -1,0 +1,152 @@
+{
+  "blackcat": {
+    "base": "0x80200000",
+    "size": 6412,
+    "relocs": 104
+  },
+  "carnage": {
+    "base": "0x80202000",
+    "size": 28968,
+    "relocs": 372
+  },
+  "chopper": {
+    "base": "0x8020A000",
+    "size": 26340,
+    "relocs": 257
+  },
+  "cop": {
+    "base": "0x80211000",
+    "size": 37316,
+    "relocs": 688
+  },
+  "docock": {
+    "base": "0x8021B000",
+    "size": 21984,
+    "relocs": 352
+  },
+  "hostage": {
+    "base": "0x80221000",
+    "size": 3808,
+    "relocs": 69
+  },
+  "jonah": {
+    "base": "0x80222000",
+    "size": 11668,
+    "relocs": 234
+  },
+  "l2a1lsc": {
+    "base": "0x80225000",
+    "size": 2436,
+    "relocs": 63
+  },
+  "l5a5lsc": {
+    "base": "0x80226000",
+    "size": 1580,
+    "relocs": 29
+  },
+  "l5a6lsc": {
+    "base": "0x80227000",
+    "size": 1224,
+    "relocs": 20
+  },
+  "l5a7lsc": {
+    "base": "0x80228000",
+    "size": 712,
+    "relocs": 10
+  },
+  "l6a1lsc": {
+    "base": "0x80229000",
+    "size": 888,
+    "relocs": 13
+  },
+  "l6a2lsc": {
+    "base": "0x8022A000",
+    "size": 480,
+    "relocs": 8
+  },
+  "l6a3lsc": {
+    "base": "0x8022B000",
+    "size": 480,
+    "relocs": 8
+  },
+  "lizard": {
+    "base": "0x8022C000",
+    "size": 956,
+    "relocs": 22
+  },
+  "lizman": {
+    "base": "0x8022D000",
+    "size": 34320,
+    "relocs": 665
+  },
+  "mj": {
+    "base": "0x80236000",
+    "size": 984,
+    "relocs": 22
+  },
+  "mysterio": {
+    "base": "0x80237000",
+    "size": 28696,
+    "relocs": 417
+  },
+  "rhino": {
+    "base": "0x8023F000",
+    "size": 21576,
+    "relocs": 346
+  },
+  "scorpion": {
+    "base": "0x80245000",
+    "size": 36036,
+    "relocs": 456
+  },
+  "shell": {
+    "base": "0x8024E000",
+    "size": 112912,
+    "relocs": 1878
+  },
+  "simby": {
+    "base": "0x8026A000",
+    "size": 58640,
+    "relocs": 772
+  },
+  "spclone": {
+    "base": "0x80279000",
+    "size": 6020,
+    "relocs": 92
+  },
+  "submarin": {
+    "base": "0x8027B000",
+    "size": 920,
+    "relocs": 23
+  },
+  "superock": {
+    "base": "0x8027C000",
+    "size": 22080,
+    "relocs": 385
+  },
+  "thug": {
+    "base": "0x80282000",
+    "size": 46484,
+    "relocs": 832
+  },
+  "torch": {
+    "base": "0x8028E000",
+    "size": 6420,
+    "relocs": 96
+  },
+  "training": {
+    "base": "0x80290000",
+    "size": 3672,
+    "relocs": 70
+  },
+  "turret": {
+    "base": "0x80291000",
+    "size": 7508,
+    "relocs": 93
+  },
+  "venom": {
+    "base": "0x80293000",
+    "size": 37364,
+    "relocs": 487
+  }
+}

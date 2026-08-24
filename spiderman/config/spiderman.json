@@ -1,0 +1,308 @@
+{
+  "game": {
+    "id": "SLUS-00875",
+    "name": "SpiderMan",
+    "output": "../generated"
+  },
+  "cue": "../../Spider-Man (USA).cue",
+  "funcMap": "funcmaps/main.json",
+  "overlays": [
+    {
+      "name": "blackcat",
+      "path": "overlays/blackcat.bin",
+      "base": "0x80200000",
+      "funcMap": "funcmaps/blackcat.json"
+    },
+    {
+      "name": "carnage",
+      "path": "overlays/carnage.bin",
+      "base": "0x80202000",
+      "funcMap": "funcmaps/carnage.json"
+    },
+    {
+      "name": "chopper",
+      "path": "overlays/chopper.bin",
+      "base": "0x8020A000",
+      "funcMap": "funcmaps/chopper.json"
+    },
+    {
+      "name": "cop",
+      "path": "overlays/cop.bin",
+      "base": "0x80211000",
+      "funcMap": "funcmaps/cop.json"
+    },
+    {
+      "name": "docock",
+      "path": "overlays/docock.bin",
+      "base": "0x8021B000",
+      "funcMap": "funcmaps/docock.json"
+    },
+    {
+      "name": "hostage",
+      "path": "overlays/hostage.bin",
+      "base": "0x80221000",
+      "funcMap": "funcmaps/hostage.json"
+    },
+    {
+      "name": "jonah",
+      "path": "overlays/jonah.bin",
+      "base": "0x80222000",
+      "funcMap": "funcmaps/jonah.json"
+    },
+    {
+      "name": "l2a1lsc",
+      "path": "overlays/l2a1lsc.bin",
+      "base": "0x80225000",
+      "funcMap": "funcmaps/l2a1lsc.json"
+    },
+    {
+      "name": "l5a5lsc",
+      "path": "overlays/l5a5lsc.bin",
+      "base": "0x80226000",
+      "funcMap": "funcmaps/l5a5lsc.json"
+    },
+    {
+      "name": "l5a6lsc",
+      "path": "overlays/l5a6lsc.bin",
+      "base": "0x80227000",
+      "funcMap": "funcmaps/l5a6lsc.json"
+    },
+    {
+      "name": "l5a7lsc",
+      "path": "overlays/l5a7lsc.bin",
+      "base": "0x80228000",
+      "funcMap": "funcmaps/l5a7lsc.json"
+    },
+    {
+      "name": "l6a1lsc",
+      "path": "overlays/l6a1lsc.bin",
+      "base": "0x80229000",
+      "funcMap": "funcmaps/l6a1lsc.json"
+    },
+    {
+      "name": "l6a2lsc",
+      "path": "overlays/l6a2lsc.bin",
+      "base": "0x8022A000",
+      "funcMap": "funcmaps/l6a2lsc.json"
+    },
+    {
+      "name": "l6a3lsc",
+      "path": "overlays/l6a3lsc.bin",
+      "base": "0x8022B000",
+      "funcMap": "funcmaps/l6a3lsc.json"
+    },
+    {
+      "name": "lizard",
+      "path": "overlays/lizard.bin",
+      "base": "0x8022C000",
+      "funcMap": "funcmaps/lizard.json"
+    },
+    {
+      "name": "lizman",
+      "path": "overlays/lizman.bin",
+      "base": "0x8022D000",
+      "funcMap": "funcmaps/lizman.json"
+    },
+    {
+      "name": "mj",
+      "path": "overlays/mj.bin",
+      "base": "0x80236000",
+      "funcMap": "funcmaps/mj.json"
+    },
+    {
+      "name": "mysterio",
+      "path": "overlays/mysterio.bin",
+      "base": "0x80237000",
+      "funcMap": "funcmaps/mysterio.json"
+    },
+    {
+      "name": "rhino",
+      "path": "overlays/rhino.bin",
+      "base": "0x8023F000",
+      "funcMap": "funcmaps/rhino.json"
+    },
+    {
+      "name": "scorpion",
+      "path": "overlays/scorpion.bin",
+      "base": "0x80245000",
+      "funcMap": "funcmaps/scorpion.json"
+    },
+    {
+      "name": "shell",
+      "path": "overlays/shell.bin",
+      "base": "0x8024E000",
+      "funcMap": "funcmaps/shell.json"
+    },
+    {
+      "name": "simby",
+      "path": "overlays/simby.bin",
+      "base": "0x8026A000",
+      "funcMap": "funcmaps/simby.json"
+    },
+    {
+      "name": "spclone",
+      "path": "overlays/spclone.bin",
+      "base": "0x80279000",
+      "funcMap": "funcmaps/spclone.json"
+    },
+    {
+      "name": "submarin",
+      "path": "overlays/submarin.bin",
+      "base": "0x8027B000",
+      "funcMap": "funcmaps/submarin.json"
+    },
+    {
+      "name": "superock",
+      "path": "overlays/superock.bin",
+      "base": "0x8027C000",
+      "funcMap": "funcmaps/superock.json"
+    },
+    {
+      "name": "thug",
+      "path": "overlays/thug.bin",
+      "base": "0x80282000",
+      "funcMap": "funcmaps/thug.json"
+    },
+    {
+      "name": "torch",
+      "path": "overlays/torch.bin",
+      "base": "0x8028E000",
+      "funcMap": "funcmaps/torch.json"
+    },
+    {
+      "name": "training",
+      "path": "overlays/training.bin",
+      "base": "0x80290000",
+      "funcMap": "funcmaps/training.json"
+    },
+    {
+      "name": "turret",
+      "path": "overlays/turret.bin",
+      "base": "0x80291000",
+      "funcMap": "funcmaps/turret.json"
+    },
+    {
+      "name": "venom",
+      "path": "overlays/venom.bin",
+      "base": "0x80293000",
+      "funcMap": "funcmaps/venom.json"
+    }
+  ],
+  "patches": [
+    {
+      "overlay": "main",
+      "function": "CdWadFind",
+      "mode": "pre",
+      "target": "Recompiled.OverlayPatches.CdWadFind"
+    },
+    {
+      "overlay": "main",
+      "function": "CdWadFind",
+      "mode": "post",
+      "target": "Recompiled.OverlayPatches.CdWadFindExit"
+    },
+    {
+      "overlay": "main",
+      "function": "HeapAlloc",
+      "mode": "pre",
+      "target": "Recompiled.OverlayPatches.HeapAlloc"
+    },
+    {
+      "overlay": "main",
+      "function": "HeapAlloc",
+      "mode": "post",
+      "target": "Recompiled.OverlayPatches.HeapAllocExit"
+    },
+    {
+      "overlay": "main",
+      "function": "HeapFree",
+      "mode": "pre",
+      "target": "Recompiled.OverlayPatches.HeapFree"
+    },
+    {
+      "overlay": "main",
+      "function": "LoadOverlay",
+      "mode": "pre",
+      "target": "Recompiled.GameTrace.LoadOverlay"
+    },
+    {
+      "overlay": "main",
+      "function": "SpawnActor",
+      "mode": "pre",
+      "target": "Recompiled.GameTrace.SpawnActor"
+    },
+    {
+      "overlay": "main",
+      "function": "SpawnActor",
+      "mode": "post",
+      "target": "Recompiled.GameTrace.SpawnActorExit"
+    },
+    {
+      "overlay": "main",
+      "function": "PadInitMtap",
+      "mode": "pre",
+      "target": "Recompiled.PadPatches.PadInitMtapEnter"
+    },
+    {
+      "overlay": "main",
+      "function": "PadInitMtap",
+      "mode": "post",
+      "target": "Recompiled.PadPatches.PadInitMtapExit"
+    },
+    {
+      "overlay": "*",
+      "function": "ClearImage",
+      "mode": "replace",
+      "target": "RecompOne.Runtime.Sdk.LibGpu.ClearImage"
+    },
+    {
+      "overlay": "*",
+      "function": "LoadImage",
+      "mode": "replace",
+      "target": "RecompOne.Runtime.Sdk.LibGpu.LoadImage"
+    },
+    {
+      "overlay": "*",
+      "function": "MoveImage",
+      "mode": "replace",
+      "target": "RecompOne.Runtime.Sdk.LibGpu.MoveImage"
+    },
+    {
+      "overlay": "*",
+      "function": "StoreImage",
+      "mode": "replace",
+      "target": "RecompOne.Runtime.Sdk.LibGpu.StoreImage"
+    },
+    {
+      "overlay": "*",
+      "function": "ResetGraph",
+      "mode": "replace",
+      "target": "Recompiled.GpuPatches.ResetGraph"
+    },
+    {
+      "overlay": "*",
+      "function": "SetDispMask",
+      "mode": "replace",
+      "target": "Recompiled.GpuPatches.SetDispMask"
+    },
+    {
+      "overlay": "*",
+      "function": "DrawPrim",
+      "mode": "replace",
+      "target": "Recompiled.GpuPatches.DrawPrim"
+    },
+    {
+      "overlay": "*",
+      "function": "ClearOTagR",
+      "mode": "replace",
+      "target": "Recompiled.GpuPatches.ClearOTagR"
+    },
+    {
+      "overlay": "*",
+      "function": "SetGraphDebug",
+      "mode": "replace",
+      "target": "Recompiled.GpuPatches.SetGraphDebug"
+    }
+  ],
+  "callRing": true
+}

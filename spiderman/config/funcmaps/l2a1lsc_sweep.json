@@ -1,0 +1,25 @@
+{
+  "functions": [
+    {
+      "address": "0x80225000",
+      "name": "func_80225000",
+      "size": 76
+    },
+    {
+      "address": "0x8022504C",
+      "name": "func_8022504C",
+      "size": 40
+    },
+    {
+      "address": "0x80225074",
+      "name": "func_80225074",
+      "size": 364
+    },
+    {
+      "address": "0x802251E0",
+      "name": "func_802251E0",
+      "size": 1836
+    }
+  ],
+  "labels": []
+}

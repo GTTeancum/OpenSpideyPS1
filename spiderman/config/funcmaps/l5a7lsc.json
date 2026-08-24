@@ -1,0 +1,29 @@
+{
+ "functions": [
+  {
+   "address": "0x80228000",
+   "name": "ptr_80228000",
+   "size": 64
+  },
+  {
+   "address": "0x80228040",
+   "name": "ptr_80228040",
+   "size": 8
+  },
+  {
+   "address": "0x80228048",
+   "name": "ptr_80228048",
+   "size": 460
+  },
+  {
+   "address": "0x80228214",
+   "name": "func_80228214",
+   "size": 172
+  },
+  {
+   "address": "0x802282C0",
+   "name": "ptr_802282C0",
+   "size": 4
+  }
+ ]
+}

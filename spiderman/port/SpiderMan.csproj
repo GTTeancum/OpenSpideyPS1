@@ -1,0 +1,70 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+    <PropertyGroup>
+        <OutputType>Exe</OutputType>
+        <TargetFramework>net10.0</TargetFramework>
+        <ImplicitUsings>enable</ImplicitUsings>
+        <Nullable>disable</Nullable>
+        <AllowUnsafeBlocks>true</AllowUnsafeBlocks>
+        <AssemblyName>SpiderMan</AssemblyName>
+        <RootNamespace>SpiderMan</RootNamespace>
+        <InvariantGlobalization>true</InvariantGlobalization>
+        <ServerGarbageCollection>true</ServerGarbageCollection>
+        <ConcurrentGarbageCollection>false</ConcurrentGarbageCollection>
+        <TieredPGO>true</TieredPGO>
+        <!-- the recompiled output is one huge partial class; keep the compiler happy -->
+        <NoWarn>$(NoWarn);CS0164;CS0219;CS0162;CS8321</NoWarn>
+    </PropertyGroup>
+
+    <PropertyGroup Condition="'$(Configuration)' == 'Release'">
+        <Optimize>true</Optimize>
+        <DebugType>none</DebugType>
+        <DebugSymbols>false</DebugSymbols>
+    </PropertyGroup>
+
+    <!--
+      `dotnet publish` produces a single self-contained executable.
+
+      Scoped to publishing on purpose: applying the RID unconditionally would move the
+      ordinary build output under win-x64/ and drag the whole runtime into it on every
+      build, which is slow and moves the folder logs and shots live in.
+    -->
+    <PropertyGroup Condition="'$(_IsPublishing)' == 'true'">
+        <RuntimeIdentifier>win-x64</RuntimeIdentifier>
+        <SelfContained>true</SelfContained>
+        <PublishSingleFile>true</PublishSingleFile>
+        <!--
+          Everything, not just the native libraries. Extracting the natives alone leaves
+          them in a temp folder while AppContext.BaseDirectory still points at the
+          executable, and Silk.NET searches BaseDirectory, so GLFW and OpenAL are never
+          found: the published build comes up with no window and no audio while the
+          ordinary build is fine, and the build log says nothing about it.
+        -->
+        <IncludeAllContentForSelfExtract>true</IncludeAllContentForSelfExtract>
+        <EnableCompressionInSingleFile>true</EnableCompressionInSingleFile>
+        <PublishTrimmed>false</PublishTrimmed>
+        <SatelliteResourceLanguages>en</SatelliteResourceLanguages>
+        <DebugType>none</DebugType>
+        <PublishDir>$(MSBuildProjectDirectory)\dist\</PublishDir>
+    </PropertyGroup>
+
+    <ItemGroup>
+        <ProjectReference Include="..\..\tools\RecompOne\RecompOne.Runtime\RecompOne.Runtime.csproj" />
+    </ItemGroup>
+
+    <ItemGroup>
+        <Compile Include="..\generated\**\*.cs" />
+        <Compile Include="..\patches\**\*.cs" />
+    </ItemGroup>
+
+    <ItemGroup>
+        <!--
+          Symbol names for stall dumps (see patches/Diag.cs), embedded rather than
+          copied beside the executable.
+        -->
+        <EmbeddedResource Include="..\config\funcmaps\*.json" Exclude="..\config\funcmaps\*_sweep.json">
+            <LogicalName>funcmaps.%(Filename)%(Extension)</LogicalName>
+        </EmbeddedResource>
+    </ItemGroup>
+
+</Project>
