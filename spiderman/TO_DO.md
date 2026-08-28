@@ -188,6 +188,32 @@ one). The event plumbing itself was fine -- `TestEvent` acknowledges a ready eve
 resets it correctly, and the `delivered 0+0` counts were deliveries to an already
 signalled event rather than a matching failure.
 
+## 1g. Open: pushing the HUD out to the widened margins
+
+Two attempts, both recorded because the second one looks like it should work.
+
+The HUD sits at fixed screen coordinates, so in a widened target it is inset from the new
+edges by the margin. `RenderPrimEvent` already lets a listener rewrite a primitive's X, so
+the shift itself is easy and belongs in the game's patches rather than the backend. The
+hard part is deciding *what* to move.
+
+- **Sprites only.** Nothing moved. The HUD is not drawn from rectangles -- it is textured
+  quads, the same primitive the world uses -- so vertex count does not separate them.
+- **Screen-aligned quads, shifted by which outer third they fall in.** This finds the HUD
+  correctly but tears it apart: the health bar smears into streaks and the compass comes
+  apart. A HUD element is built from *several* quads, and the bar straddles the third
+  boundary, so some of its quads shift and its neighbours do not.
+
+Which is the real constraint: **a positional rule cannot work per primitive**, because
+centred text is one quad per character and would split down the middle of the screen the
+same way.
+
+That leaves two honest options. Scale positions *and* sizes about the screen centre --
+consistent, no tearing, but stretches the HUD by a third. Or group consecutive
+screen-aligned primitives into runs, take the bounding box of each run, and shift the
+whole run by one amount. The second gives what was asked for and is the one to build;
+draw order is available, so the grouping is tractable.
+
 ## 1c. Open: driving the menus needs to be closed-loop
 
 Directional input works -- a run that presses RIGHT twice moves the highlight from
