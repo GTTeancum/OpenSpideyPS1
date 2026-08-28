@@ -3,34 +3,33 @@
 Ordered by what blocks the most. Ruling things out is most of the value here, so the
 things that turned out *not* to be the cause are recorded with their evidence.
 
-**Where it stands.** The game boots, plays its logos and FMV, reaches the title and
-every menu, starts a new game and plays level 1. A 13,500-frame session (about four
-minutes) in level 1 with continuous varied input held 55-60 fps with no crash, no stall
-and no watchdog trip. Audio is producing sound. The memory card is detected and its
-directory reads correctly.
+**Where it stands.** The game boots, plays its logos and FMV, reaches the title and every
+menu, and plays at the rate it was built for. Twenty-one level prefixes were booted
+directly and every one reached gameplay. The memory card saves and loads.
 
 What is verified, and how:
 
 | | evidence |
 |---|---|
 | Boot, Activision/Neversoft logos, intro FMV | captured movie frames decode correctly |
-| Title, main menu (3D model), difficulty, pause, memory card, SPECIAL/cheats | captured frames of each |
-| Level 1 loads and renders | rooftop geometry, HUD, pickups, compass, enemies |
-| Input | Spider-Man walks, crawls, and the camera follows across captures |
+| Title, main menu, difficulty, pause, memory card, SPECIAL, COSTUME VIEWER, LOAD/SAVE | captured frames of each |
+| **Frame rate** | gameplay loop measured at 29.9/s, matching the 30 fps the game was built around; was running at 131/s |
+| **Levels** | 21 prefixes booted directly, each reaching gameplay and holding 7000 frames, with a screenshot each -- all eight story levels plus the bonus l9 set |
+| **Memory card save** | a save written through the menus appears on the card as `BASLUS-00875SPD`, and LOAD GAME lists it back by the name typed with its level and difficulty |
+| **Costumes** | symbiote renders the black suit and swaps the HUD icon; peterparker renders street clothes and changes the HUD portrait and cartridge count |
+| Input | Spider-Man walks, crawls, swings and fights across captures; menus navigate |
 | Audio | mixer peak 86%, RMS ~2700, 17 SPU voices active, XA streaming |
-| Stability | 13,500 frames at 55-60 fps, zero exceptions |
-| Memory card read | game reports "MEMORY CARD CONTAINS NO SPIDER-MAN GAME SAVE" |
+| Stability | thousands of frames per level across 21 levels, zero exceptions |
 
 Not yet verified, and honestly so:
 
-- **Level 1 completion.** Blind scripted input moves Spider-Man around and fights, but
-  it cannot reliably play a 3D action level to its end. Completing it needs either a
-  human at the controls or navigation driven from the game's own state rather than from
-  a timed button script.
-- **Memory card write.** The read path works; nothing has yet caused a save. The natural
-  trigger is finishing a level, so it is blocked behind the item above. The menu route
-  (MEMORY CARD -> SAVE GAME DATA) is reachable but the wheel menu's selection does not
-  move reliably under a timed script.
+- **Finishing a level.** Blind scripted input moves Spider-Man around and fights, but it
+  cannot play a 3D action level to its end -- level 1 act 1 needs web-swinging across
+  rooftops to reach the bank. The act-advance trigger is opcode **0xB5**, dispatched
+  through the table at `0x80094ACC` to `0x8005D7E8`, and it is a conditional gate on
+  trigger state rather than a call that can simply be invoked, so forcing it would mean
+  reproducing that state rather than exercising the real path. Doing this properly needs
+  either a human at the controls or navigation driven from the game's own state.
 
 ---
 
