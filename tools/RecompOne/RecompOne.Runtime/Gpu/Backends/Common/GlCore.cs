@@ -18,6 +18,7 @@ public sealed class GlCore : IGpuBackend
     long _frame;
 
     uint _vao, _vbo, _presentVao, _presentVbo, _progPrim, _progPresent, _progPresent24;
+    bool _drewSincePresent;
     uint _presentFbo, _presentTex;
     int _presentW, _presentH;
     bool _presentNearest;
@@ -543,6 +544,7 @@ public sealed class GlCore : IGpuBackend
                 FillRtFull(rt, color15);
                 rt.Dirty = false;
                 rt.LastDrawFrame = _frame;
+                _drewSincePresent = true;
             }
             else SyncRtFromVram(rt, x, y, w, h);
         }
@@ -789,7 +791,7 @@ public sealed class GlCore : IGpuBackend
         }
 
         _gl.Disable(EnableCap.ScissorTest);
-        if (rt != null) { rt.Dirty = true; rt.LastDrawFrame = _frame; }
+        if (rt != null) { rt.Dirty = true; rt.LastDrawFrame = _frame; _drewSincePresent = true; }
         else
         {
             int x0 = Math.Max(_kClipX0, (int)Math.Floor(_drawMinX));
@@ -831,8 +833,14 @@ public sealed class GlCore : IGpuBackend
     public unsafe (uint tex, int w, int h, float aspect) PresentDisplay(int dispX, int dispY, int w, int h, bool rgb24 = false, int outW = 0, int outH = 0)
     {
         if (!Ready || w <= 0 || h <= 0) return (0, 0, 0, GpuHle.OutputAspect);
-        _frame++;
         Flush();
+
+        // Count rendered frames, not calls. Present is driven by the host, and the idle
+        // breaker services the window far more often than the game draws -- around eight
+        // presents per drawn frame here. Ageing display targets per call made every one
+        // of them stale within a single game frame, so the widescreen target was never
+        // eligible and presentation silently fell back to 4:3 every time.
+        if (_drewSincePresent) { _frame++; _drewSincePresent = false; }
 
         for (int i = 0; i < _rts.Length; i++)
         {
@@ -852,6 +860,17 @@ public sealed class GlCore : IGpuBackend
                 if (rt == null || _frame - rt.LastDrawFrame > 4) continue;
                 if (dispX < rt.X || dispY < rt.Y || dispX + w > rt.X + rt.W || dispY + h > rt.Y + rt.H) continue;
                 if (src == null || rt.LastDrawFrame > src.LastDrawFrame) src = rt;
+            }
+
+        if (Log.GpuOn && (_frame % 120) == 0)
+            for (int i = 0; i < _rts.Length; i++)
+            {
+                var rt = _rts[i];
+                if (rt == null) { Log.Gpu($"  rt[{i}] null"); continue; }
+                bool stale = _frame - rt.LastDrawFrame > 4;
+                bool covers = !(dispX < rt.X || dispY < rt.Y || dispX + w > rt.X + rt.W || dispY + h > rt.Y + rt.H);
+                Log.Gpu($"  rt[{i}] ({rt.X},{rt.Y}) {rt.W}x{rt.H} margin={rt.Margin} " +
+                        $"age={_frame - rt.LastDrawFrame}{(stale ? " STALE" : "")}{(covers ? "" : " NOCOVER")}");
             }
 
         int w1x = src != null ? w + src.Margin * 2 : w;
