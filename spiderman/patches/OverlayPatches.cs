@@ -98,6 +98,7 @@ public static class OverlayPatches
     /// <summary>post-hook on CdWadFind -- v0 is the sector-rounded size.</summary>
     public static void CdWadFindExit(CpuContext c, IMemory m)
     {
+        Capture.NoteWadLoad(_lastLookup, System.Threading.Interlocked.Read(ref Diag.Frame));
         if (TraceWad)
             System.Console.WriteLine($"[wad] {_lastLookup,-16} <- ra=0x{_lastRa:X8}  {(c.V0 == 0 ? "NOT FOUND" : c.V0 + " bytes")}");
         if (_pendingName != null) _pendingSize = c.V0;

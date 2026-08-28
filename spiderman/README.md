@@ -4,13 +4,14 @@ A [RecompOne](https://github.com/BlackLabelHQ/RecompOne) port of the PlayStation
 Spider-Man (Neversoft, 2000), built from the retail USA disc following
 `../RECOMP-PLAYBOOK.md`.
 
-**State: the level loads and runs, but does not draw.** Logos, title screen, main menu
-and difficulty select all render and respond to input; the intro FMV plays (badly).
-Selecting a difficulty loads level 1 completely — trigger list, both actor code overlays,
-actor models and the level geometry — actors spawn, trigger scripts run, and it holds
-~57 fps with no crash. 1,422 primitives per frame reach the GPU and are all clipped away
-by a drawing area of `[1023,1023..1023,1023]`. See [TO_DO.md](TO_DO.md) for the
-diagnosis and what has been ruled out.
+**State: playable.** Boots, plays its logos and intro FMV, reaches the title and every
+menu, starts a new game and plays level 1 — geometry, HUD, pickups, enemies, working
+controls and camera. A 13,500-frame session with continuous input held 55–60 fps with no
+crash or stall. Audio produces sound (SPU voices and XA streaming, both measured). The
+memory card is detected and reads correctly.
+
+Not verified: finishing level 1 (a timed button script cannot play a 3D action level to
+its end) and writing a save. See [TO_DO.md](TO_DO.md).
 
 ---
 
@@ -199,7 +200,17 @@ SPIDEY_SHOTS=1050,1500     write a PNG on these frames
 SPIDEY_SHOT_EVERY=150      ...or every N frames
 SPIDEY_SHOT_DIR=shots      where they go
 SPIDEY_EXIT=2200           quit after frame N
-SPIDEY_SCRIPT=1150:start:10;1400:start:10;1700:cross:10
+SPIDEY_SCRIPT=title.bmr+120:start:12;title.bmr+420:cross:12
+```
+
+A step's frame can be an absolute number or an offset from the load of a named archive
+file. Prefer the second: the game paces itself off the wall clock, so the frame a screen
+appears on moves by hundreds between runs and an absolute schedule stops lining up. This
+reaches level 1:
+
+```
+title.bmr+120:start:12;title.bmr+420:cross:12;title.bmr+720:cross:12;
+title.bmr+1100:cross:12;title.bmr+1500:cross:12;title.bmr+1900:cross:12
 ```
 
 Reaching the title screen and the difficulty menu:

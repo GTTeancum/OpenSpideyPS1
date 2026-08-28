@@ -20,6 +20,9 @@ namespace Recompiled;
 ///   SPIDEY_EXIT=900           quit after this frame
 ///   SPIDEY_SCRIPT=120:start;300:cross:8
 ///                              press a button at a frame, optionally for N frames
+///   SPIDEY_SCRIPT=title.bmr+200:start:10
+///                              ...or a number of frames after an archive file loads,
+///                              which is reproducible when the frame number is not
 ///
 /// Frames are read back from the GPU backend rather than off the desktop, so the
 /// capture is what the emulated console actually drew.
@@ -28,9 +31,11 @@ public static class Capture
 {
     sealed class Press
     {
-        public long Frame;
+        public long Frame;          // -1 until an anchor resolves it
         public ushort Mask;
         public int Hold;
+        public string Anchor;       // archive file whose load starts the countdown
+        public long Offset;
     }
 
     static readonly HashSet<long> _shotFrames = new();
@@ -81,14 +86,14 @@ public static class Capture
         {
             var parts = step.Split(':');
             if (parts.Length < 2) continue;
-            if (!long.TryParse(parts[0], NumberStyles.Integer, CultureInfo.InvariantCulture, out var frame)) continue;
+            string rawFrame = parts[0].Trim();
             ushort mask = 0;
             foreach (var name in parts[1].Split('+'))
                 if (Buttons.TryGetValue(name.Trim(), out var b)) mask |= b;
             if (mask == 0) continue;
             int hold = 4;
             if (parts.Length > 2 && int.TryParse(parts[2], out var h) && h > 0) hold = h;
-            _script.Add(new Press { Frame = frame, Mask = mask, Hold = hold });
+            _script.Add(MakePress(rawFrame, mask, hold));
             _active = true;
         }
 
@@ -144,6 +149,41 @@ public static class Capture
                 held |= p.Mask;
 
         RecompOne.Runtime.Hardware.Controller.ScriptHeld = held;
+    }
+
+    /// <summary>
+    /// A step is either an absolute frame, or an archive file name and an offset --
+    /// "title.bmr+200". The game paces itself off the wall clock, so the frame a given
+    /// screen appears on moves by hundreds between runs and an absolute schedule stops
+    /// lining up with the menus. Anchoring to the load of a file that screen needs
+    /// makes a script mean the same thing every time.
+    /// </summary>
+    static Press MakePress(string raw, ushort mask, int hold)
+    {
+        if (long.TryParse(raw, NumberStyles.Integer, CultureInfo.InvariantCulture, out var abs))
+            return new Press { Frame = abs, Mask = mask, Hold = hold };
+
+        long offset = 0;
+        string anchor = raw;
+        int plus = raw.LastIndexOf('+');
+        if (plus > 0 && long.TryParse(raw.Substring(plus + 1), out var off))
+        {
+            anchor = raw.Substring(0, plus);
+            offset = off;
+        }
+        return new Press { Frame = -1, Mask = mask, Hold = hold, Anchor = anchor, Offset = offset };
+    }
+
+    /// <summary>Called for every archive lookup; resolves any step anchored to it.</summary>
+    public static void NoteWadLoad(string name, long frame)
+    {
+        foreach (var p in _script)
+            if (p.Frame < 0 && p.Anchor != null &&
+                string.Equals(p.Anchor, name, StringComparison.OrdinalIgnoreCase))
+            {
+                p.Frame = frame + p.Offset;
+                Console.WriteLine($"[capture] '{name}' at frame {frame}: step resolved to frame {p.Frame}");
+            }
     }
 
     static void WritePad(uint buf, ushort state)

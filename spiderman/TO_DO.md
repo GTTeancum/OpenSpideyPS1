@@ -3,44 +3,36 @@
 Ordered by what blocks the most. Ruling things out is most of the value here, so the
 things that turned out *not* to be the cause are recorded with their evidence.
 
-**Where it stands.** The port boots, plays the intro FMV, reaches the title screen and
-menus, and loads and runs a level: the `l1a1` trigger list, both actor code overlays
-(`thug`, `blackcat`), the actor models and the level geometry (`L1A1_L/_O/_G.psx`).
-Actors spawn, gameplay trigger scripts run, and it holds ~57 fps with no crash. What it
-does not do is draw the level — item 1 below.
+**Where it stands.** The game boots, plays its logos and FMV, reaches the title and
+every menu, starts a new game and plays level 1. A 13,500-frame session (about four
+minutes) in level 1 with continuous varied input held 55-60 fps with no crash, no stall
+and no watchdog trip. Audio is producing sound. The memory card is detected and its
+directory reads correctly.
+
+What is verified, and how:
+
+| | evidence |
+|---|---|
+| Boot, Activision/Neversoft logos, intro FMV | captured movie frames decode correctly |
+| Title, main menu (3D model), difficulty, pause, memory card, SPECIAL/cheats | captured frames of each |
+| Level 1 loads and renders | rooftop geometry, HUD, pickups, compass, enemies |
+| Input | Spider-Man walks, crawls, and the camera follows across captures |
+| Audio | mixer peak 86%, RMS ~2700, 17 SPU voices active, XA streaming |
+| Stability | 13,500 frames at 55-60 fps, zero exceptions |
+| Memory card read | game reports "MEMORY CARD CONTAINS NO SPIDER-MAN GAME SAVE" |
+
+Not yet verified, and honestly so:
+
+- **Level 1 completion.** Blind scripted input moves Spider-Man around and fights, but
+  it cannot reliably play a 3D action level to its end. Completing it needs either a
+  human at the controls or navigation driven from the game's own state rather than from
+  a timed button script.
+- **Memory card write.** The read path works; nothing has yet caused a save. The natural
+  trigger is finishing a level, so it is blocked behind the item above. The menu route
+  (MEMORY CARD -> SAVE GAME DATA) is reachable but the wheel menu's selection does not
+  move reliably under a timed script.
 
 ---
-
-## 1. The level runs but draws nothing  — BLOCKER
-
-The level loads, spawns its actors, runs its trigger scripts and holds ~57 fps with no
-crash. The screen is a flat fill.
-
-The geometry *is* reaching the GPU: a primitive dump on a level frame
-(`SPIDEY_PRIMS=2500`) shows **1,422 primitives** — textured, gouraud-shaded quads with
-sensible screen coordinates. They are all being clipped away. Each one carries a
-drawing area of `[1023,1023..1023,1023]`, which admits nothing.
-
-Where that comes from, and what it is not:
-
-- The frame starts correctly. `GP0(0xE3)/(0xE4)` set `(0,0)-(511,239)` and
-  `(0,256)-(511,495)` — the two buffers — exactly as expected.
-- Interleaved with those, the game issues `0xE30FFFFF` / `0xE40FFFFF`, i.e. every
-  coordinate bit set. The background fill and the first few primitives are drawn under
-  a correct area; everything after the maximised pair is clipped.
-- **Not `PutDrawEnv`.** A check for a clip that is empty or outside the framebuffer
-  never fires, so libgpu is not being handed a bad DRAWENV.
-- **Not `ClearImage`.** The runtime implements it with `GP0(0x02)`, a direct VRAM fill
-  that ignores the drawing area entirely, so it neither sets nor restores one.
-
-That leaves the game submitting those as `DR_AREA` primitives inside the ordering
-table, which `DrawOTag` walks. The thing to check next is the order they come out in:
-an OT is a back-to-front linked list, and if the walk emits a clip-change primitive
-before the geometry it guards instead of after, this is exactly what it would look
-like. Worth confirming against `GP0(0xE3)`'s real field widths too — on the retail
-(old, 160-pin) GPU the Y coordinate is **9 bits**, 0..511, and the runtime masks it
-with `0x3FF`. That is a genuine inaccuracy even though it is not the whole story here,
-because `(1023,511)` clips just as thoroughly as `(1023,1023)`.
 
 ## 2. Fixed: the first-gameplay-frame crash was a missed branch-and-link
 
