@@ -93,7 +93,9 @@ def main():
             ('TriggerPass',  'pre', 'Recompiled.GameTrace.TriggerPass'),
             ('TriggerType8', 'pre', 'Recompiled.GameTrace.TriggerType8'),
             ('SpawnActor',  'pre',  'Recompiled.GameTrace.SpawnActor'),
-            ('SpawnActor',  'post', 'Recompiled.GameTrace.SpawnActorExit')):
+            ('SpawnActor',  'post', 'Recompiled.GameTrace.SpawnActorExit'),
+            ('ModelFind',   'pre',  'Recompiled.ModelGuard.FindEnter'),
+            ('ModelFind',   'post', 'Recompiled.ModelGuard.FindExit')):
         if fn in names:
             patches.append({'overlay': 'main', 'function': fn, 'mode': mode, 'target': target})
         else:

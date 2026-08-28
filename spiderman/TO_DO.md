@@ -114,6 +114,38 @@ every frame, because that block is the same memory the memory-card save is built
 Verified on screen: with the flags set, CONTINUE is enabled on the main menu and the
 wheel's centre shows a level title instead of being blank.
 
+## 1d. Fixed: every level reachable directly, and the three that faulted
+
+`SPIDEY_LEVEL=<prefix>` boots straight into any of the 47 level prefixes by rewriting
+the level's name at the archive lookup. Nine tested, all reach gameplay and hold 7000
+frames: l1a1, l2a1, l3a1, l4a1, l5a1, l5a3, l6a1, l7a1, l8a1.
+
+Three faulted at first, and the cause was the same each time. Resources persist across
+the acts of a level, so an act's list only asks for what is not already resident -- level
+5 act 2 loads the `venom` model and act 3 lists only `venom2`, relying on act 2's still
+being there. Jump straight to act 3 and it never was.
+
+The game does not survive a missing model. `ModelFind` (`0x800694B8`) returns -1, and its
+caller at `0x8005904C` stores that into a **byte**, so -1 becomes 0xFF and it indexes
+record 255 of a 40-record table. That lands 16 KB past the end, in static data that is
+all 0xFF, and the pointer read out is 0xFFFFFFFF. A `lw` from 0xFFFFFFFF is unaligned, so
+real hardware would take an address error too -- the path simply cannot be reached in
+normal play, because the model is always resident.
+
+`patches/ModelGuard.cs` answers the lookup instead of letting it fail, preferring the
+digit pairing the resource lists use (`venom` <-> `venom2`) and otherwise the resident
+name sharing the longest prefix -- which is how the variants are named, and is what
+matches level 2's `henchman` to the resident `Henchngt`. Only active when SPIDEY_LEVEL is
+set.
+
+**A dead end worth not repeating.** The first attempt added an alias *record* to the
+table instead. That is much worse than the problem: two records pointing at one model
+means the game owns the same pointer twice, and it turned a clean 0xFFFFFFFF fault into
+wild addresses and broke levels that had been fine. Placing the alias in the first free
+slot also stole the slot the next real model was going to use, because the game fills the
+table from the bottom as a level loads. `patches/ModelAlias.cs` keeps that attempt behind
+`SPIDEY_ALIAS=1` as a record of it. Answer the lookup; do not touch the table.
+
 ## 1c. Open: driving the menus needs to be closed-loop
 
 Directional input works -- a run that presses RIGHT twice moves the highlight from

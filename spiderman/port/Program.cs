@@ -71,6 +71,7 @@ public static class Program
         RamSnap.Install();
         LevelSwitch.Install();
         ModelAlias.Install();
+        ModelGuard.Install();
         Harness.Install();
 
         AppDomain.CurrentDomain.UnhandledException += (_, e) => Diag.Fatal(e.ExceptionObject as Exception);

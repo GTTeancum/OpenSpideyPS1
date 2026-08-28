@@ -365,6 +365,18 @@
     },
     {
       "overlay": "main",
+      "function": "ModelFind",
+      "mode": "pre",
+      "target": "Recompiled.ModelGuard.FindEnter"
+    },
+    {
+      "overlay": "main",
+      "function": "ModelFind",
+      "mode": "post",
+      "target": "Recompiled.ModelGuard.FindExit"
+    },
+    {
+      "overlay": "main",
       "function": "PadInitMtap",
       "mode": "pre",
       "target": "Recompiled.PadPatches.PadInitMtapEnter"
