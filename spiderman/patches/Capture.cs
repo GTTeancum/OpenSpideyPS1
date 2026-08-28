@@ -201,10 +201,53 @@ public static class Capture
     static void SaveScaled(long frame, byte[] rgba, int w, int h)
     {
         for (int i = 3; i < rgba.Length; i += 4) rgba[i] = 255;
+        (rgba, w) = ToDisplayAspect(rgba, w, h);
 
         string path = Path.Combine(_dir, $"frame_{frame:D5}.png");
         PngWriter.WriteRgba(path, rgba, w, h);
-        Console.WriteLine($"[capture] {path} {w}x{h} (internal resolution)");
+        Console.WriteLine($"[capture] {path} {w}x{h} (display aspect)");
+    }
+
+    /// <summary>
+    /// Resample to the aspect the console actually outputs.
+    ///
+    /// PlayStation pixels are not square: a 512x240 frame is meant to fill a 4:3
+    /// screen, so a capture written at its stored width is stretched sideways by 1.6x
+    /// and every judgement made from it -- does that model look right, is the HUD the
+    /// right shape -- is being made about the wrong picture. The window already
+    /// presents at Display.OutputAspect; a screenshot should agree with it.
+    /// </summary>
+    static (byte[] rgba, int w) ToDisplayAspect(byte[] src, int w, int h)
+    {
+        float aspect = GpuHle.OutputAspect > 0f ? GpuHle.OutputAspect : 4f / 3f;
+        int dstW = (int)MathF.Round(h * aspect);
+        if (dstW <= 0 || dstW == w) return (src, w);
+
+        var dst = new byte[dstW * h * 4];
+        // Box filter horizontally when shrinking, linear when growing: shrinking 2048
+        // to 1280 by point sampling throws away two pixels in five and the HUD text
+        // comes out ragged.
+        float ratio = (float)w / dstW;
+        for (int y = 0; y < h; y++)
+        {
+            int srcRow = y * w * 4, dstRow = y * dstW * 4;
+            for (int x = 0; x < dstW; x++)
+            {
+                float x0 = x * ratio, x1 = x0 + ratio;
+                int i0 = (int)x0, i1 = Math.Min(w - 1, (int)MathF.Ceiling(x1) - 1);
+                int r = 0, g = 0, b = 0, n = 0;
+                for (int i = i0; i <= i1; i++)
+                {
+                    int o = srcRow + i * 4;
+                    r += src[o]; g += src[o + 1]; b += src[o + 2]; n++;
+                }
+                if (n == 0) n = 1;
+                int d = dstRow + x * 4;
+                dst[d] = (byte)(r / n); dst[d + 1] = (byte)(g / n);
+                dst[d + 2] = (byte)(b / n); dst[d + 3] = 255;
+            }
+        }
+        return (dst, dstW);
     }
 
     static void Save(long frame)
@@ -275,6 +318,7 @@ public static class Capture
             }
         }
 
+        (rgba, w) = ToDisplayAspect(rgba, w, h);
         string path = Path.Combine(_dir, $"frame_{frame:D5}.png");
         PngWriter.WriteRgba(path, rgba, w, h);
         Console.WriteLine($"[capture] {path} {w}x{h}{(gpu.Display24Bit ? " (24bpp)" : "")}");
