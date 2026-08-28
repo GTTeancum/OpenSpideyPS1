@@ -208,11 +208,34 @@ Which is the real constraint: **a positional rule cannot work per primitive**, b
 centred text is one quad per character and would split down the middle of the screen the
 same way.
 
-That leaves two honest options. Scale positions *and* sizes about the screen centre --
-consistent, no tearing, but stretches the HUD by a third. Or group consecutive
-screen-aligned primitives into runs, take the bounding box of each run, and shift the
-whole run by one amount. The second gives what was asked for and is the one to build;
-draw order is available, so the grouping is tractable.
+Run grouping was then built, and got most of the way:
+
+- **Runs keyed by ordinal** did nothing. A lone screen-aligned quad anywhere in the world
+  closes a run, so the HUD's run number moves around between frames and last frame's
+  shifts get applied to the wrong elements.
+- **Runs keyed by position** did nothing either, for a better reason: the HUD is drawn in
+  one go, so the health bar and the compass land in a *single* run whose box spans the
+  screen, straddles the middle, and is correctly left alone.
+- **Splitting a run where it jumps a gap** works. The bar moves from 21.3% of frame width
+  to 8.8%, which is edge anchoring -- it keeps its original 60 px inset while the edge
+  moves out. Both elements stay intact.
+
+What is still wrong is the compass needle. It rotates, so it is not axis-aligned, fails
+the screen-aligned test, and stays behind while its ring moves out. Carrying small
+primitives that sit inside a moving element fixes the needle and takes half the scenery
+with it -- a character is built from small triangles, and any narrow one gets dragged
+sideways. Adding vertical containment to that test stops the collateral damage and also
+stops the HUD moving at all, so it is a no-op rather than a fix.
+
+Measured, since the screenshots are not trustworthy at this level of detail: 4:3 puts the
+bar at 11.7% of width and the compass's right edge at 87.6%; unanchored 16:9 gives 21.3%
+and 81.1%; the gap-split version gives 8.8%; the vertically-contained version gives 21.3%
+and 82.5%, i.e. unchanged.
+
+So the remaining problem is narrow and well defined: identify the needle as part of the
+compass without a rule that also matches small world triangles. Tying HUD identification
+to *when* it is drawn rather than what it looks like -- the game's own HUD pass -- would
+settle it, and the DrawPrimSet hook is already wired.
 
 ## 1c. Open: driving the menus needs to be closed-loop
 
