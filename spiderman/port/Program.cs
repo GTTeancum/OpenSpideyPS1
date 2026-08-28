@@ -68,6 +68,7 @@ public static class Program
         EnableLogs(Environment.GetEnvironmentVariable("SPIDEY_LOG"));
         Capture.Install();
         Cheats.Install();
+        RamSnap.Install();
         Harness.Install();
 
         AppDomain.CurrentDomain.UnhandledException += (_, e) => Diag.Fatal(e.ExceptionObject as Exception);
