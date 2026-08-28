@@ -166,9 +166,29 @@ All game-agnostic; all in the shared checkout.
   which is what turned that message into "the object pointer is null" and then into
   "the overlay was never loaded".
 
+- **`DrawSync` always said the GPU was idle.** A game that never calls VSync during
+  gameplay paces itself on the GPU finishing, and Spider-Man is one: it submits an
+  ordering table then spins on `DrawSync` until the drawing is done. Answering "idle"
+  removes the only thing pacing it, and it ran at 131 fps instead of 30. `Gpu/GpuBusy.cs`
+  models the outstanding work as a frame period and `DrawSync` answers from it.
+- **`Runtime.VBlanksPerFrame`** makes a frame worth more than one vblank, for the parts
+  of a game that *do* wait on VSync, while the vblank counter still advances at a true
+  60 Hz so vblank-based timing still measures real seconds.
+- **The memory card never completed an operation.** Two faults that had to be fixed
+  together: `_card_info_subfunc` (B 0x4D) was a no-op, so libmcrd stalled before touching
+  a sector; and `PumpCard` only delivered completions on frames reached through the
+  memory-spin idle breaker, which a game that waits by calling `TestEvent` never trips.
+  Between them the runtime only produced card events as a side effect of sector I/O while
+  the game would not issue sector I/O until it saw a card event. Also `_card_chan`
+  (B 0x58) returned whatever was in `v0`.
+
 Carried over from the X-Men port and confirmed to matter here: the `MoveImage`
 destination-register fix, jump tables that leave the function, the idle-loop breaker,
 `VSync(-1)` advancing off the wall clock, and re-offering card completions.
+
+`tools/recompone-spiderman-changes.patch` captures the earlier round of fixes only; it
+predates the frame-pacing and memory-card work above, and the fork has no upstream
+reference in the tree to regenerate it against.
 
 ---
 
