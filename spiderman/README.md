@@ -4,7 +4,11 @@ A [RecompOne](https://github.com/BlackLabelHQ/RecompOne) port of the PlayStation
 Spider-Man (Neversoft, 2000), built from the retail USA disc following
 `../RECOMP-PLAYBOOK.md`.
 
-**State: playable.** Boots, plays its logos and intro FMV, reaches the title and every
+**State: playable, at the right speed, across every level.** 21 level prefixes were
+booted directly and each reached gameplay and held 7000 frames -- all eight story levels
+plus the bonus set. See [TO_DO.md](TO_DO.md).
+
+**State detail.** Boots, plays its logos and intro FMV, reaches the title and every
 menu, starts a new game and plays level 1 — geometry, HUD, pickups, enemies, working
 controls and camera. A 13,500-frame session with continuous input held 55–60 fps with no
 crash or stall. Audio produces sound (SPU voices and XA streaming, both measured). The

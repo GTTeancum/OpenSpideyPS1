@@ -117,10 +117,18 @@ wheel's centre shows a level title instead of being blank.
 ## 1d. Fixed: every level reachable directly, and the three that faulted
 
 `SPIDEY_LEVEL=<prefix>` boots straight into any of the 47 level prefixes by rewriting
-the level's name at the archive lookup. Nine tested, all reach gameplay and hold 7000
-frames: l1a1, l2a1, l3a1, l4a1, l5a1, l5a3, l6a1, l7a1, l8a1.
+the level's name at the archive lookup. **21 tested, all 21 reach gameplay and hold 7000
+frames** with a screenshot each:
 
-Three faulted at first, and the cause was the same each time. Resources persist across
+```
+l1a1 l1a2 l1a3 l1a4   l2a1 l2a2   l3a1 l3a2 l3a3   l4a1
+l5a1 l5a2 l5a3        l6a1 l6a2   l7a1 l7a2        l8a1 l8a2   l9a1 l9a3
+```
+
+That spans every one of the eight story levels plus the bonus l9 set, interiors,
+rooftops, the sewers and boss encounters.
+
+Three of them (l2a1, l5a1, l5a3) faulted at first, and the cause was the same each time. Resources persist across
 the acts of a level, so an act's list only asks for what is not already resident -- level
 5 act 2 loads the `venom` model and act 3 lists only `venom2`, relying on act 2's still
 being there. Jump straight to act 3 and it never was.
