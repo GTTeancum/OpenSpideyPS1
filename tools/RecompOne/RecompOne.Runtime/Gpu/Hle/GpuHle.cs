@@ -54,6 +54,7 @@ public static class GpuHle
     public static int MaxSpanX => WideAspect > 0f ? 2047 : 1023;
 
 
+
     public static int WideMargin(int w)
     {
         if (WideAspect <= 0f) return 0;
