@@ -14,8 +14,9 @@ controls and camera. A 13,500-frame session with continuous input held 55–60 f
 crash or stall. Audio produces sound (SPU voices and XA streaming, both measured). The
 memory card is detected and reads correctly.
 
-Not verified: finishing level 1 (a timed button script cannot play a 3D action level to
-its end) and writing a save. See [TO_DO.md](TO_DO.md).
+The memory card saves and loads: a save written through the menus reads back by name with
+its level and difficulty. Not verified: finishing a level, which a timed button script
+cannot do. See [TO_DO.md](TO_DO.md).
 
 ---
 

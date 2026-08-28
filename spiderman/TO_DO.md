@@ -154,67 +154,40 @@ slot also stole the slot the next real model was going to use, because the game 
 table from the bottom as a level loads. `patches/ModelAlias.cs` keeps that attempt behind
 `SPIDEY_ALIAS=1` as a record of it. Answer the lookup; do not touch the table.
 
-## 1e. Open: the save hangs in libmcrd, before any card I/O happens
+## 1e. Fixed: the memory card save, which was a two-sided deadlock
 
-The save route is reachable and the game gets all the way to its "NOW SAVING DATA"
-screen -- MEMORY CARD -> SAVE GAME DATA -> INPUT NAME -> FINISH all work under a script,
-using short presses (6 frames) so the menu's key-repeat does not overshoot. Then it stops
-there and never returns.
+The save now works end to end. MEMORY CARD -> SAVE GAME DATA -> INPUT NAME -> FINISH
+writes `BASLUS-00875SPD` to the card, and LOAD GAME lists it back by the name typed, with
+the right level and difficulty beside it.
 
-What the trace shows, and it rules out most of the obvious suspects:
+Finding it meant reading the game's own card code. `0x80014F80` is the save routine, and
+it opens with `a1 = 0x00010200` -- O_CREAT plus one block. The trace only ever showed
+`flags=0x1`, so that path was never reached: it is gated on a state word the game only
+sets once its card poll succeeds. That poll is `0x800152FC`, which tests the four card
+events in turn and **gives up after 120 tries, reporting the card as failed**. The save
+then refuses to run, and the shell sits on "NOW SAVING DATA" forever.
 
-- The game opens `bu00:BASLUS-00875SPD` with **flags=0x1**, sixteen times, and never with
-  the create bit (0x200). It is only ever probing for an existing save.
-- **No `_card_read` (B 0x4F) or `_card_write` (B 0x4E) is ever issued.** libmcrd stalls
-  before any sector I/O at all, so nothing downstream of it is implicated.
-- It then polls `TestEvent` forever on four handles. They are the events it opened:
+Nothing ever satisfied the poll, because of two faults that had to be fixed together --
+which is why fixing either alone looked like it changed nothing:
 
-  | handle | class | spec |
-  |---|---|---|
-  | 0xF0000000..3 | 0xF4000001 | 0x0004 complete, 0x8000 error, 0x0100 timeout, 0x2000 |
-  | 0xF0000004..7 | 0xF0000011 | the same four |
+- **`_card_info_subfunc` (B 0x4D) was a no-op.** libmcrd issues it before touching a
+  sector and waits for the resulting card event, so the state machine stalled before
+  any read or write. It now queues a completion.
+- **`PumpCard` only delivered on idle frames.** Delivery was gated on the memory-spin
+  idle breaker, on the assumption that a game waiting for a card spins on memory.
+  Spider-Man waits by calling `TestEvent` in a loop, which is real work and never trips
+  that breaker, so it received no completions at all. Delivery no longer depends on it;
+  a pending completion is re-delivered every frame until it ages out.
 
-  Only 0xF0000000 ever reads as set. `PumpCard` reports `delivered 0+0` on 236 of its
-  248 attempts -- the completions it hands over match no enabled listener.
+Together those close the loop: the runtime only produced card events as a side effect of
+sector I/O, and the game would not issue sector I/O until it saw a card event.
 
-Three things were tried and did not help, so they are not the answer:
-
-- Implementing `_card_info_subfunc` (B 0x4D) to signal a completion instead of being a
-  no-op. No change; reverted rather than left in unproven.
-- Planting a `BASLUS-00875SPD` directory entry in the card image so the read-only `open`
-  would succeed. The game still wrote nothing -- the block stayed zero -- which confirms
-  the stall is upstream of file I/O rather than a creation problem.
-- Implementing `_card_chan` (B 0x58), which had been returning whatever was in `v0`.
-  That is a real bug on its own terms and the fix is kept, but it is not this one.
-
-The event plumbing itself checked out and is not at fault: `TestEvent` correctly
-acknowledges a ready event and returns it to enabled, and the `delivered 0+0` counts are
-simply deliveries to an event that is already signalled -- not a matching failure.
-
-So the gap is the card *event* protocol: libmcrd's state machine is waiting for a
-handshake the runtime does not complete, and the re-delivery hack in `PumpCard` is
-papering over the same area. The read path works only because the game's "is there a
-save?" probe is satisfied by the file API without libmcrd ever completing. Fixing this
-means emulating the BIOS card event sequence properly rather than re-delivering a pending
-completion on idle spins.
-
-## 1f. Fixed: costumes, found by differencing two runs
-
-The choice is a word at **0x800A5704**, inside the block at 0x800A5688 the game saves to
-the memory card -- a few fields along from the unlock bits the "everything" cheat writes.
-It indexes the COSTUME VIEWER's list in that order, so `SPIDEY_COSTUME=symbiote` and
-`SPIDEY_COSTUME=peter` are one word each.
-
-Found by taking the same route to SPECIAL -> COSTUMES twice and selecting a different
-entry in each, then looking for a word that was 1 in one image and 3 in the other. That
-gave exactly one u32 candidate. Diffing *within* one run (0 -> 1 -> 2 as the highlight
-moved) only turned up heap addresses -- the transient menu highlight, not the choice.
-
-The first approach, swapping the costume file at the archive lookup, was wrong twice
-over: the `cost*.psx` files are 1452-byte palette and texture sets rather than models, so
-handing one to the game in place of the 288 KB `spidey.psx` truncates it and it dies on a
-short pointer; and redirecting the skin file instead loads correctly but changes nothing,
-because the game only applies a skin when this variable tells it to.
+Ruled out along the way, and worth not re-trying: planting a directory entry so the
+read-only `open` would succeed (the game still wrote nothing, putting the stall upstream
+of file I/O), and `_card_chan` returning stale `v0` (a real bug, fixed, but not this
+one). The event plumbing itself was fine -- `TestEvent` acknowledges a ready event and
+resets it correctly, and the `delivered 0+0` counts were deliveries to an already
+signalled event rather than a matching failure.
 
 ## 1c. Open: driving the menus needs to be closed-loop
 

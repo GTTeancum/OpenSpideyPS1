@@ -89,14 +89,21 @@ public static class BiosB
     }
 
     /// <param name="idle">
-    /// True when the game is spinning rather than running its frame loop.
+    /// True when the game reached this through the idle breaker rather than its own
+    /// frame loop. Kept for callers, but delivery no longer depends on it.
     ///
     /// libmcrd starts a card operation, and only some frames later clears its event
-    /// flags and waits on them -- so a completion handed over once, at any fixed
-    /// delay, is as likely to be wiped by that clear as to be seen. Instead a pending
-    /// completion stays available: it is re-delivered on every idle spin until it
-    /// ages out, which means whichever wait the game reaches first observes it. The
-    /// callbacks only store a flag, so repeating them is harmless.
+    /// flags and waits on them -- so a completion handed over once, at any fixed delay,
+    /// is as likely to be wiped by that clear as to be seen. Instead a pending
+    /// completion stays available and is re-delivered every frame until it ages out,
+    /// so whichever wait the game reaches first observes it. The callbacks only store a
+    /// flag, so repeating them is harmless.
+    ///
+    /// This used to deliver only on idle frames, on the assumption that a game waiting
+    /// for a card is spinning on memory. Spider-Man waits by calling TestEvent in a
+    /// loop, which is real work and never trips the memory idle breaker, so it saw no
+    /// completions at all: its card poll timed out after 120 tries, reported the card as
+    /// failed, and the save refused to run.
     /// </param>
     public static void PumpCard(CpuContext c, IMemory m, bool idle)
     {
@@ -106,7 +113,6 @@ public static class BiosB
             int age = d + 1;
             _cardDone[k] = (p, age);
             if (age > CardMaxAgeFrames) { _cardDone.RemoveAt(k); continue; }
-            if (!idle) continue;
             uint port = p;
             var card = (port & 0x10u) != 0 ? Runtime.CardB : Runtime.CardA;
             uint spec = card.Enabled ? 0x0004u : 0x0100u;
@@ -299,10 +305,12 @@ public static class BiosB
             case 0x4A: c.V0 = 1u; break;
             case 0x4B: c.V0 = 1u; break;
             case 0x4C: c.V0 = 1u; break;
-            // _card_info_subfunc(port). Still a no-op: signalling a completion here was
-            // tried against Spider-Man's hung save and changed nothing, so it is left
-            // alone rather than carrying an unproven change. See spiderman/TO_DO.md.
-            case 0x4D: break;
+            // _card_info_subfunc(port): asks the card to describe itself. It is
+            // asynchronous on hardware -- it returns "started" and the answer arrives as
+            // a card event. libmcrd issues it before any read or write and waits for
+            // that event, so a no-op here stalls the whole card state machine before it
+            // ever touches a sector.
+            case 0x4D: CardComplete(c, m, c.A0); c.V0 = 1u; break;
             case 0x4E: CardWrite(c, m); break;
             case 0x4F: CardRead(c, m); break;
             case 0x50: break;
