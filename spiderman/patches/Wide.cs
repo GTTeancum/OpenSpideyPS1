@@ -26,8 +26,9 @@ public static class Wide
     {
         if (Environment.GetEnvironmentVariable("SPIDEY_WIDE") != "1") return;
         Enabled = true;
-        Display.WideAspect = 16f / 9f;
-        Console.WriteLine("[wide] 16:9");
+        var a = Environment.GetEnvironmentVariable("SPIDEY_WIDE_ASPECT");
+        Display.WideAspect = float.TryParse(a, out float f) && f > 1.3f && f < 3f ? f : 16f / 9f;
+        Console.WriteLine($"[wide] aspect {Display.WideAspect:F3}");
     }
 
 }

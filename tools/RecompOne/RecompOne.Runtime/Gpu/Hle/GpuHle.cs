@@ -38,6 +38,22 @@ public static class GpuHle
 
     public static DispRect GetRect(int i) => _rects[i];
 
+    /// <summary>
+    /// Largest primitive the GPU will accept, horizontally.
+    ///
+    /// Real hardware drops anything wider than 1023, and games lean on that. The catch
+    /// in widescreen is that the GTE saturates a projected X to +/-1024, so a polygon
+    /// running off the side of the screen arrives with a clamped vertex and a span of
+    /// 2047 -- and gets dropped. At 4:3 that costs nothing, because what it would have
+    /// covered is off screen anyway. Widen the view and those are exactly the polygons
+    /// the new margins needed: the floor stops short and the background shows through.
+    ///
+    /// So the limit opens to the saturated span while a margin is in play, which admits
+    /// those polygons and nothing wilder. At 4:3 the hardware rule is untouched.
+    /// </summary>
+    public static int MaxSpanX => WideAspect > 0f ? 2047 : 1023;
+
+
     public static int WideMargin(int w)
     {
         if (WideAspect <= 0f) return 0;

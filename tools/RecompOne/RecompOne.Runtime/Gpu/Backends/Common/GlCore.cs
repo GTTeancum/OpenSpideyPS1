@@ -545,8 +545,15 @@ public sealed class GlCore : IGpuBackend
                 rt.Dirty = false;
                 rt.LastDrawFrame = _frame;
                 _drewSincePresent = true;
+                if (Log.GpuOn && (_frame % 120) == 0)
+                    Log.Gpu($"  fill COVERS rt ({x},{y}) {w}x{h} margin={rt.Margin}");
             }
-            else SyncRtFromVram(rt, x, y, w, h);
+            else
+            {
+                if (Log.GpuOn && (_frame % 120) == 0)
+                    Log.Gpu($"  fill PARTIAL ({x},{y}) {w}x{h} -> resync from vram, margin={rt.Margin}");
+                SyncRtFromVram(rt, x, y, w, h);
+            }
         }
     }
 
@@ -791,6 +798,9 @@ public sealed class GlCore : IGpuBackend
         }
 
         _gl.Disable(EnableCap.ScissorTest);
+        if (Log.GpuOn && (_frame % 120) == 0 && rt != null && _count > 0)
+            Log.Gpu($"  batch x {_drawMinX:F0}..{_drawMaxX:F0} (target space, margin={rt.Margin}, " +
+                    $"wide=0..{rt.Wide1x - 1}) verts={_count}");
         if (rt != null) { rt.Dirty = true; rt.LastDrawFrame = _frame; _drewSincePresent = true; }
         else
         {

@@ -30,7 +30,7 @@ public sealed partial class Gpu
     {
         int spanX = Math.Max(a.X, Math.Max(b.X, c.X)) - Math.Min(a.X, Math.Min(b.X, c.X));
         int spanY = Math.Max(a.Y, Math.Max(b.Y, c.Y)) - Math.Min(a.Y, Math.Min(b.Y, c.Y));
-        if (spanX > 1023 || spanY > 511) return;
+        if (spanX > Hle.GpuHle.MaxSpanX || spanY > 511) return;
 
         var be = GpuHle.Backend!;
         be.SetDrawEnv(CurEnv());
@@ -47,7 +47,7 @@ public sealed partial class Gpu
 
     void HleLine(int x0, int y0, int r0, int g0, int b0, int x1, int y1, int r1, int g1, int b1, bool semi, bool gouraud)
     {
-        if (Math.Abs(x1 - x0) > 1023 || Math.Abs(y1 - y0) > 511) return;
+        if (Math.Abs(x1 - x0) > Hle.GpuHle.MaxSpanX || Math.Abs(y1 - y0) > 511) return;
 
         var be = GpuHle.Backend!;
         be.SetDrawEnv(CurEnv());
