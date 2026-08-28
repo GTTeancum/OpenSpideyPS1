@@ -26,6 +26,9 @@ public static class RamSnap
 
     static readonly HashSet<long> _frames = new();
     static string _dir = "snaps";
+    static bool _onCrash;
+    static IMemory _mem;
+    static long _lastFrame;
 
     public static void Install()
     {
@@ -33,29 +36,53 @@ public static class RamSnap
         if (string.IsNullOrWhiteSpace(spec)) return;
 
         foreach (var raw in spec.Split(',', StringSplitOptions.RemoveEmptyEntries))
-            if (long.TryParse(raw.Trim(), out var f)) _frames.Add(f);
-        if (_frames.Count == 0) return;
+        {
+            var t = raw.Trim();
+            // A frame number is only reachable if the run gets that far, and a run that
+            // dies gets there at a different frame every time. "crash" catches it where
+            // it actually matters.
+            if (t.Equals("crash", StringComparison.OrdinalIgnoreCase)) _onCrash = true;
+            else if (long.TryParse(t, out var f)) _frames.Add(f);
+        }
+        if (_frames.Count == 0 && !_onCrash) return;
 
         _dir = Environment.GetEnvironmentVariable("SPIDEY_SNAP_DIR") ?? "snaps";
         Directory.CreateDirectory(_dir);
         Event.AddListener<VSyncEvent>(OnFrame);
-        Console.WriteLine($"[snap] armed for {_frames.Count} frame(s) -> {_dir}");
+        Console.WriteLine($"[snap] armed for {_frames.Count} frame(s)" +
+                          (_onCrash ? " and on crash" : "") + $" -> {_dir}");
+    }
+
+    /// <summary>Write a snapshot now, named for why. Safe to call from a crash handler.</summary>
+    public static void DumpNow(string tag)
+    {
+        if (!_onCrash || _mem == null) return;
+        try { Write(_mem, $"ram_{tag}.bin"); }
+        catch (Exception e) { Console.Error.WriteLine($"[snap] {tag} failed: {e.Message}"); }
     }
 
     static void OnFrame(VSyncEvent e)
     {
+        _mem = e.Memory;
+        _lastFrame = e.Frame;
         if (!_frames.Remove(e.Frame)) return;
 
+        Write(e.Memory, $"ram_{e.Frame:D5}.bin");
+    }
+
+    static void Write(IMemory m, string name)
+    {
+        Directory.CreateDirectory(_dir);
         var buf = new byte[Size];
         for (uint o = 0; o < Size; o += 4)
         {
-            uint w = e.Memory.ReadU32(Base + o);
+            uint w = m.ReadU32(Base + o);
             buf[o] = (byte)w; buf[o + 1] = (byte)(w >> 8);
             buf[o + 2] = (byte)(w >> 16); buf[o + 3] = (byte)(w >> 24);
         }
 
-        string path = Path.Combine(_dir, $"ram_{e.Frame:D5}.bin");
+        string path = Path.Combine(_dir, name);
         File.WriteAllBytes(path, buf);
-        Console.WriteLine($"[snap] {path}");
+        Console.WriteLine($"[snap] {path} (frame {_lastFrame})");
     }
 }

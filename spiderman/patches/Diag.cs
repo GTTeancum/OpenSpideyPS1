@@ -303,6 +303,9 @@ public static class Diag
         sb.Append(StateReport());
         sb.Append("=======================");
         Write(sb.ToString());
+        // A dead run is exactly when the memory is worth having: the frame it dies on
+        // moves between runs, so a numbered snapshot cannot be aimed at it.
+        try { RamSnap.DumpNow("crash"); } catch { }
         try { Console.Error.WriteLine(ex); } catch { }
     }
 

@@ -69,6 +69,8 @@ public static class Program
         Capture.Install();
         Cheats.Install();
         RamSnap.Install();
+        LevelSwitch.Install();
+        ModelAlias.Install();
         Harness.Install();
 
         AppDomain.CurrentDomain.UnhandledException += (_, e) => Diag.Fatal(e.ExceptionObject as Exception);

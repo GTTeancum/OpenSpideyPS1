@@ -86,6 +86,9 @@ public static class OverlayPatches
     {
         _pendingName = null;
         string name = ReadCString(m, c.A0);
+        // Before anything else: a level prefix may be redirected to boot straight into
+        // some other level, which repoints a0 at the rewritten name.
+        name = LevelSwitch.Redirect(c, m, name);
         _lastLookup = name;
         _lastRa = c.RA;
         if (name.Length > 4 && name.EndsWith(".bin", StringComparison.OrdinalIgnoreCase))
