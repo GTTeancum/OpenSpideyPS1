@@ -169,13 +169,19 @@ What the trace shows, and it rules out most of the obvious suspects:
   Only 0xF0000000 ever reads as set. `PumpCard` reports `delivered 0+0` on 236 of its
   248 attempts -- the completions it hands over match no enabled listener.
 
-Two things were tried and did not help, so they are not the answer:
+Three things were tried and did not help, so they are not the answer:
 
 - Implementing `_card_info_subfunc` (B 0x4D) to signal a completion instead of being a
   no-op. No change; reverted rather than left in unproven.
 - Planting a `BASLUS-00875SPD` directory entry in the card image so the read-only `open`
   would succeed. The game still wrote nothing -- the block stayed zero -- which confirms
   the stall is upstream of file I/O rather than a creation problem.
+- Implementing `_card_chan` (B 0x58), which had been returning whatever was in `v0`.
+  That is a real bug on its own terms and the fix is kept, but it is not this one.
+
+The event plumbing itself checked out and is not at fault: `TestEvent` correctly
+acknowledges a ready event and returns it to enabled, and the `delivered 0+0` counts are
+simply deliveries to an event that is already signalled -- not a matching failure.
 
 So the gap is the card *event* protocol: libmcrd's state machine is waiting for a
 handshake the runtime does not complete, and the re-delivery hack in `PumpCard` is

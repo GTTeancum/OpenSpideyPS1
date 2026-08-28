@@ -75,8 +75,18 @@ public static class BiosB
     /// of sector reads, so hold the completion for a few frames and let the game reach
     /// its wait first.
     /// </summary>
+    /// <summary>
+    /// The channel the most recent card operation was on, which _card_chan (B 0x58)
+    /// reports. libmcrd asks for it to route a completion to the right card, so leaving
+    /// it undefined has the state machine acting on a garbage channel.
+    /// </summary>
+    static uint _lastCardChan;
+
     public static void CardComplete(CpuContext c, IMemory m, uint port)
-        => _cardDone.Add((port, 0));
+    {
+        _lastCardChan = port;
+        _cardDone.Add((port, 0));
+    }
 
     /// <param name="idle">
     /// True when the game is spinning rather than running its frame loop.
@@ -302,7 +312,7 @@ public static class BiosB
             case 0x55: c.V0 = 0u; break;
             case 0x56: c.V0 = 0u; break;
             case 0x57: c.V0 = 0u; break;
-            case 0x58: break;
+            case 0x58: c.V0 = _lastCardChan; break;   // _card_chan
             case 0x59: c.V0 = BiosA.TestDevice(m, c.A0); break;
             case 0x5B: c.V0 = 0u; break;
             case 0x5C: c.V0 = 0u; break;
