@@ -31,17 +31,65 @@ public static class LevelSwitch
     const uint Scratch = 0x802B0000;
 
     static readonly Regex LevelName = new(@"^(l\d+a\d+[a-z]?)(.*)$", RegexOptions.IgnoreCase);
+    static readonly Regex CostumeFile = new(@"^cost[a-z0-9]*\.psx$", RegexOptions.IgnoreCase);
 
     static string _target;
     static string _source;
+    static string _costume;
     public static int Rewrites { get; private set; }
+
+    /// <summary>
+    /// The costume skins. These are not models -- every one is exactly 1452 bytes, a
+    /// palette and texture set over the 288 KB `spidey.psx`. Handing the game one of
+    /// these where it expected the model truncates it and it dies on a short pointer,
+    /// so the redirect targets the skin file and leaves the model alone.
+    ///
+    /// INCOMPLETE: the redirect loads the requested skin, but nothing changes on screen.
+    /// The game only *applies* a skin when its costume selection says to, and the
+    /// default Spider-Man wears none -- his colours are in the model. Switching costume
+    /// therefore needs that selection variable, not a different file. The table the
+    /// game picks the filename from is at 0x80098C10 (costarm, cost99, costbag, costblk,
+    /// costcapt, costscar), but nothing in the main executable or the shell overlay
+    /// forms that address with a lui/addiu pair, so it is reached some other way and the
+    /// index has not been found yet. A RAM diff across a costume change would find it.
+    /// </summary>
+    static readonly System.Collections.Generic.Dictionary<string, string> Costumes =
+        new(StringComparer.OrdinalIgnoreCase)
+    {
+        ["default"] = null,      ["spidey"] = null,
+        ["symbiote"] = "costblk", ["black"] = "costblk",
+        ["2099"] = "cost99",
+        ["bagman"] = "costbag",   ["bag"] = "costbag",
+        ["captain"] = "costcapt", ["universe"] = "costcapt",
+        ["peter"] = "costpete",   ["parker"] = "costpete",
+        ["scarlet"] = "costscar",
+        ["armour"] = "costarm",   ["armor"] = "costarm",
+    };
 
     public static void Install()
     {
         var want = Environment.GetEnvironmentVariable("SPIDEY_LEVEL");
-        if (string.IsNullOrWhiteSpace(want)) return;
-        _target = want.Trim().ToLowerInvariant();
-        Console.WriteLine($"[level] starting in '{_target}'");
+        if (!string.IsNullOrWhiteSpace(want))
+        {
+            _target = want.Trim().ToLowerInvariant();
+            Console.WriteLine($"[level] starting in '{_target}'");
+        }
+
+        var cos = Environment.GetEnvironmentVariable("SPIDEY_COSTUME");
+        if (!string.IsNullOrWhiteSpace(cos))
+        {
+            if (Costumes.TryGetValue(cos.Trim(), out var file))
+            {
+                _costume = file;
+                if (file != null) Console.WriteLine($"[costume] wearing '{cos.Trim()}' ({file}.psx)");
+            }
+            else
+            {
+                // A raw file name works too, for the ones without a friendly alias.
+                _costume = cos.Trim();
+                Console.WriteLine($"[costume] wearing '{_costume}.psx'");
+            }
+        }
     }
 
     /// <summary>
@@ -50,7 +98,15 @@ public static class LevelSwitch
     /// </summary>
     public static string Redirect(CpuContext c, IMemory m, string name)
     {
-        if (_target == null || name == null) return name;
+        if (name == null) return name;
+
+        // The costume is a skin file, so whichever one the game asks for is swapped for
+        // the one wanted. a0 is pointed at scratch rather than the game's own buffer, so
+        // it still registers under the name the game used and every lookup resolves.
+        if (_costume != null && CostumeFile.IsMatch(name))
+            return Rewrite(c, m, name, _costume + ".psx");
+
+        if (_target == null) return name;
 
         var hit = LevelName.Match(name);
         if (!hit.Success) return name;
@@ -63,15 +119,18 @@ public static class LevelSwitch
 
         // Follow the case the game used, in case the archive compare is case sensitive.
         string swapped = char.IsUpper(prefix[0]) ? _target.ToUpperInvariant() : _target;
-        string renamed = swapped + rest;
+        return Rewrite(c, m, name, swapped + rest);
+    }
 
-        var bytes = Encoding.ASCII.GetBytes(renamed);
+    static string Rewrite(CpuContext c, IMemory m, string from, string to)
+    {
+        var bytes = Encoding.ASCII.GetBytes(to);
         for (int i = 0; i < bytes.Length; i++) m.WriteU8(Scratch + (uint)i, bytes[i]);
         m.WriteU8(Scratch + (uint)bytes.Length, 0);
         c.A0 = Scratch;
 
         Rewrites++;
-        Console.WriteLine($"[level] {name} -> {renamed}");
-        return renamed;
+        Console.WriteLine($"[level] {from} -> {to}");
+        return to;
     }
 }

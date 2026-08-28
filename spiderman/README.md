@@ -196,6 +196,11 @@ and `"callRing": true` keeps the ring the watchdog prints.
 emulated console drew, not what the desktop showed.
 
 ```
+SPIDEY_HZ=30               the rate the game runs at; 30 is correct for this title
+SPIDEY_LEVEL=l5a3          boot straight into a level (47 prefixes, l1a1..l9a4)
+SPIDEY_CHEATS=all          the game's own cheats: everything, levelselect, invuln,
+                           webbing, debug, bighead, viewers
+SPIDEY_SNAP=crash          dump the game's RAM on the crash, or on named frames
 SPIDEY_SHOTS=1050,1500     write a PNG on these frames
 SPIDEY_SHOT_EVERY=150      ...or every N frames
 SPIDEY_SHOT_DIR=shots      where they go
