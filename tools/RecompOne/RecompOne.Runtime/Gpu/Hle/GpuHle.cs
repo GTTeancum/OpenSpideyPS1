@@ -55,6 +55,7 @@ public static class GpuHle
 
 
 
+
     public static int WideMargin(int w)
     {
         if (WideAspect <= 0f) return 0;

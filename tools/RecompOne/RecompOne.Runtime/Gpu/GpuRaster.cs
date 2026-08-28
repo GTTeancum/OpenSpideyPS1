@@ -17,6 +17,12 @@ public sealed partial class Gpu
         {  3, -1,  2, -2 },
     };
 
+    /// <summary>How many vertices arrive pinned at the GTE's saturation limit.</summary>
+    public static long ClampedVerts, TotalVerts, ProbeHits;
+
+    /// <summary>Draw-space point inside the left margin, low down -- where it tears.</summary>
+    const int ProbeX = -46, ProbeY = 210;
+
     void DrawPolygon()
     {
         uint cmd = _fifo[0];
@@ -66,6 +72,25 @@ public sealed partial class Gpu
             Event.Dispatch(e);
             if (e.Skip) return;
             for (int i = 0; i < n; i++) { v[i].X = e.X[i]; v[i].Y = e.Y[i]; }
+        }
+
+        if (Hle.GpuHle.WideAspect > 0f)
+        {
+            // Does anything at all get drawn where the wedge appears? The probe sits
+            // inside the left margin, low down, which is where the rooftop tears. The
+            // background rect covers the whole frame, so anything that wide is excluded
+            // -- what is being counted is world geometry reaching the margin.
+            int lo = v[0].X, hi = v[0].X, top = v[0].Y, bot = v[0].Y;
+            for (int i = 1; i < n; i++)
+            {
+                if (v[i].X < lo) lo = v[i].X;
+                if (v[i].X > hi) hi = v[i].X;
+                if (v[i].Y < top) top = v[i].Y;
+                if (v[i].Y > bot) bot = v[i].Y;
+            }
+            int px = _drawOffsetX + ProbeX, py = _drawOffsetY + ProbeY;
+            if (lo <= px && hi >= px && top <= py && bot >= py && hi - lo < 400) ProbeHits++;
+            TotalVerts += n;
         }
 
         if (HleOn)

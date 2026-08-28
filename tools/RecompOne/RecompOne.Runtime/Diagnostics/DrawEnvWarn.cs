@@ -5,6 +5,9 @@ namespace RecompOne.Runtime.Diagnostics;
 /// <summary>Reports a draw environment whose clip rectangle is empty.</summary>
 public static class DrawEnvWarn
 {
+    /// <summary>Paint the draw-environment background magenta -- see LibGpu.PutDrawEnv.</summary>
+    public static bool TintBackground;
+
     static int _count;
     static int _areaCount;
 

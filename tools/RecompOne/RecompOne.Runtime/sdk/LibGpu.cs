@@ -113,6 +113,10 @@ public static class LibGpu
             int w = Math.Clamp(clipW + margin * 2, 0, VramShadow.Width - 1);
             int h = Math.Clamp((int)clipH, 0, VramShadow.Height - 1);
             int x = clipX - margin - ofsX, y = clipY - ofsY;
+            // SPIDEY_WIDE_DEBUG=1 paints the drawing-environment background magenta, so
+            // anything showing it is ground the frame never covered, as distinct from
+            // geometry that was drawn.
+            if (Diagnostics.DrawEnvWarn.TintBackground) { r0 = 255; g0 = 0; b0 = 255; }
             gpu.WriteGp0(0x60000000u | ((uint)b0 << 16) | ((uint)g0 << 8) | r0);
             gpu.WriteGp0(((uint)(ushort)y << 16) | (ushort)x);
             gpu.WriteGp0(((uint)(ushort)h << 16) | (ushort)w);

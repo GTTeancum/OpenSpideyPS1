@@ -47,6 +47,8 @@ public static class Wide
         _aspect = float.TryParse(a, out float f) && f > 1.3f && f < 3f ? f : 16f / 9f;
         Display.WideAspect = _aspect;
         Event.AddListener<VSyncEvent>(_ => Follow());
+        RecompOne.Runtime.Diagnostics.DrawEnvWarn.TintBackground =
+            Environment.GetEnvironmentVariable("SPIDEY_WIDE_DEBUG") == "1";
         Console.WriteLine($"[wide] aspect {_aspect:F3}, gameplay only");
     }
 

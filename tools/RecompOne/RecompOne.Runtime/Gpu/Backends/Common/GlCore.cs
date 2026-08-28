@@ -687,7 +687,11 @@ public sealed class GlCore : IGpuBackend
         {
             clipX0 = _kClipX0 - rt.X + rt.Margin; clipY0 = _kClipY0 - rt.Y;
             clipX1 = _kClipX1 - rt.X + rt.Margin; clipY1 = _kClipY1 - rt.Y;
-            if (rt.Margin > 0 && _kClipX0 <= rt.X && _kClipX1 >= rt.X + rt.W - 1) { clipX0 = 0; clipX1 = rt.Wide1x - 1; }
+            bool spansFb = _kClipX0 <= rt.X && _kClipX1 >= rt.X + rt.W - 1;
+            if (rt.Margin > 0 && spansFb) { clipX0 = 0; clipX1 = rt.Wide1x - 1; }
+            else if (rt.Margin > 0 && Log.GpuOn && _count > 0)
+                Log.Gpu($"  clip NOT widened: game clip x {_kClipX0}..{_kClipX1}, " +
+                        $"fb x {rt.X}..{rt.X + rt.W - 1}, verts={_count}");
         }
 
         int bx0 = (int)Math.Floor(_drawMinX) + (rt == null ? 0 : rt.Margin - rt.X);

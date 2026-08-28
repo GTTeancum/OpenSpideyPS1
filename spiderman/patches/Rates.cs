@@ -66,7 +66,8 @@ public static class Rates
             $"present {(present - _present) / dt,6:F1} | " +
             $"service {(service - _service) / dt,7:F0} | " +
             $"vblank {(vcount - _vcount) / dt,6:F1} | " +
-            $"GAME TICK {(tick - _tick) / dt,6:F1}";
+            $"GAME TICK {(tick - _tick) / dt,6:F1}" +
+            $" | probe hits {RecompOne.Runtime.Gpu.ProbeHits} of {RecompOne.Runtime.Gpu.TotalVerts} verts";
 
         _frames = frames; _ot = ot; _disp = disp; _wait = wait;
         _poll = poll; _present = present; _service = service; _vcount = vcount; _tick = tick;
