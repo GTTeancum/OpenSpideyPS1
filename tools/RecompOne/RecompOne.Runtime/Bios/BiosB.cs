@@ -289,6 +289,9 @@ public static class BiosB
             case 0x4A: c.V0 = 1u; break;
             case 0x4B: c.V0 = 1u; break;
             case 0x4C: c.V0 = 1u; break;
+            // _card_info_subfunc(port). Still a no-op: signalling a completion here was
+            // tried against Spider-Man's hung save and changed nothing, so it is left
+            // alone rather than carrying an unproven change. See spiderman/TO_DO.md.
             case 0x4D: break;
             case 0x4E: CardWrite(c, m); break;
             case 0x4F: CardRead(c, m); break;

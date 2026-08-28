@@ -108,6 +108,8 @@ public static class BiosA
                     string cn = CardName(rawPath);
                     int first = card.Find(cn);
                     if (first == 0 && (c.A1 & 0x200u) != 0) first = card.Create(cn, (int)(c.A1 >> 16));
+                    Log.Bios($"  card open '{rawPath}' flags=0x{c.A1:X8} -> block {first}" +
+                             (first == 0 ? " (NOT FOUND, no create flag)" : ""));
                     if (first == 0) { c.V0 = 0xFFFFFFFFu; LastErrno = 2; break; }
                     uint cfd = _nextHandle++;
                     _cardFiles[cfd] = (card, card.Chain(first), card.FileSize(first), 0);

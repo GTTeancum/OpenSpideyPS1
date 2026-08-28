@@ -146,6 +146,44 @@ slot also stole the slot the next real model was going to use, because the game 
 table from the bottom as a level loads. `patches/ModelAlias.cs` keeps that attempt behind
 `SPIDEY_ALIAS=1` as a record of it. Answer the lookup; do not touch the table.
 
+## 1e. Open: the save hangs in libmcrd, before any card I/O happens
+
+The save route is reachable and the game gets all the way to its "NOW SAVING DATA"
+screen -- MEMORY CARD -> SAVE GAME DATA -> INPUT NAME -> FINISH all work under a script,
+using short presses (6 frames) so the menu's key-repeat does not overshoot. Then it stops
+there and never returns.
+
+What the trace shows, and it rules out most of the obvious suspects:
+
+- The game opens `bu00:BASLUS-00875SPD` with **flags=0x1**, sixteen times, and never with
+  the create bit (0x200). It is only ever probing for an existing save.
+- **No `_card_read` (B 0x4F) or `_card_write` (B 0x4E) is ever issued.** libmcrd stalls
+  before any sector I/O at all, so nothing downstream of it is implicated.
+- It then polls `TestEvent` forever on four handles. They are the events it opened:
+
+  | handle | class | spec |
+  |---|---|---|
+  | 0xF0000000..3 | 0xF4000001 | 0x0004 complete, 0x8000 error, 0x0100 timeout, 0x2000 |
+  | 0xF0000004..7 | 0xF0000011 | the same four |
+
+  Only 0xF0000000 ever reads as set. `PumpCard` reports `delivered 0+0` on 236 of its
+  248 attempts -- the completions it hands over match no enabled listener.
+
+Two things were tried and did not help, so they are not the answer:
+
+- Implementing `_card_info_subfunc` (B 0x4D) to signal a completion instead of being a
+  no-op. No change; reverted rather than left in unproven.
+- Planting a `BASLUS-00875SPD` directory entry in the card image so the read-only `open`
+  would succeed. The game still wrote nothing -- the block stayed zero -- which confirms
+  the stall is upstream of file I/O rather than a creation problem.
+
+So the gap is the card *event* protocol: libmcrd's state machine is waiting for a
+handshake the runtime does not complete, and the re-delivery hack in `PumpCard` is
+papering over the same area. The read path works only because the game's "is there a
+save?" probe is satisfied by the file API without libmcrd ever completing. Fixing this
+means emulating the BIOS card event sequence properly rather than re-delivering a pending
+completion on idle spins.
+
 ## 1c. Open: driving the menus needs to be closed-loop
 
 Directional input works -- a run that presses RIGHT twice moves the highlight from
