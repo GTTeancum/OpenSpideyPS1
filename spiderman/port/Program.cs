@@ -72,6 +72,7 @@ public static class Program
         LevelSwitch.Install();
         ModelAlias.Install();
         ModelGuard.Install();
+        Costume.Install();
         Harness.Install();
 
         AppDomain.CurrentDomain.UnhandledException += (_, e) => Diag.Fatal(e.ExceptionObject as Exception);

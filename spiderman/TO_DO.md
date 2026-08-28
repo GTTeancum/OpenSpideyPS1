@@ -198,6 +198,24 @@ save?" probe is satisfied by the file API without libmcrd ever completing. Fixin
 means emulating the BIOS card event sequence properly rather than re-delivering a pending
 completion on idle spins.
 
+## 1f. Fixed: costumes, found by differencing two runs
+
+The choice is a word at **0x800A5704**, inside the block at 0x800A5688 the game saves to
+the memory card -- a few fields along from the unlock bits the "everything" cheat writes.
+It indexes the COSTUME VIEWER's list in that order, so `SPIDEY_COSTUME=symbiote` and
+`SPIDEY_COSTUME=peter` are one word each.
+
+Found by taking the same route to SPECIAL -> COSTUMES twice and selecting a different
+entry in each, then looking for a word that was 1 in one image and 3 in the other. That
+gave exactly one u32 candidate. Diffing *within* one run (0 -> 1 -> 2 as the highlight
+moved) only turned up heap addresses -- the transient menu highlight, not the choice.
+
+The first approach, swapping the costume file at the archive lookup, was wrong twice
+over: the `cost*.psx` files are 1452-byte palette and texture sets rather than models, so
+handing one to the game in place of the 288 KB `spidey.psx` truncates it and it dies on a
+short pointer; and redirecting the skin file instead loads correctly but changes nothing,
+because the game only applies a skin when this variable tells it to.
+
 ## 1c. Open: driving the menus needs to be closed-loop
 
 Directional input works -- a run that presses RIGHT twice moves the highlight from
