@@ -155,6 +155,17 @@ public static class Runtime
         set => Host.FrameClock.VBlanksPerFrame = value < 1 ? 1 : value;
     }
 
+    /// <summary>
+    /// How much the vblank counter advances per presented frame. Separate from
+    /// VBlanksPerFrame, which sets how long a frame lasts.
+    ///
+    /// They have to be separate. A game whose simulation advances per vblank tick runs
+    /// at the counter's rate, not the drawing rate, so pacing frames to 30 Hz while
+    /// still counting two vblanks each leaves the game running at 60 -- drawing at 30
+    /// and moving at twice speed.
+    /// </summary>
+    public static int VBlankStep { get; set; } = 1;
+
     /// <summary>Rate instrumentation -- throttled presents vs bare service passes.</summary>
     public static long Presents, ServicePasses;
 

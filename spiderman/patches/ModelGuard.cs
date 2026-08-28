@@ -67,17 +67,23 @@ public static class ModelGuard
         string alt = Counterpart(_wanted);
         int slot = alt == null ? -1 : IndexOf(m, alt);
 
-        // Otherwise the closest relative that is loaded. Variants are named by prefix --
-        // level 2 wants `henchman` and has `Henchngt` resident -- so the longest shared
-        // prefix picks the right one. Five characters is enough to stop it reaching for
-        // something unrelated, and short names simply go unrescued.
-        if (slot < 0)
+        // Otherwise the closest relative that is loaded. Character variants are named by
+        // prefix -- level 2 wants `henchman` and has `Henchngt` resident -- so the
+        // longest shared prefix picks the right one.
+        //
+        // Level data is excluded, and that matters: `L8A4_L` and `L8A4_O` share five
+        // leading characters without being variants of each other, and there are sixty
+        // such pairs across the trigger files. Substituting a level's object set for its
+        // geometry would be far worse than the missing model. Every level-data name
+        // carries an underscore (`L8A4_G`, `symbi_02`) and no character model does, so
+        // requiring both names to be underscore-free separates them exactly.
+        if (slot < 0 && !_wanted.Contains('_'))
         {
             int best = 0;
             for (int i = 0; i < Records; i++)
             {
                 var name = ReadName(m, Table + (uint)(i * Stride));
-                if (name.Length == 0) continue;
+                if (name.Length == 0 || name.Contains('_')) continue;
                 int n = SharedPrefix(name, _wanted);
                 if (n >= 5 && n > best) { best = n; slot = i; alt = name; }
             }

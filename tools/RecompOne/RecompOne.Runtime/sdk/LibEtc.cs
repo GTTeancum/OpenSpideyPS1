@@ -63,10 +63,7 @@ public static class LibEtc
     public static void Pump(CpuContext c, IMemory m)
     {
         Runtime.PresentFrame();
-        // A whole frame's worth of vblanks, not one: on a 30 fps game two of them went
-        // by. Anything counting vblanks to measure time -- a timer, a fade, an XA
-        // sync -- has to see the same number the console would have counted.
-        _vcount += Runtime.VBlanksPerFrame;
+        _vcount += Runtime.VBlankStep;
         _sinceFrame.Restart();
 
         if (Event.HasAnyListeners<VSyncEvent>())

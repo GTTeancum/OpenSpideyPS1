@@ -53,15 +53,34 @@ public static class Program
         RecompOne.Runtime.Diagnostics.MemGuard.Lenient =
             !string.IsNullOrEmpty(Environment.GetEnvironmentVariable("SPIDEY_LENIENT"));
 
-        // Spider-Man is a 30 fps game, and it paces itself two different ways depending
-        // on where it is. The menus and the boot sequence wait on vblanks, so those need
-        // a frame to be worth two of them. Gameplay never touches VSync at all -- it
-        // spins on DrawSync until the GPU has finished the last ordering table -- so
-        // that gate needs a GPU that stays busy for a frame's worth of time. Fixing
-        // either one alone leaves the other running at full tilt.
+        // Spider-Man is a 30 fps game. Gameplay never touches VSync -- it spins on
+        // DrawSync until the GPU has finished the last ordering table -- so the pacing
+        // gate is a GPU that stays busy for a frame's worth of time. The simulation then
+        // advances once per vblank tick, which is why the tick rate is left at one per
+        // presented frame: together they give 30 frames and 30 ticks a second.
         int hz = TargetHz();
-        RecompOne.Runtime.Runtime.VBlanksPerFrame = Math.Max(1, (int)Math.Round(60.0 / hz));
         RecompOne.Runtime.GpuBusy.FrameBudgetMs = 1000.0 / hz;
+
+        // How many vblanks the counter advances per presented frame, separately from the
+        // frame budget above. SPIDEY_VBLANK overrides it: the game steps its simulation
+        // per vblank tick, so this decides the speed of everything that moves, while the
+        // budget only decides how often a frame is drawn.
+        // One, measured. The game steps its simulation once per vblank tick, so this is
+        // the speed of everything that moves; the budget above only sets how often a
+        // frame is drawn. Setting it to 2 -- on the reasoning that a 30 fps game sees
+        // two vblanks per frame and that vblank-based timers should measure real
+        // seconds -- ran the whole game at double speed while rendering at 30.
+        RecompOne.Runtime.Runtime.VBlanksPerFrame = Math.Max(1, (int)Math.Round(60.0 / hz));
+
+        // Default 2, which keeps the vblank counter at the console's real 60 Hz while
+        // frames are presented at 30. SPIDEY_VBLANK=1 halves it -- everything the game
+        // times in vblanks then runs at half rate, which is the knob to reach for if the
+        // game looks like it is running fast.
+        var vb = Environment.GetEnvironmentVariable("SPIDEY_VBLANK");
+        RecompOne.Runtime.Runtime.VBlankStep =
+            int.TryParse(vb, out int n) && n >= 1 && n <= 4
+                ? n
+                : Math.Max(1, (int)Math.Round(60.0 / hz));
 
         Diag.Install();
         RecompOne.Runtime.Runtime.DiscValidator = ValidateDisc;
@@ -73,6 +92,7 @@ public static class Program
         ModelAlias.Install();
         ModelGuard.Install();
         Costume.Install();
+        Rates.Install();
         Harness.Install();
 
         AppDomain.CurrentDomain.UnhandledException += (_, e) => Diag.Fatal(e.ExceptionObject as Exception);
