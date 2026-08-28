@@ -29,3 +29,6 @@ spiderman/port/dist/
 # Capture output
 spiderman/port/**/shots*/
 run*.txt
+
+# Disc cue sheets -- part of a disc dump; supply your own
+*.cue
