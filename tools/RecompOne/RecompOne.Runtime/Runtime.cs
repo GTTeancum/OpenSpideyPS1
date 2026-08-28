@@ -145,8 +145,22 @@ public static class Runtime
         }
     }
 
+    /// <summary>
+    /// Console vblanks per game frame -- see Host.FrameClock.VBlanksPerFrame. Set 2 for
+    /// a game that ran at 30 fps on hardware.
+    /// </summary>
+    public static int VBlanksPerFrame
+    {
+        get => Host.FrameClock.VBlanksPerFrame;
+        set => Host.FrameClock.VBlanksPerFrame = value < 1 ? 1 : value;
+    }
+
+    /// <summary>Rate instrumentation -- throttled presents vs bare service passes.</summary>
+    public static long Presents, ServicePasses;
+
     public static void PresentFrame()
     {
+        Presents++;
         if (_hardResetPending)
         {
             _hardResetPending = false;
@@ -197,6 +211,7 @@ public static class Runtime
     /// </summary>
     public static void ServiceOnly()
     {
+        ServicePasses++;
         HostWindow.Present(Gpu);
         Audio.Attach(Spu);
         Sdk.LibCd.Tick();

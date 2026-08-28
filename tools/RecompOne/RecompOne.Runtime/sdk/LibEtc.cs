@@ -7,6 +7,11 @@ namespace RecompOne.Runtime.Sdk;
 public static class LibEtc
 {
     static int _vcount;
+
+    /// <summary>Rate instrumentation -- VSync(0) waits vs VSync(-1) polls.</summary>
+    public static long WaitCalls, PollCalls;
+
+    static double FrameSeconds => Runtime.VBlanksPerFrame / 60.0;
     static readonly VSyncEvent _vsyncEvent = new();
     static readonly System.Diagnostics.Stopwatch _sinceFrame = System.Diagnostics.Stopwatch.StartNew();
 
@@ -16,17 +21,19 @@ public static class LibEtc
         Log.Sdk($"VSync({mode})");
         if (mode < 0)
         {
+            PollCalls++;
             // VSync(-1) reads the vblank counter without waiting. On hardware that
             // counter advances on its own, so a game can poll it to wait; here it only
             // moves when a frame is presented, and a poll loop would spin forever.
             // Present one once enough real time has passed, which is when the console
             // would have counted a vblank anyway.
-            if (_sinceFrame.Elapsed.TotalSeconds >= 1.0 / 60.0) Runtime.IdleTick();
+            if (_sinceFrame.Elapsed.TotalSeconds >= FrameSeconds) Runtime.IdleTick();
             c.V0 = (uint)_vcount;
             return;
         }
         //if (mode == 1) { c.V0 = 0; return; }
         
+        WaitCalls++;
         Pump(c, m);
         c.V0 = 0;
     }
@@ -40,7 +47,7 @@ public static class LibEtc
     /// </summary>
     public static void Service(CpuContext c, IMemory m)
     {
-        if (_sinceFrame.Elapsed.TotalSeconds >= 1.0 / 60.0) { Pump(c, m); return; }
+        if (_sinceFrame.Elapsed.TotalSeconds >= FrameSeconds) { Pump(c, m); return; }
         // Cheap, but not free: rate-limit it so a tight spin does not spend all its
         // time presenting instead of running the game.
         if (_sinceService.Elapsed.TotalMilliseconds < 4) return;
@@ -56,7 +63,10 @@ public static class LibEtc
     public static void Pump(CpuContext c, IMemory m)
     {
         Runtime.PresentFrame();
-        _vcount++;
+        // A whole frame's worth of vblanks, not one: on a 30 fps game two of them went
+        // by. Anything counting vblanks to measure time -- a timer, a fade, an XA
+        // sync -- has to see the same number the console would have counted.
+        _vcount += Runtime.VBlanksPerFrame;
         _sinceFrame.Restart();
 
         if (Event.HasAnyListeners<VSyncEvent>())

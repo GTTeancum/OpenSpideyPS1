@@ -53,6 +53,16 @@ public static class Program
         RecompOne.Runtime.Diagnostics.MemGuard.Lenient =
             !string.IsNullOrEmpty(Environment.GetEnvironmentVariable("SPIDEY_LENIENT"));
 
+        // Spider-Man is a 30 fps game, and it paces itself two different ways depending
+        // on where it is. The menus and the boot sequence wait on vblanks, so those need
+        // a frame to be worth two of them. Gameplay never touches VSync at all -- it
+        // spins on DrawSync until the GPU has finished the last ordering table -- so
+        // that gate needs a GPU that stays busy for a frame's worth of time. Fixing
+        // either one alone leaves the other running at full tilt.
+        int hz = TargetHz();
+        RecompOne.Runtime.Runtime.VBlanksPerFrame = Math.Max(1, (int)Math.Round(60.0 / hz));
+        RecompOne.Runtime.GpuBusy.FrameBudgetMs = 1000.0 / hz;
+
         Diag.Install();
         RecompOne.Runtime.Runtime.DiscValidator = ValidateDisc;
         EnableLogs(Environment.GetEnvironmentVariable("SPIDEY_LOG"));
@@ -78,6 +88,17 @@ public static class Program
 
         RecompOne.Runtime.Runtime.Shutdown();
         return 0;
+    }
+
+    /// <summary>
+    /// SPIDEY_HZ -- the rate the game is meant to run at. 30 is correct for this title;
+    /// SPIDEY_HZ=0 removes the pacing entirely and lets it free-run.
+    /// </summary>
+    static int TargetHz()
+    {
+        var hz = Environment.GetEnvironmentVariable("SPIDEY_HZ");
+        if (int.TryParse(hz, out int want) && want >= 10 && want <= 60) return want;
+        return 30;
     }
 
     // SPIDEY_LOG=bios,sdk,cd,gpu,dma,spu,mdec

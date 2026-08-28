@@ -43,6 +43,7 @@ public static class Diag
     static readonly object _gate = new();
 
     static double _stallSeconds = 8;
+    static long _lastLogic;
     static bool _exitOnStall;
     static Dictionary<uint, string> _symbols;
 
@@ -259,6 +260,7 @@ public static class Diag
                       $"{CallRing.StallBreaks} stall breaks; " +
                       RecompOne.Runtime.Diagnostics.FrameProfile.Summary());
                 Write("[diag] " + RecompOne.Runtime.Diagnostics.AudioProbe.Summary());
+                Write("[diag] " + Rates.Sample());
             }
 
             if (fps >= SlowFps)

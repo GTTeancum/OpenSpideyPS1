@@ -97,14 +97,21 @@ public static class GameTrace
 
     static uint _rfSp, _rfRa;
 
+    /// <summary>
+    /// Entries to the game's per-frame function. This -- not the host's present rate --
+    /// is the game's frame rate, and it is the number that has to come out at 30.
+    /// </summary>
+    public static long Frames;
+
     public static void RunFrame(CpuContext c, IMemory m)
     {
+        Frames++;
         _rfSp = c.SP; _rfRa = c.RA;
-        Console.WriteLine($"[game]    RunFrame({c.A0}) enter  sp=0x{c.SP:X8} ra=0x{c.RA:X8} s1=0x{c.S1:X8} fp=0x{c.FP:X8}");
+        if (On) Console.WriteLine($"[game]    RunFrame({c.A0}) enter  sp=0x{c.SP:X8} ra=0x{c.RA:X8} s1=0x{c.S1:X8} fp=0x{c.FP:X8}");
     }
 
     public static void RunFrameExit(CpuContext c, IMemory m)
-        => Console.WriteLine($"[game]    RunFrame exit          sp=0x{c.SP:X8} (delta {(int)(c.SP - _rfSp)}) ra=0x{c.RA:X8} s1=0x{c.S1:X8} fp=0x{c.FP:X8}");
+    { if (On) Console.WriteLine($"[game]    RunFrame exit          sp=0x{c.SP:X8} (delta {(int)(c.SP - _rfSp)}) ra=0x{c.RA:X8} s1=0x{c.S1:X8} fp=0x{c.FP:X8}"); }
 
     /// <summary>
     /// pre-hook on the object renderer, which walks a linked list through offset 4.
@@ -244,9 +251,19 @@ public static class GameTrace
     public static void LoadTriggers(CpuContext c, IMemory m)
         => Console.WriteLine($"[game] LoadTriggers(\"{Str(m, c.A0)}\")");
 
-    /// <summary>pre-hook on TriggerPass -- walks the list spawning and loading.</summary>
+    /// <summary>
+    /// pre-hook on TriggerPass. This runs exactly once per game logic frame while a
+    /// level is live, so counting it is the only honest measure of how fast the game
+    /// is actually thinking -- the vblank counter says how fast we are presenting,
+    /// which is a different question.
+    /// </summary>
+    public static long LogicFrames;
+
     public static void TriggerPass(CpuContext c, IMemory m)
-        => Console.WriteLine("[game] TriggerPass");
+    {
+        LogicFrames++;
+        if (On) Console.WriteLine("[game] TriggerPass");
+    }
 
     /// <summary>pre-hook on TriggerType8 -- the resource entry handler.</summary>
     public static void TriggerType8(CpuContext c, IMemory m)

@@ -10,8 +10,20 @@ public static class LibGpu
     static readonly DrawEnvEvent _drawEnvEvent = new();
     static readonly DispEnvEvent _dispEnvEvent = new();
 
+    /// <summary>
+    /// Ordering tables submitted. The game calls this once per frame it draws, so this
+    /// is its real frame rate -- distinct from how often the host presents, which is
+    /// the vblank rate and says nothing about how fast the game is running.
+    /// </summary>
+    public static long OtCount;
+
+    public static readonly System.Collections.Concurrent.ConcurrentDictionary<uint, long> OtCallers = new();
+
     public static void DrawOTag(CpuContext c, IMemory m)
     {
+        OtCount++;
+        GpuBusy.Submit();
+        OtCallers.AddOrUpdate(c.RA, 1, (_, n) => n + 1);
         var gpu = Runtime.Gpu;
         if (gpu == null) return;
 
@@ -37,7 +49,33 @@ public static class LibGpu
         if (custom) GpuPrims.Clear();
     }
 
-    public static void DrawSync(CpuContext c, IMemory m) => c.V0 = 0;
+    /// <summary>
+    /// DrawSync(0) blocks until the drawing is finished; DrawSync(1) does not block and
+    /// answers how much is still outstanding. Both are answered from the GPU busy model
+    /// -- see Gpu.GpuBusy for why a game's whole frame rate can hang off this.
+    /// </summary>
+    public static void DrawSync(CpuContext c, IMemory m)
+    {
+        double left = GpuBusy.RemainingMs();
+        if (left <= 0) { c.V0 = 0; return; }
+
+        if (c.A0 == 0)
+        {
+            // The blocking form. Keep the host serviced while it waits, or the window
+            // stops responding for as long as the GPU is pretending to be busy.
+            while (GpuBusy.RemainingMs() > 0)
+            {
+                LibEtc.Service(c, m);
+                System.Threading.Thread.Sleep(0);
+            }
+            c.V0 = 0;
+            return;
+        }
+
+        // The polling form. Any non-zero value means "still going" -- libgpu returns a
+        // position in the transfer, and callers only ever test it against zero.
+        c.V0 = (uint)Math.Max(1, (int)(left * 64));
+    }
 
     public static void PutDrawEnv(CpuContext c, IMemory m)
     {
@@ -92,8 +130,26 @@ public static class LibGpu
         c.V0 = c.A0;
     }
 
+    /// <summary>Rate instrumentation -- display-buffer swaps.</summary>
+    public static long DispCount;
+
+    /// <summary>
+    /// Where the buffer swaps are coming from. In-level Spider-Man swaps from code that
+    /// is not the boot loop, so the call site has to be found at runtime rather than by
+    /// scanning the main executable -- the gameplay loop lives in an overlay.
+    /// </summary>
+    public static readonly System.Collections.Concurrent.ConcurrentDictionary<uint, long> DispCallers = new();
+    public static readonly System.Collections.Concurrent.ConcurrentDictionary<uint, long> DispGrandparents = new();
+
     public static void PutDispEnv(CpuContext c, IMemory m)
     {
+        DispCount++;
+        DispCallers.AddOrUpdate(c.RA, 1, (_, n) => n + 1);
+        // One level further up. The swap routine that calls this saves its own return
+        // address at 16(sp) in its prologue, so the caller's caller can be read out of
+        // memory here -- which is the frame loop itself, and the thing that decides how
+        // often a frame happens.
+        DispGrandparents.AddOrUpdate(m.ReadU32(c.SP + 16), 1, (_, n) => n + 1);
         var gpu = Runtime.Gpu;
         if (gpu == null) { c.V0 = c.A0; return; }
 

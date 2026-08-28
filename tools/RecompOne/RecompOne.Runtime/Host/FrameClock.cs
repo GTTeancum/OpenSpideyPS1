@@ -4,8 +4,22 @@ namespace RecompOne.Runtime.Host;
 
 internal static class FrameClock
 {
-    const double FrameMs = 1000.0 / 60.0;
+    const double VBlankMs = 1000.0 / 60.0;
     const double SpinMs = 1.5;
+
+    /// <summary>
+    /// Console vblanks per game frame. 1 is a 60 fps game; 2 is a 30 fps game.
+    ///
+    /// This is not a cosmetic frame cap. A PS1 game paces itself by asking for the
+    /// next vblank and getting whichever one it is ready for -- so a title whose frame
+    /// costs more than 16.7 ms on real hardware is a 30 fps game, permanently, because
+    /// it always misses. A recompile does that same frame in a fraction of a
+    /// millisecond and therefore never misses, which makes the whole game run at
+    /// double speed. Setting this to 2 restores the cadence the game was built around.
+    /// </summary>
+    public static int VBlanksPerFrame = 1;
+
+    static double FrameMs => VBlankMs * VBlanksPerFrame;
 
     static readonly Stopwatch _clock = Stopwatch.StartNew();
     static double _nextFrameMs;

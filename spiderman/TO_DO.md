@@ -34,6 +34,60 @@ Not yet verified, and honestly so:
 
 ---
 
+## 1. Fixed: the game ran at four times speed, and it paces itself two ways
+
+The visible symptom was simply "too fast". The cause took three wrong guesses to find,
+and all three were wrong because I measured a counter that looked like a frame rate and
+was not one:
+
+| counter | what it actually is |
+|---|---|
+| `TriggerPass` | once per **level load**, not per frame |
+| `DrawOTag` | once per **rendering pass**; in menus several run per frame |
+| the frame number in the log | the console's **vblank counter**, not presented frames |
+
+Sampling all of them side by side against one wall clock (`patches/Rates.cs`) is what
+made it readable. In level, the real numbers were `PutDispEnv` and `DrawOTag` both at
+**131/s** with `VSync(0)` and `VSync(-1)` at **zero**.
+
+That is the whole finding: **during gameplay Spider-Man never waits for a vblank.** It
+paces itself on the GPU finishing. The loop at `0x8002C284` is
+
+```
+8002C284:  jal 0x8005E234          ; a slice of per-poll work
+8002C28C:  jal 0x8005E748
+8002C294:  jal DrawSync            ; a0 = 1 -- non-blocking "how much is left?"
+8002C29C:  bne v0, zero, 8002C284  ; still drawing? go round again
+8002C2A4:  jal 0x80061308          ; swap buffers, submit the next table
+```
+
+`DrawSync` in the runtime was `c.V0 = 0` -- the GPU is never busy -- so the spin exited
+immediately every time and the frame loop ran flat out.
+
+The menus are a *different* mechanism: they do wait on vblanks, through `RunFrame`
+(`0x8002AA0C`), and were running one frame per vblank instead of one per two.
+
+So there are two fixes, and either alone leaves half the game at full tilt:
+
+- **`Runtime.VBlanksPerFrame = 2`** -- a frame is worth two vblanks, which paces
+  everything that waits on `VSync`, and keeps the vblank counter advancing at a true
+  60 Hz so anything timing itself in vblanks still measures real seconds.
+- **`GpuBusy`** -- a submitted ordering table keeps the GPU busy for a frame period, so
+  `DrawSync` reports work outstanding and the gameplay spin waits the way it does on
+  hardware.
+
+**What this deliberately does not attempt.** A fill-rate model of the real GPU would not
+have been enough. On hardware most of a frame is the CPU's own work -- game logic, GTE
+transforms, building the table -- and a recompile does all of that in a fraction of a
+millisecond, so even a perfect rasteriser model would still come out several times too
+fast. The cadence is what is reproducible, so the budget is expressed as a frame period.
+`SPIDEY_HZ` sets it; 30 is correct for this title, and `SPIDEY_HZ=0` frees it.
+
+Measured after: gameplay loop **29.9/s**, presents **29.9/s** -- the game's own loop is
+the pacer again.
+
+---
+
 ## 2. Fixed: the first-gameplay-frame crash was a missed branch-and-link
 
 Recorded because the mechanism is easy to hit again. The object renderer walks a linked
