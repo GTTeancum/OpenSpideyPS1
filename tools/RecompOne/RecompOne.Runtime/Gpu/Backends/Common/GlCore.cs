@@ -177,6 +177,19 @@ public sealed class GlCore : IGpuBackend
             if (clipInside) { bestStamp = r.Stamp; fbX = r.X; fbY = r.Y; fbW = r.W; fbH = r.H; }
             else if (clipIsFb) { bestStamp = r.Stamp; fbX = clipX; fbY = clipY; fbW = clipW; fbH = clipH; }
         }
+        if (Log.GpuOn && (_frame % 120) == 0)
+        {
+            var sb = new System.Text.StringBuilder();
+            sb.Append($"classify clip=({clipX},{clipY}) {clipW}x{clipH} -> ");
+            if (bestStamp < 0) sb.Append("NO MATCH; rects:");
+            else sb.Append($"fb=({fbX},{fbY}) {fbW}x{fbH}; rects:");
+            for (int i = 0; i < GpuHle.RectCount; i++)
+            {
+                var r = GpuHle.GetRect(i);
+                sb.Append(r.Valid ? $" [{r.X},{r.Y} {r.W}x{r.H}]" : " [invalid]");
+            }
+            Log.Gpu(sb.ToString());
+        }
         return bestStamp < 0 ? null : GetOrCreateRt(fbX, fbY, fbW, fbH);
     }
 
@@ -589,6 +602,23 @@ public sealed class GlCore : IGpuBackend
         return buf;
     }
 
+    public unsafe byte[]? ReadPresented(out int outW, out int outH)
+    {
+        outW = outH = 0;
+        if (!Ready || _presentFbo == 0 || _presentW <= 0 || _presentH <= 0) return null;
+
+        outW = _presentW;
+        outH = _presentH;
+        var buf = new byte[outW * outH * 4];
+
+        _gl.BindFramebuffer(FramebufferTarget.Framebuffer, _presentFbo);
+        fixed (byte* p = buf)
+            _gl.ReadPixels(0, 0, (uint)outW, (uint)outH,
+                           PixelFormat.Rgba, PixelType.UnsignedByte, p);
+        _gl.BindFramebuffer(FramebufferTarget.Framebuffer, 0);
+        return buf;
+    }
+
     public int RegisterImage(ReadOnlySpan<byte> rgba, int width, int height)
     {
         _gl.ActiveTexture(TextureUnit.Texture7);
@@ -827,6 +857,11 @@ public sealed class GlCore : IGpuBackend
         int w1x = src != null ? w + src.Margin * 2 : w;
         int h1x = h;
         float aspect = src is { Margin: > 0 } ? GpuHle.WideAspect : src != null ? GpuHle.SourceAspect : GpuHle.OutputAspect;
+
+        if (Log.GpuOn && (_frame % 120) == 0)
+            Log.Gpu($"present disp=({dispX},{dispY}) {w}x{h}  rt=" +
+                    (src == null ? "none" : $"({src.X},{src.Y}) {src.W}x{src.H} margin={src.Margin}") +
+                    $"  w1x={w1x} aspect={aspect:F3}");
 
 
         GpuHle.LastDisplayW = w;

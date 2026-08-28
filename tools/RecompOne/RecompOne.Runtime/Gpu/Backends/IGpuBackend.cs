@@ -30,6 +30,19 @@ public interface IGpuBackend
         return null;
     }
     
+    /// <summary>
+    /// The frame as it was last presented, at full internal resolution, RGBA8, bottom
+    /// row first. This is the only view that includes the widescreen margins: those are
+    /// rendered into the presentation target and the blit back to VRAM deliberately
+    /// takes the console-width centre, so a VRAM readback can never show them.
+    /// Returns null on backends that cannot do it.
+    /// </summary>
+    byte[]? ReadPresented(out int outW, out int outH)
+    {
+        outW = outH = 0;
+        return null;
+    }
+
     //add other stuff
     int RegisterImage(ReadOnlySpan<byte> rgba, int width, int height);
 

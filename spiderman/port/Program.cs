@@ -93,6 +93,13 @@ public static class Program
         ModelGuard.Install();
         Costume.Install();
         Rates.Install();
+
+        // SPIDEY_WIDE=1 -- experiment: widen the render target and present 16:9.
+        if (Environment.GetEnvironmentVariable("SPIDEY_WIDE") == "1")
+        {
+            RecompOne.Runtime.Hle.Display.WideAspect = 16f / 9f;
+            Console.WriteLine("[wide] WideAspect = 16:9");
+        }
         Harness.Install();
 
         AppDomain.CurrentDomain.UnhandledException += (_, e) => Diag.Fatal(e.ExceptionObject as Exception);
