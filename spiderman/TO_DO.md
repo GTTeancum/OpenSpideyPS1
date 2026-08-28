@@ -88,6 +88,48 @@ the pacer again.
 
 ---
 
+## 1b. The cheat table, and unlocking the game for testing
+
+Reaching level 6 legitimately means playing five levels of a 3D action game, which a
+timed button script cannot do. The game's own cheat system is the way in.
+
+23 codes live at `0x800A55D0` as `{typed string, effect}` pairs. `0x8006F7EC` walks that
+table comparing what was typed, and `0x8006F540` dispatches the matched index through a
+jump table at `0x80095B34` to a handler. Every handler is three or four instructions, so
+`patches/Cheats.cs` writes the same words directly rather than calling into game code:
+
+| code | effect | write |
+|---|---|---|
+| `EEL NATS` | everything | `0x800A5708..0x5718 = -1`, `+0x78`/`+0x55` = 1, level select = 1 |
+| `XCLSIOR` | level select | `0x800B4F80 = 1` |
+| `RUSTCRST` | invulnerable | `0x800B4F6C = 1` |
+| `STRUDL` | webbing | `0x800B4F98 = 1` |
+| `LLADNEK` | debug info | `0x800B4F8C = 1` |
+| `WATCH EM` / `CVIEW EM` / `CMC BUFF` | viewers | `0x800A5710` / `0x570C` / `0x5714 = -1` |
+
+Off unless asked for: `SPIDEY_CHEATS=all`, or a comma list of
+`everything,levelselect,invuln,webbing,debug,bighead,viewers`. The flags are re-asserted
+every frame, because that block is the same memory the memory-card save is built from.
+
+Verified on screen: with the flags set, CONTINUE is enabled on the main menu and the
+wheel's centre shows a level title instead of being blank.
+
+## 1c. Open: driving the menus needs to be closed-loop
+
+Directional input works -- a run that presses RIGHT twice moves the highlight from
+CONTINUE to SPECIAL, captured. What is not reliable is *when* to press. The frame a
+screen appears on moves by hundreds between runs, and pressing into the gap either does
+nothing or falls through to the next screen: six STARTs meant to hold the menu went
+title -> menu -> level -> pause.
+
+The fix is to stop timing presses and read the menu's own selection variable, pressing
+until it matches the target. Finding it is a RAM diff: snapshot with one item
+highlighted, press, snapshot again, and look for the small integer that changed by one.
+That single variable unblocks the level select, the memory-card save route, and any
+other menu the port needs to be driven through.
+
+---
+
 ## 2. Fixed: the first-gameplay-frame crash was a missed branch-and-link
 
 Recorded because the mechanism is easy to hit again. The object renderer walks a linked

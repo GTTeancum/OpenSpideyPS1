@@ -67,6 +67,7 @@ public static class Program
         RecompOne.Runtime.Runtime.DiscValidator = ValidateDisc;
         EnableLogs(Environment.GetEnvironmentVariable("SPIDEY_LOG"));
         Capture.Install();
+        Cheats.Install();
         Harness.Install();
 
         AppDomain.CurrentDomain.UnhandledException += (_, e) => Diag.Fatal(e.ExceptionObject as Exception);
