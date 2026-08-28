@@ -141,6 +141,13 @@ public static class LibGpu
     public static readonly System.Collections.Concurrent.ConcurrentDictionary<uint, long> DispCallers = new();
     public static readonly System.Collections.Concurrent.ConcurrentDictionary<uint, long> DispGrandparents = new();
 
+    /// <summary>
+    /// Which routine asked for the most recent buffer swap. Identifies what is on
+    /// screen -- the gameplay loop and the menu shell swap from different places -- so a
+    /// port can treat them differently without guessing from the picture.
+    /// </summary>
+    public static uint LastDispGrandparent;
+
     public static void PutDispEnv(CpuContext c, IMemory m)
     {
         DispCount++;
@@ -149,7 +156,8 @@ public static class LibGpu
         // address at 16(sp) in its prologue, so the caller's caller can be read out of
         // memory here -- which is the frame loop itself, and the thing that decides how
         // often a frame happens.
-        DispGrandparents.AddOrUpdate(m.ReadU32(c.SP + 16), 1, (_, n) => n + 1);
+        LastDispGrandparent = m.ReadU32(c.SP + 16);
+        DispGrandparents.AddOrUpdate(LastDispGrandparent, 1, (_, n) => n + 1);
         var gpu = Runtime.Gpu;
         if (gpu == null) { c.V0 = c.A0; return; }
 
