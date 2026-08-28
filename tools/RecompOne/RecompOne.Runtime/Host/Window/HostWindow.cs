@@ -95,6 +95,25 @@ public static class HostWindow
         };
     }
 
+    /// <summary>
+    /// Grow the window by this many pixels. Used to make the output panel match the
+    /// aspect the game is presenting: the panel fits content inside whatever room it
+    /// has, so a 16:9 image in a 4:3 window is correct behaviour that happens to look
+    /// like a bug -- black bars top and bottom. Sizing from the panel's own measured
+    /// area means the menu bar and padding are accounted for without hardcoding them.
+    /// </summary>
+    public static void GrowWindow(int dx, int dy)
+    {
+        if (_window == null) return;
+        var size = _window.Size;
+        int w = Math.Clamp(size.X + dx, 320, 7680);
+        int h = Math.Clamp(size.Y + dy, 240, 4320);
+        if (w == size.X && h == size.Y) return;
+        _window.Size = new Vector2D<int>(w, h);
+        ConfigManager.View.WindowWidth = w;
+        ConfigManager.View.WindowHeight = h;
+    }
+
     public static void Initialize(string title)
     {
         ConfigManager.Load();

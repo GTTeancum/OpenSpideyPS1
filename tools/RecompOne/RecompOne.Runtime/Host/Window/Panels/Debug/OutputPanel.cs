@@ -37,6 +37,7 @@ internal sealed class OutputPanel : IPanel
         if (_texId != 0 && _texW > 0 && _texH > 0)
         {
             var avail = ImGui.GetContentRegionAvail();
+            FitWindowOnce(avail);
             var imageSize = FitAspect(new Vector2(_aspect, 1f), avail);
             var offset = (avail - imageSize) * 0.5f;
             ImGui.SetCursorPos(ImGui.GetCursorPos() + offset);
@@ -47,6 +48,25 @@ internal sealed class OutputPanel : IPanel
 
         ImGui.End();
         ImGui.PopStyleColor();
+    }
+
+    static bool _fitted;
+
+    /// <summary>
+    /// Shape the window to the aspect being presented, once, on the first frame that
+    /// has a real panel area. Only when the game is presenting something wider than the
+    /// console's own 4:3 -- otherwise the window is left exactly as the user had it.
+    /// </summary>
+    static void FitWindowOnce(Vector2 avail)
+    {
+        if (_fitted || avail.X < 16f || avail.Y < 16f) return;
+        _fitted = true;
+
+        if (Hle.GpuHle.WideAspect <= Hle.GpuHle.BaseAspect) return;
+
+        float want = Hle.GpuHle.WideAspect;
+        int dx = (int)MathF.Round(avail.Y * want - avail.X);
+        if (dx > 0) HostWindow.GrowWindow(dx, 0);
     }
 
     static Vector2 FitAspect(Vector2 src, Vector2 dst)
