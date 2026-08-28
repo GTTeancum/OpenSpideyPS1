@@ -251,6 +251,18 @@
     },
     {
       "overlay": "main",
+      "function": "SetDrawAreaPrim",
+      "mode": "pre",
+      "target": "Recompiled.GameTrace.SetDrawArea"
+    },
+    {
+      "overlay": "main",
+      "function": "SetDrawAreaPrim",
+      "mode": "post",
+      "target": "Recompiled.GameTrace.SetDrawAreaExit"
+    },
+    {
+      "overlay": "main",
       "function": "DrawPrimSet",
       "mode": "pre",
       "target": "Recompiled.GameTrace.DrawPrimSet"
@@ -389,12 +401,6 @@
     },
     {
       "overlay": "*",
-      "function": "ResetGraph",
-      "mode": "replace",
-      "target": "Recompiled.GpuPatches.ResetGraph"
-    },
-    {
-      "overlay": "*",
       "function": "SetDispMask",
       "mode": "replace",
       "target": "Recompiled.GpuPatches.SetDispMask"
@@ -416,8 +422,13 @@
       "function": "SetGraphDebug",
       "mode": "replace",
       "target": "Recompiled.GpuPatches.SetGraphDebug"
+    },
+    {
+      "overlay": "*",
+      "function": "ResetGraph",
+      "mode": "pre",
+      "target": "Recompiled.GpuPatches.ResetGraph"
     }
   ],
-  "callRing": true,
-  "spAudit": false
+  "callRing": true
 }

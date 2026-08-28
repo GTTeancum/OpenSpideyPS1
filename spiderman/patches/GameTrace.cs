@@ -220,6 +220,26 @@ public static class GameTrace
                               $"s0->next 0x{_dpsNext:X8}->0x{nextNow:X8}, ra on exit 0x{c.RA:X8}");
     }
 
+    static uint _sdaP;
+    static int _sdaCount;
+
+    /// <summary>pre-hook on SetDrawArea(DR_AREA *p, RECT *r)</summary>
+    public static void SetDrawArea(CpuContext c, IMemory m)
+    {
+        _sdaP = c.A0;
+        if (_sdaCount < 8)
+            Console.WriteLine($"[gpu] SetDrawArea(p=0x{c.A0:X8}, rect=" +
+                              $"({(short)m.ReadU16(c.A1)},{(short)m.ReadU16(c.A1 + 2)}) " +
+                              $"{(short)m.ReadU16(c.A1 + 4)}x{(short)m.ReadU16(c.A1 + 6)})");
+    }
+
+    /// <summary>post-hook on SetDrawArea -- what it actually built.</summary>
+    public static void SetDrawAreaExit(CpuContext c, IMemory m)
+    {
+        if (_sdaCount++ >= 8) return;
+        Console.WriteLine($"[gpu]   -> code[0]=0x{m.ReadU32(_sdaP + 4):X8} code[1]=0x{m.ReadU32(_sdaP + 8):X8}");
+    }
+
     /// <summary>pre-hook on LoadTriggers(char *area)</summary>
     public static void LoadTriggers(CpuContext c, IMemory m)
         => Console.WriteLine($"[game] LoadTriggers(\"{Str(m, c.A0)}\")");

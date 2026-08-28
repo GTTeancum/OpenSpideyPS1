@@ -7412,7 +7412,7 @@
   },
   {
    "address": "0x800824F8",
-   "name": "SetDrawArea",
+   "name": "SetDrawAreaPrim",
    "size": 128
   },
   {

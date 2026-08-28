@@ -25,8 +25,12 @@ FM = os.path.join(ROOT, 'config', 'funcmaps')
 # libgpu entry points that reach hardware through the queue the runtime replaces.
 # Half-replacing this subsystem is worse than not replacing it at all.
 GPU_RUNTIME = ['ClearImage', 'LoadImage', 'MoveImage', 'StoreImage']
-GPU_SHIM = ['ResetGraph', 'SetDispMask', 'DrawPrim', 'DrawOTagEnv', 'ClearOTagR',
+GPU_SHIM = ['SetDispMask', 'DrawPrim', 'DrawOTagEnv', 'ClearOTagR',
             'DrawSyncCallback', 'GetODE', 'SetGraphDebug', 'ClearOTag']
+
+# ResetGraph must NOT be replaced -- it initialises libgpu's own state, including the
+# coordinate clamp limits every other libgpu helper reads. See patches/GpuPatches.cs.
+GPU_PRE = ['ResetGraph']
 
 
 def known_names():
@@ -71,6 +75,8 @@ def main():
             ('LoadPsx',     'pre',  'Recompiled.GameTrace.LoadPsx'),
             ('RunTriggerScript', 'pre', 'Recompiled.GameTrace.RunTriggerScript'),
             ('LoadTriggers', 'pre', 'Recompiled.GameTrace.LoadTriggers'),
+            ('SetDrawAreaPrim', 'pre', 'Recompiled.GameTrace.SetDrawArea'),
+            ('SetDrawAreaPrim', 'post','Recompiled.GameTrace.SetDrawAreaExit'),
             ('DrawPrimSet',  'pre', 'Recompiled.GameTrace.DrawPrimSet'),
             ('DrawPrimSet',  'post','Recompiled.GameTrace.DrawPrimSetExit'),
             ('FatalHalt',    'pre', 'Recompiled.GameTrace.FatalHalt'),
@@ -113,6 +119,12 @@ def main():
     for fn in GPU_SHIM:
         if fn in names:
             patches.append({'overlay': '*', 'function': fn, 'mode': 'replace',
+                            'target': f'Recompiled.GpuPatches.{fn}'})
+        else:
+            skipped.append(fn)
+    for fn in GPU_PRE:
+        if fn in names:
+            patches.append({'overlay': '*', 'function': fn, 'mode': 'pre',
                             'target': f'Recompiled.GpuPatches.{fn}'})
         else:
             skipped.append(fn)

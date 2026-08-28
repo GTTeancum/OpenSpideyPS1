@@ -17,7 +17,21 @@ namespace Recompiled;
 /// </summary>
 public static class GpuPatches
 {
-    // int ResetGraph(int mode)
+    /// <summary>
+    /// pre-hook on ResetGraph, which then runs for real.
+    ///
+    /// Replacing it outright was a mistake worth spelling out. ResetGraph is not just a
+    /// GP1 write: it initialises libgpu's own state block, and among that state are the
+    /// clamp limits every coordinate helper reads -- SetDrawArea, SetDrawMode and the
+    /// rest all fetch a width and height from it and clamp against `limit - 1`. With the
+    /// real function replaced, those limits stayed zero, `limit - 1` was -1, and every
+    /// coordinate clamped to 0xFFFF, which the GP0 command masks down to 1023. The
+    /// result was a drawing area of (1023,1023)-(1023,1023): the whole level was being
+    /// drawn and every polygon of it clipped away.
+    ///
+    /// So the game's ResetGraph runs, and all this does is the hardware reset in front
+    /// of it, in the order the console would have seen.
+    /// </summary>
     public static void ResetGraph(CpuContext c, IMemory m)
     {
         var gpu = Runtime.Gpu;
@@ -27,7 +41,6 @@ public static class GpuPatches
             // game uses 3 between screens where blanking the display would flicker.
             gpu.WriteGp1((c.A0 & 7u) == 0 ? 0x00000000u : 0x01000000u);
         }
-        c.V0 = 0u;
     }
 
     // int SetDispMask(int mask)  -- 1 shows the display, 0 blanks it
