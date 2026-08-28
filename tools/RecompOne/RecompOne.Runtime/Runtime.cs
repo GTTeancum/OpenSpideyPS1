@@ -200,7 +200,11 @@ public static class Runtime
         HostWindow.Present(Gpu);
         Audio.Attach(Spu);
         Sdk.LibCd.Tick();
-        if (Mem != null) { Bios.BiosB.RefreshPad(Mem); Sdk.LibPad.Refresh(Mem); }
+        // Deliberately no pad refresh. The pads are sampled once per vblank on
+        // hardware, and PresentFrame already does that; repeating it here at service
+        // rate overwrites the pad buffers hundreds of times between frames, which
+        // stomps on anything else that writes them -- a scripted press from the
+        // capture harness lasted microseconds instead of a frame.
         DispatchIrq(0);
     }
 

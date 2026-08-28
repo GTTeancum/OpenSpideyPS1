@@ -79,6 +79,8 @@ internal static unsafe class InputManager
         PollGamepadEvents();
         PollKeyboard();
         PollGamepads();
+        // Scripted input last, so it survives whatever the host devices reported.
+        Controller.State &= (ushort)~Controller.ScriptHeld;
         Controller.Connected2 = _pad1 != null || HasAnyKey(ConfigManager.Game.Keys2);
     }
 

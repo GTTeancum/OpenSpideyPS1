@@ -20,6 +20,18 @@ public static class Controller
     public const ushort Square = 1 << 15;
 
     public static ushort State = 0xFFFF;
+
+    /// <summary>
+    /// Buttons held by an automated script, as an active-high mask, merged into the
+    /// host state every poll.
+    ///
+    /// A test harness cannot just write the pad buffers itself: the runtime refreshes
+    /// them from this state on its own schedule, so an injected press survives only
+    /// until the next refresh. Feeding the script in here instead means every consumer
+    /// -- libpad, the BIOS pad path, anything else -- sees it, and sees it for exactly
+    /// as long as the script says.
+    /// </summary>
+    public static ushort ScriptHeld;
     public static byte   RightX = 0x80;
     public static byte   RightY = 0x80;
     public static byte   LeftX = 0x80;

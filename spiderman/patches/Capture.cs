@@ -130,8 +130,10 @@ public static class Capture
         }
     }
 
-    // Written straight into the pad buffers, after the runtime has already refreshed
-    // them for this frame, so a scripted press wins over the (idle) host input.
+    // Fed into the runtime's controller state rather than written over the pad buffers.
+    // The buffers get refreshed from that state on the runtime's own schedule, so a
+    // press written directly into them only lasted until the next refresh -- which,
+    // once the service tick started running between frames, was almost immediately.
     static void DriveInput(VSyncEvent e)
     {
         if (_script.Count == 0) return;
@@ -140,10 +142,8 @@ public static class Capture
         foreach (var p in _script)
             if (e.Frame >= p.Frame && e.Frame < p.Frame + p.Hold)
                 held |= p.Mask;
-        if (held == 0) return;
 
-        ushort state = (ushort)(0xFFFF & ~held);
-        WritePad(PadPatches.Buf1, state);
+        RecompOne.Runtime.Hardware.Controller.ScriptHeld = held;
     }
 
     static void WritePad(uint buf, ushort state)

@@ -414,6 +414,7 @@ public sealed class Spu
                 int mixL = l * _voiceGain >> 15, mixR = r * _voiceGain >> 15;
                 if (XaAudio.Next(out short xl, out short xr))
                 {
+                    _xaSamplesMixed++;
                     int aL = Math.Clamp((xl * _cdMixLL + xr * _cdMixRL) >> 7, -32768, 32767);
                     int aR = Math.Clamp((xl * _cdMixLR + xr * _cdMixRR) >> 7, -32768, 32767);
                     mixL += ((aL * (short)_cdVolL >> 15) * _xaGain) >> 15;
@@ -424,8 +425,15 @@ public sealed class Spu
                 dst[n * 2] = (short)mixL;
                 dst[n * 2 + 1] = (short)mixR;
             }
+
+            int active = 0;
+            for (int i = 0; i < 24; i++) if (_v[i].Phase != AdsrPhase.Off) active++;
+            Diagnostics.AudioProbe.Note(dst, frames, _xaSamplesMixed, active);
+            _xaSamplesMixed = 0;
         }
     }
+
+    long _xaSamplesMixed;
 
     (short L, short R) Tick()
     {

@@ -258,7 +258,7 @@ public static class Diag
                 Write($"[diag] frame {f}, {fps:F1} fps, {CallRing.TotalCalls} calls, " +
                       $"{CallRing.StallBreaks} stall breaks; " +
                       RecompOne.Runtime.Diagnostics.FrameProfile.Summary());
-                Write("[diag] hottest: " + HotFunctions(6));
+                Write("[diag] " + RecompOne.Runtime.Diagnostics.AudioProbe.Summary());
             }
 
             if (fps >= SlowFps)
