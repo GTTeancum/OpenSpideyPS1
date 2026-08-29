@@ -180,7 +180,22 @@ public static class Gte
         SZ[0] = SZ[1]; SZ[1] = SZ[2]; SZ[2] = SZ[3]; SZ[3] = (ushort)sz;
 
         uint div = Divide(H, SZ[3]);
-        long sx = CheckMac0((long)div * IR1 + OFX); MAC0 = (int)sx;
+
+        // Horizontal field of view. Squeezing the projected X toward the screen centre
+        // fits more of the world into the same framebuffer, and the picture is stretched
+        // back out at presentation.
+        //
+        // Doing it here rather than by widening the framebuffer is deliberate. The game
+        // decides what to submit using these projected coordinates, so scaling them
+        // means its own object selection, clipping and ordering all operate on the wider
+        // view and it draws the extra scenery itself. Widening the framebuffer instead
+        // leaves the game still choosing geometry for a 4:3 frustum, and no amount of
+        // work further down the pipeline can invent what it never sent.
+        long px = (long)div * IR1;
+        if (Hle.GpuHle.FovNum != Hle.GpuHle.FovDen)
+            px = px * Hle.GpuHle.FovNum / Hle.GpuHle.FovDen;
+
+        long sx = CheckMac0(px + OFX); MAC0 = (int)sx;
         long sy = CheckMac0((long)div * IR2 + OFY); MAC0 = (int)sy;
         int nx = SatX((int)(sx >> 16));
         int ny = SatY((int)(sy >> 16));

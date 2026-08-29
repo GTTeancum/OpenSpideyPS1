@@ -53,6 +53,13 @@ public static class GpuHle
     /// </summary>
     public static int MaxSpanX => WideAspect > 0f ? 2047 : 1023;
 
+    /// <summary>
+    /// Horizontal squeeze applied to projected X, as a fraction. 3/4 fits a 16:9 field
+    /// of view into a 4:3 framebuffer, which is then presented at 16:9. Equal values
+    /// mean no change. See Hardware.Gte.Rtp.
+    /// </summary>
+    public static int FovNum = 1, FovDen = 1;
+
 
 
 

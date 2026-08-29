@@ -188,54 +188,58 @@ one). The event plumbing itself was fine -- `TestEvent` acknowledges a ready eve
 resets it correctly, and the `delivered 0+0` counts were deliveries to an already
 signalled event rather than a matching failure.
 
-## 1g. Open: pushing the HUD out to the widened margins
+## 1g. Fixed: 16:9 widescreen, by widening the projection rather than the framebuffer
 
-Two attempts, both recorded because the second one looks like it should work.
+The field of view is widened at the GTE: projected X is squeezed toward the centre by
+3/4, and the 4:3 framebuffer is presented at 16:9, which stretches it back. `SPIDEY_WIDE=1`.
 
-The HUD sits at fixed screen coordinates, so in a widened target it is inset from the new
-edges by the margin. `RenderPrimEvent` already lets a listener rewrite a primitive's X, so
-the shift itself is easy and belongs in the game's patches rather than the backend. The
-hard part is deciding *what* to move.
+**Why not widen the framebuffer.** That was the first design and it was pursued a long
+way -- the backend already had margins, a widened clip and a wider present aspect. It
+cannot work. The game chooses what to submit from the coordinates the GTE hands it, so
+with a 4:3 projection it never offers geometry for the margins, and nothing downstream
+can invent it. The margins came up as wedges of flat background in the lower corners,
+worst near the camera; suppressing the background clear only replaced them with the
+previous frame smearing. Squeezing the projection instead means the game's own object
+selection, clipping and ordering all run on the wider view and it draws the extra scenery
+itself. The cost is horizontal resolution -- 512 pixels across 16:9 rather than 4:3.
 
-- **Sprites only.** Nothing moved. The HUD is not drawn from rectangles -- it is textured
-  quads, the same primitive the world uses -- so vertex count does not separate them.
-- **Screen-aligned quads, shifted by which outer third they fall in.** This finds the HUD
-  correctly but tears it apart: the health bar smears into streaks and the compass comes
-  apart. A HUD element is built from *several* quads, and the bar straddles the third
-  boundary, so some of its quads shift and its neighbours do not.
+Along the way, three causes were measured and eliminated rather than guessed: GTE
+saturation (3841 pinned vertices in 2.8 million, and none during the frames that tore),
+the clip (zero batches drawn un-widened), and the vertical span limit (57665 uncovered
+pixels against 57390 -- noise). The magenta background tint (`SPIDEY_WIDE_DEBUG=1`) is
+what made those answerable: it separates ground the frame never covered from geometry
+drawn wrongly.
 
-Which is the real constraint: **a positional rule cannot work per primitive**, because
-centred text is one quad per character and would split down the middle of the screen the
-same way.
+**The HUD** is squeezed to match, so presentation leaves it the shape the game drew, and
+each element is anchored to its nearest edge rather than to the frame centre. Anchoring
+matters: scaling about the centre preserves an element's *fraction* of the frame, which
+on a wider frame drags it inward -- the health bar sat at 21.3% of width where 4:3 has it
+at 11.7%. Anchored to the edge it keeps its 150 px inset exactly, measured identical in
+both aspects.
 
-Run grouping was then built, and got most of the way:
+Identifying the HUD took several passes, all recorded because each looked reasonable:
 
-- **Runs keyed by ordinal** did nothing. A lone screen-aligned quad anywhere in the world
-  closes a run, so the HUD's run number moves around between frames and last frame's
-  shifts get applied to the wrong elements.
-- **Runs keyed by position** did nothing either, for a better reason: the HUD is drawn in
-  one go, so the health bar and the compass land in a *single* run whose box spans the
-  screen, straddles the middle, and is correctly left alone.
-- **Splitting a run where it jumps a gap** works. The bar moves from 21.3% of frame width
-  to 8.8%, which is edge anchoring -- it keeps its original 60 px inset while the edge
-  moves out. Both elements stay intact.
+- **Sprites only** -- nothing moved; the HUD is textured quads, not rectangles.
+- **Raw texture flag** -- the HUD is not drawn raw, so nothing was squeezed and the whole
+  HUD came out stretched by a third.
+- **Screen-aligned shape** -- finds the HUD, and also finds the ground, which is drawn as
+  wide horizontal strips that project to axis-aligned rectangles. Squeezing those
+  distorted the floor.
+- **Screen-aligned, inside a HUD corner** -- what is used. This game keeps its HUD in two
+  corners, so an element-sized rectangle inside one of them separates HUD from world
+  without depending on draw order or on a flag the world also sets.
 
-What is still wrong is the compass needle. It rotates, so it is not axis-aligned, fails
-the screen-aligned test, and stays behind while its ring moves out. Carrying small
-primitives that sit inside a moving element fixes the needle and takes half the scenery
-with it -- a character is built from small triangles, and any narrow one gets dragged
-sideways. Adding vertical containment to that test stops the collateral damage and also
-stops the HUD moving at all, so it is a no-op rather than a fix.
+Also fixed on the way: boxes are kept in buffer-relative coordinates. The game double
+buffers, so alternate frames draw at y offset 0 and 256, and boxes recorded with the
+offset baked in could never match anything on the following frame.
 
-Measured, since the screenshots are not trustworthy at this level of detail: 4:3 puts the
-bar at 11.7% of width and the compass's right edge at 87.6%; unanchored 16:9 gives 21.3%
-and 81.1%; the gap-split version gives 8.8%; the vertically-contained version gives 21.3%
-and 82.5%, i.e. unchanged.
-
-So the remaining problem is narrow and well defined: identify the needle as part of the
-compass without a rule that also matches small world triangles. Tying HUD identification
-to *when* it is drawn rather than what it looks like -- the game's own HUD pass -- would
-settle it, and the DrawPrimSet hook is already wired.
+**Still wrong: the compass needle.** It rotates, so it is not axis-aligned and is not
+recognised as HUD; its ring moves out to the edge and it stays behind, sitting against
+the ring's left edge. Six attempts failed -- containment in one axis, then both, previous
+frame boxes, inheriting the ring's anchor, centre matching with slack, and a larger size
+limit (which caught world geometry and broke the NEW YORK sign). Each hypothesis about
+why was wrong, so the next step is to instrument what the needle actually is rather than
+guess again.
 
 ## 1c. Open: driving the menus needs to be closed-loop
 

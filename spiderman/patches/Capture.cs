@@ -219,11 +219,9 @@ public static class Capture
     /// </summary>
     static (byte[] rgba, int w) ToDisplayAspect(byte[] src, int w, int h)
     {
-        // Match whatever the window is presenting: 16:9 once the margins are in play,
-        // the console's 4:3 otherwise.
-        float aspect = GpuHle.WideAspect > 0f && GpuHle.WideMargin(GpuHle.LastDisplayW) > 0
-            ? GpuHle.WideAspect
-            : GpuHle.OutputAspect > 0f ? GpuHle.OutputAspect : 4f / 3f;
+        // Match whatever the window is presenting. SourceAspect carries the widescreen
+        // stretch, since the framebuffer itself keeps the console's dimensions.
+        float aspect = GpuHle.SourceAspect > 0f ? GpuHle.SourceAspect : 4f / 3f;
         int dstW = (int)MathF.Round(h * aspect);
         if (dstW <= 0 || dstW == w) return (src, w);
 
@@ -268,15 +266,6 @@ public static class Capture
         // the image the rasteriser actually produced rather than a console-resolution
         // capture. Not available for 24bpp FMV, where VRAM holds packed byte triples
         // that only make sense read back at native width.
-        // Widescreen lives only in the presentation target -- the margins are never
-        // blitted back to VRAM -- so a capture that reads VRAM shows the 4:3 centre and
-        // silently misses the whole feature.
-        if (!gpu.Display24Bit && GpuHle.WideMargin(w) > 0)
-        {
-            var wide = backend.ReadPresented(out int ww, out int wh);
-            if (wide != null && ww > 0 && wh > 0) { SaveScaled(frame, wide, ww, wh); return; }
-        }
-
         if (!gpu.Display24Bit)
         {
             var scaled = backend.ReadScaled(x, y, w, h, out int sw, out int sh);

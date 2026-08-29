@@ -8,6 +8,9 @@ public static class DrawEnvWarn
     /// <summary>Paint the draw-environment background magenta -- see LibGpu.PutDrawEnv.</summary>
     public static bool TintBackground;
 
+    /// <summary>Skip the draw-environment background fill entirely.</summary>
+    public static bool SkipBackground;
+
     static int _count;
     static int _areaCount;
 

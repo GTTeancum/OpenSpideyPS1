@@ -23,6 +23,11 @@ public sealed partial class Gpu
     /// <summary>Draw-space point inside the left margin, low down -- where it tears.</summary>
     const int ProbeX = -46, ProbeY = 210;
 
+    /// <summary>Solidly-floor point, bottom centre, used to name the drawing code.</summary>
+    /// <summary>Draw-space point squarely inside the left-hand uncovered wedge.</summary>
+    const int WedgeX = -66, WedgeY = 200;
+    public static long WedgeHits;
+
     void DrawPolygon()
     {
         uint cmd = _fifo[0];
@@ -91,6 +96,13 @@ public sealed partial class Gpu
             int px = _drawOffsetX + ProbeX, py = _drawOffsetY + ProbeY;
             if (lo <= px && hi >= px && top <= py && bot >= py && hi - lo < 400) ProbeHits++;
             TotalVerts += n;
+
+            // Squarely inside the uncovered wedge. Anything counted here was submitted
+            // and covers the spot, which separates "the game never offered geometry" from
+            // "it did and something later painted over it". The background rect is the
+            // full widened width, so only that is excluded.
+            int wx = _drawOffsetX + WedgeX, wy = _drawOffsetY + WedgeY;
+            if (lo <= wx && hi >= wx && top <= wy && bot >= wy && hi - lo < 600) WedgeHits++;
         }
 
         if (HleOn)
