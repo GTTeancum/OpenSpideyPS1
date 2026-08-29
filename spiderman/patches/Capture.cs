@@ -186,15 +186,6 @@ public static class Capture
             }
     }
 
-    static void WritePad(uint buf, ushort state)
-    {
-        var m = Runtime.Mem;
-        if (m == null || buf == 0) return;
-        m.WriteU8(buf + 0, 0x00);
-        m.WriteU8(buf + 1, 0x41);
-        m.WriteU8(buf + 2, (byte)(state & 0xFF));
-        m.WriteU8(buf + 3, (byte)(state >> 8));
-    }
 
     // VRAM row 0 sits at framebuffer y=0, so glReadPixels' bottom-first order already
     // comes out top-first here -- no flip. Alpha is the PS1 mask bit, not opacity.

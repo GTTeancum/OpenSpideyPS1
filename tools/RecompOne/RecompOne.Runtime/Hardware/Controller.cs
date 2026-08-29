@@ -43,4 +43,15 @@ public static class Controller
     public static byte   RightY2 = 0x80;
     public static byte   LeftX2 = 0x80;
     public static byte   LeftY2 = 0x80;
+
+    /// <summary>
+    /// Replay override. When Active, these replace the host device state outright at
+    /// the end of every poll -- unlike <see cref="ScriptHeld"/>, which can only force a
+    /// button down. A replay has to be able to say "nothing is pressed" and to steer
+    /// the sticks, so it needs the whole state, not a merge.
+    /// </summary>
+    public static bool  ReplayActive;
+    public static ushort ReplayState = 0xFFFF;
+    public static byte  ReplayLeftX = 0x80, ReplayLeftY = 0x80;
+    public static byte  ReplayRightX = 0x80, ReplayRightY = 0x80;
 }

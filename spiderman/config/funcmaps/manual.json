@@ -1,124 +1,129 @@
 {
-  "_comment": "Hand-identified symbols, verified by reading the code at each address. Names here are hard seeds for fixmaps.py and the handles config/spiderman.json patches by.",
-  "functions": [
-    {
-      "address": "0x80010008",
-      "name": "LevelIntro"
-    },
-    {
-      "address": "0x80010080",
-      "name": "LevelIntroDispatch"
-    },
-    {
-      "address": "0x800101CC",
-      "name": "ShowCover"
-    },
-    {
-      "address": "0x80014D54",
-      "name": "LoadRleImage"
-    },
-    {
-      "address": "0x8001B990",
-      "name": "LoadOverlay",
-      "size": 428
-    },
-    {
-      "address": "0x8001BEC4",
-      "name": "SpawnActor",
-      "size": 148
-    },
-    {
-      "address": "0x8001BF58",
-      "name": "OverlayRelocate",
-      "size": 236
-    },
-    {
-      "address": "0x8002AA0C",
-      "name": "RunFrame"
-    },
-    {
-      "address": "0x8002EED4",
-      "name": "RenderObjectList"
-    },
-    {
-      "address": "0x8005ACD8",
-      "name": "LoadTriggers",
-      "size": 488
-    },
-    {
-      "address": "0x8005C7EC",
-      "name": "RunTriggerScript",
-      "size": 4852
-    },
-    {
-      "address": "0x8005DAE0",
-      "name": "TriggerPass",
-      "size": 368
-    },
-    {
-      "address": "0x8005DD34",
-      "name": "TriggerType8"
-    },
-    {
-      "address": "0x80063D80",
-      "name": "IntroPre"
-    },
-    {
-      "address": "0x80064B3C",
-      "name": "CdWadFind",
-      "size": 492
-    },
-    {
-      "address": "0x80064D28",
-      "name": "CdWadRead",
-      "size": 124
-    },
-    {
-      "address": "0x80064F3C",
-      "name": "CdWadWait",
-      "size": 56
-    },
-    {
-      "address": "0x80064F74",
-      "name": "FatalHalt"
-    },
-    {
-      "address": "0x800651C8",
-      "name": "HeapAlloc",
-      "size": 800
-    },
-    {
-      "address": "0x800654E8",
-      "name": "HeapFree",
-      "size": 156
-    },
-    {
-      "address": "0x800694B8",
-      "name": "ModelFind",
-      "size": 100
-    },
-    {
-      "address": "0x80069A60",
-      "name": "LoadPsx",
-      "size": 560
-    },
-    {
-      "address": "0x8006BF9C",
-      "name": "LoadLevel",
-      "size": 1064
-    },
-    {
-      "address": "0x8007C4D8",
-      "name": "DrawPrimSet"
-    },
-    {
-      "address": "0x800824F8",
-      "name": "SetDrawAreaPrim"
-    },
-    {
-      "address": "0x8008AFBC",
-      "name": "PadInitMtap",
-      "size": 568
-    }
-  ]
+ "_comment": "Hand-identified symbols, verified by reading the code at each address. Names here are hard seeds for fixmaps.py and the handles config/spiderman.json patches by.",
+ "functions": [
+  {
+   "address": "0x80010008",
+   "name": "LevelIntro"
+  },
+  {
+   "address": "0x80010080",
+   "name": "LevelIntroDispatch"
+  },
+  {
+   "address": "0x800101CC",
+   "name": "ShowCover"
+  },
+  {
+   "address": "0x80014D54",
+   "name": "LoadRleImage"
+  },
+  {
+   "address": "0x8001B990",
+   "name": "LoadOverlay",
+   "size": 428
+  },
+  {
+   "address": "0x8001BEC4",
+   "name": "SpawnActor",
+   "size": 148
+  },
+  {
+   "address": "0x8001BF58",
+   "name": "OverlayRelocate",
+   "size": 236
+  },
+  {
+   "address": "0x8002AA0C",
+   "name": "RunFrame"
+  },
+  {
+   "address": "0x8002EED4",
+   "name": "RenderObjectList"
+  },
+  {
+   "address": "0x8005ACD8",
+   "name": "LoadTriggers",
+   "size": 488
+  },
+  {
+   "address": "0x8005C7EC",
+   "name": "RunTriggerScript",
+   "size": 4852
+  },
+  {
+   "address": "0x8005DAE0",
+   "name": "TriggerPass",
+   "size": 368
+  },
+  {
+   "address": "0x8005DD34",
+   "name": "TriggerType8"
+  },
+  {
+   "address": "0x80063D80",
+   "name": "IntroPre"
+  },
+  {
+   "address": "0x80064B3C",
+   "name": "CdWadFind",
+   "size": 492
+  },
+  {
+   "address": "0x80064D28",
+   "name": "CdWadRead",
+   "size": 124
+  },
+  {
+   "address": "0x80064F3C",
+   "name": "CdWadWait",
+   "size": 56
+  },
+  {
+   "address": "0x80064F74",
+   "name": "FatalHalt"
+  },
+  {
+   "address": "0x800651C8",
+   "name": "HeapAlloc",
+   "size": 800
+  },
+  {
+   "address": "0x800654E8",
+   "name": "HeapFree",
+   "size": 156
+  },
+  {
+   "address": "0x800694B8",
+   "name": "ModelFind",
+   "size": 100
+  },
+  {
+   "address": "0x80069A60",
+   "name": "LoadPsx",
+   "size": 560
+  },
+  {
+   "address": "0x8006BF9C",
+   "name": "LoadLevel",
+   "size": 1064
+  },
+  {
+   "address": "0x8007C4D8",
+   "name": "DrawPrimSet"
+  },
+  {
+   "address": "0x800824F8",
+   "name": "SetDrawAreaPrim"
+  },
+  {
+   "address": "0x8008AD48",
+   "name": "PadGetState",
+   "_note": "libpad PadGetState -- maps the pad state byte at +0x49 to PadState*. The state machine that byte comes from is not driven here, so it always reported an absent pad, which is what kept the game from switching the pad to analog."
+  },
+  {
+   "address": "0x8008AFBC",
+   "name": "PadInitMtap",
+   "size": 568
+  }
+ ]
 }

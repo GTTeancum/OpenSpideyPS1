@@ -95,6 +95,7 @@ public static class Program
         Rates.Install();
 
         Wide.Install();
+        Replay.Install();
         Harness.Install();
 
         AppDomain.CurrentDomain.UnhandledException += (_, e) => Diag.Fatal(e.ExceptionObject as Exception);

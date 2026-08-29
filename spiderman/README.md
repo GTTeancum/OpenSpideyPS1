@@ -166,6 +166,19 @@ All game-agnostic; all in the shared checkout.
   which is what turned that message into "the object pointer is null" and then into
   "the overlay was never loaded".
 
+- **The pad was always a digital pad.** `LibPad` reported identifier `0x41` no matter
+  what, and that byte is the only thing telling a game the four stick bytes are worth
+  reading -- they were being written all along. Spider-Man checks the identifier, sees a
+  digital pad and never looks past the buttons, so the analog sticks did nothing. The
+  runtime now reports `0x73` when something asks for analog, and honours
+  `PadSetMainMode`, which is how a game asks.
+- **`PadGetState` ran against a state machine nothing drives.** The game does ask for
+  analog itself -- `PadSetMainMode(0, 1, 0)` once it sees a stable pad -- but it gates
+  that on its own statically linked `PadGetState`, which reads a state byte maintained by
+  `_padIntPad`. Nothing here runs `_padIntPad`, so it always reported an absent pad, and
+  the game both skipped the request and forced the type back to digital when it saw
+  `0x73`. Naming `0x8008AD48` routes it to the runtime like the rest of libpad.
+
 - **`DrawSync` always said the GPU was idle.** A game that never calls VSync during
   gameplay paces itself on the GPU finishing, and Spider-Man is one: it submits an
   ordering table then spins on `DrawSync` until the drawing is done. Answering "idle"
@@ -233,7 +246,41 @@ SPIDEY_SHOT_EVERY=150      ...or every N frames
 SPIDEY_SHOT_DIR=shots      where they go
 SPIDEY_EXIT=2200           quit after frame N
 SPIDEY_SCRIPT=title.bmr+120:start:12;title.bmr+420:cross:12
+SPIDEY_REC=paths/rooftop.rec   record a play session's controller input
+SPIDEY_PLAY=paths/rooftop.rec  ...and fly it again, as often as needed
+SPIDEY_PLAY_EXIT=1             quit when the recording runs out
+SPIDEY_PLAY_LOOP=1             ...or start it again
+SPIDEY_PLAY_AT=title.bmr+900   override where the replay starts
+SPIDEY_ANALOG=0                present a digital pad instead of a DualShock
 ```
+
+**Recording a route.** A fault that only appears while moving cannot be reached by a
+button script, so the route gets flown once by a person and replayed after that:
+
+```bash
+SPIDEY_REC=paths/rooftop.rec ./SpiderMan.exe
+```
+
+Recording starts at the first button actually pressed, not at frame zero -- sitting
+through the logos is not part of the route, and it is the part whose length changes
+between runs. What is written down instead is which archive had most recently loaded at
+that first press and how long after, so a replay waits for the same load and counts the
+same interval. From a cold boot that anchor is `title.bmr`, which is why a recording made
+from boot lands back in the same place. It is also why `SPIDEY_LEVEL` and `SPIDEY_REC`
+go badly together: booting straight into a level skips the shell, so the newest archive
+at the first press is `sfx.vab` from frame 4 and the anchor degrades to an absolute
+frame. Record from a normal boot.
+
+Replaying pairs with the capture switches, which is the point of it:
+
+```bash
+SPIDEY_PLAY=paths/rooftop.rec SPIDEY_WIDE=1 SPIDEY_SHOT_EVERY=30 SPIDEY_PLAY_EXIT=1   ./SpiderMan.exe
+```
+
+The format is text, run-length coded, one line per run of identical pad state, so a
+recording can be trimmed to the ten seconds that matter or hand-written outright.
+**A replay reproduces a route, not a frame** -- the game paces off the wall clock, so
+the same input does not land on the same game state twice.
 
 A step's frame can be an absolute number or an offset from the load of a named archive
 file. Prefer the second: the game paces itself off the wall clock, so the frame a screen

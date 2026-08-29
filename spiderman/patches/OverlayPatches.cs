@@ -102,6 +102,7 @@ public static class OverlayPatches
     public static void CdWadFindExit(CpuContext c, IMemory m)
     {
         Capture.NoteWadLoad(_lastLookup, System.Threading.Interlocked.Read(ref Diag.Frame));
+        Replay.NoteWadLoad(_lastLookup, System.Threading.Interlocked.Read(ref Diag.Frame));
         if (TraceWad)
             System.Console.WriteLine($"[wad] {_lastLookup,-16} <- ra=0x{_lastRa:X8}  {(c.V0 == 0 ? "NOT FOUND" : c.V0 + " bytes")}");
         if (_pendingName != null) _pendingSize = c.V0;

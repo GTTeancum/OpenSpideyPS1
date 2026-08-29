@@ -1,3 +1,4 @@
+using System;
 using RecompOne.Runtime.Context;
 using RecompOne.Runtime.Memory;
 using RecompOne.Runtime.Sdk;
@@ -25,6 +26,19 @@ public static class PadPatches
     /// <summary>Port A / port B pad buffers, as handed to PadInitMtap.</summary>
     public static uint Buf1, Buf2;
 
+    /// <summary>
+    /// Present the pad as a DualShock so the sticks are read. SPIDEY_ANALOG=0 goes back
+    /// to a digital pad.
+    ///
+    /// The game does ask for analog mode itself -- it calls PadSetMainMode(0, 1, 0) once
+    /// it sees a stable pad -- but that call goes to its own statically linked libpad,
+    /// not to the runtime, and the state machine behind it is not the one driving the
+    /// buffers here. So the request never arrives and the pad stayed digital, which is
+    /// why the sticks did nothing: the stick bytes were always written, and an
+    /// identifier of 0x41 tells the game not to look at them.
+    /// </summary>
+    static bool Analog => Environment.GetEnvironmentVariable("SPIDEY_ANALOG") != "0";
+
     static uint _pendBuf1, _pendBuf2;
 
     /// <summary>pre-hook on PadInitMtap(u_char *pad1, u_char *pad2)</summary>
@@ -49,6 +63,9 @@ public static class PadPatches
         c.A0 = a0;
         c.A1 = a1;
         c.V0 = v0;
+
+        // After PadInitDirect, which resets it.
+        LibPad.Analog = Analog;
     }
 
     // int PadChkMtap(void) -- no multitap is emulated

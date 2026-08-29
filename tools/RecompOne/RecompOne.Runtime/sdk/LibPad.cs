@@ -9,6 +9,20 @@ public static class LibPad
     const byte Connected = 0x00;
     const byte Disconnected = 0xFF;
     const byte DigitalId = 0x41;
+    const byte AnalogId = 0x73;
+
+    /// <summary>
+    /// Whether the pad presents itself as a DualShock in analog mode rather than a
+    /// digital pad.
+    ///
+    /// It matters because the identifier byte is the only thing that tells a game the
+    /// four stick bytes are worth reading -- they are written either way, but a game
+    /// that sees 0x41 knows the pad has one half-word of data and never looks past the
+    /// buttons. A real DualShock powers up digital and switches when the player presses
+    /// ANALOG or the game asks, which is why this is off until something asks: a title
+    /// that predates the DualShock can misread a pad that volunteers six bytes.
+    /// </summary>
+    public static bool Analog;
     const uint PadStateDiscon = 0;
     const uint PadStateStable = 6;
 
@@ -21,6 +35,7 @@ public static class LibPad
     {
         _buf1 = 0;
         _buf2 = 0;
+        Analog = false;
     }
 
     public static void PadInitDirect(CpuContext c, IMemory m)
@@ -50,7 +65,15 @@ public static class LibPad
         c.V0 = (int)c.A2 < 0 ? 2u : 1u;
     }
 
-    public static void PadSetMainMode(CpuContext c, IMemory m) { c.V0 = 0; }
+    /// <summary>
+    /// PadSetMainMode(port, offs, lock) -- offs 1 is analog, 0 is digital. Honouring it
+    /// is how a game that wants the sticks gets them.
+    /// </summary>
+    public static void PadSetMainMode(CpuContext c, IMemory m)
+    {
+        if (IsPort1(c.A0)) Analog = c.A1 == 1;
+        c.V0 = 0;
+    }
 
     public static void PadSetActAlign(CpuContext c, IMemory m)
     {
@@ -92,7 +115,7 @@ public static class LibPad
     static void WritePad(IMemory m, uint buf, ushort buttons, bool present, byte rx, byte ry, byte lx, byte ly)
     {
         m.WriteU8(buf + 0, present ? Connected    : Disconnected);
-        m.WriteU8(buf + 1, present ? DigitalId    : Disconnected);
+        m.WriteU8(buf + 1, present ? (Analog ? AnalogId : DigitalId) : Disconnected);
         m.WriteU8(buf + 2, (byte)(buttons & 0xFF));
         m.WriteU8(buf + 3, (byte)(buttons >> 8));
         m.WriteU8(buf + 4, present ? rx : (byte)0x80);

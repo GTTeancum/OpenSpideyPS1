@@ -79,6 +79,17 @@ internal static unsafe class InputManager
         PollGamepadEvents();
         PollKeyboard();
         PollGamepads();
+        // A replay speaks for the whole pad, so it lands before the scripted merge and
+        // discards whatever the host devices reported for this poll.
+        if (Controller.ReplayActive)
+        {
+            Controller.State = Controller.ReplayState;
+            Controller.LeftX = Controller.ReplayLeftX;
+            Controller.LeftY = Controller.ReplayLeftY;
+            Controller.RightX = Controller.ReplayRightX;
+            Controller.RightY = Controller.ReplayRightY;
+        }
+
         // Scripted input last, so it survives whatever the host devices reported.
         Controller.State &= (ushort)~Controller.ScriptHeld;
         Controller.Connected2 = _pad1 != null || HasAnyKey(ConfigManager.Game.Keys2);
