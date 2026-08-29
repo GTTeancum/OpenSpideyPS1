@@ -195,20 +195,28 @@ public static class Wide
     /// <summary>
     /// Is this a HUD panel? Shape alone is not enough: the ground is drawn as wide
     /// horizontal strips that project to axis-aligned rectangles just as a HUD panel
-    /// does, and squeezing those distorted the floor near the right edge.
+    /// does, and squeezing those distorted the floor near the right edge. Requiring an
+    /// element-sized rectangle inside the corner the HUD occupies separates the two
+    /// cleanly, without depending on draw order or on a flag the world also sets.
     ///
-    /// This game keeps its HUD in two corners -- health and web cartridges top left, the
-    /// compass bottom right -- so requiring an element-sized rectangle inside one of them
-    /// separates the two cleanly, and does it without depending on draw order or on any
-    /// flag the world might also set.
+    /// Only the top-left corner -- health and web cartridges -- is moved.
+    ///
+    /// The compass in the bottom right is deliberately left alone. Its needle rotates,
+    /// so it never forms an axis-aligned rectangle and cannot be recognised the same
+    /// way; anchoring the ring without it split the compass in two, with the needle
+    /// stranded against the ring's edge. Leaving the whole compass where the game puts
+    /// it keeps it a single coherent piece, which is worth more than having it against
+    /// the frame edge.
     /// </summary>
     static bool InHudCorner(int lo, int hi, int top, int bot, int w, int h)
     {
         if (hi - lo > w / 4 || bot - top > h / 3) return false;
 
-        bool topLeft = hi <= w * 2 / 5 && bot <= h * 2 / 5;
-        bool bottomRight = lo >= w * 3 / 5 && top >= h * 3 / 5;
-        return topLeft || bottomRight;
+        // Has to hug the corner, not merely fall inside it. The building sign sits high
+        // in the frame and its letters are axis-aligned quads like a HUD panel, so a
+        // corner region wide enough to hold the whole health display also caught them
+        // and pulled letters out of the word.
+        return lo <= w / 5 && hi <= w * 2 / 5 && bot <= h * 2 / 5;
     }
 
     /// <summary>The anchor of a remembered element, so a detail can inherit it.</summary>

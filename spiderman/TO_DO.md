@@ -233,13 +233,19 @@ Also fixed on the way: boxes are kept in buffer-relative coordinates. The game d
 buffers, so alternate frames draw at y offset 0 and 256, and boxes recorded with the
 offset baked in could never match anything on the following frame.
 
-**Still wrong: the compass needle.** It rotates, so it is not axis-aligned and is not
-recognised as HUD; its ring moves out to the edge and it stays behind, sitting against
-the ring's left edge. Six attempts failed -- containment in one axis, then both, previous
-frame boxes, inheriting the ring's anchor, centre matching with slack, and a larger size
-limit (which caught world geometry and broke the NEW YORK sign). Each hypothesis about
-why was wrong, so the next step is to instrument what the needle actually is rather than
-guess again.
+**The compass is left where the game puts it, on purpose.** Its needle rotates, so it
+never forms an axis-aligned rectangle and cannot be recognised the way the panels are.
+Six attempts to move it with its ring all failed -- containment in one axis, then both,
+previous-frame boxes, inheriting the ring's anchor, centre matching with slack, and a
+larger size limit, which caught world geometry and pulled letters out of the NEW YORK
+sign. Anchoring the ring without the needle split the compass in two, with the needle
+stranded against the ring's edge, so the ring is no longer anchored either: a whole
+compass slightly inboard beats a broken one at the edge.
+
+Only the top-left panels -- health and web cartridges -- are anchored, and they have to
+*hug* the corner to qualify. A corner region merely wide enough to contain them also
+contained the building sign, whose letters are axis-aligned quads like a HUD panel, and
+squeezing those pulled the word apart.
 
 ## 1c. Open: driving the menus needs to be closed-loop
 
