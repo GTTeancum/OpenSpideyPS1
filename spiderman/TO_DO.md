@@ -239,6 +239,60 @@ vertices the GTE did not produce, so squeezing everything non-GTE would distort 
 It gates them, which is what stops the world being moved. Still open: the ammo counter's
 digits are split, because the corner test admits the `0` and rejects the `9`.
 
+## Cross-game: one costume set and one move set across both games
+
+Both games are to end up with **every** costume, and any player move present in one game
+but not the other is to exist in both. This is the first item of work that deliberately
+spans the two ports, so it is worth being clear about what that does and does not mean for
+the layout: the games stay siloed as directories. Nothing in `spiderman/` reaches into
+`spiderman2/`. Whatever ends up shared belongs either in `tools/RecompOne/` if it is engine
+work, or is applied twice, once per port, if it is content.
+
+**Step one is an inventory, not a change.** Neither half of this can be scoped until both
+lists exist side by side.
+
+### What Spider-Man has
+
+Ten costumes, indexed by a word at `0x800A5704` inside the memory-card block at
+`0x800A5688`, in the order the COSTUME VIEWER lists them under SPECIAL:
+
+| # | name | | # | name |
+|---|---|---|---|---|
+| 0 | spiderman | | 5 | bagman |
+| 1 | 2099 | | 6 | scarlet |
+| 2 | symbiote | | 7 | benreilly |
+| 3 | captain universe | | 8 | quickchange |
+| 4 | unlimited | | 9 | peterparker |
+
+`SPIDEY_COSTUME=` selects one; see `patches/Costume.cs`. Worth carrying forward from that
+work: a costume is **not** a model. The `cost*.psx` files are 1452-byte palette and texture
+sets, and the game applies one only when that variable asks for it -- swapping the archive
+entry does not work and swapping `spidey.psx` for a skin truncates the model and kills the
+game on a short pointer. So "add a costume" means a palette/texture set plus a slot in that
+list, not a new mesh.
+
+### What still needs establishing
+
+- Spider-Man 2's costume list, its selection mechanism, and whether it is the same
+  index-into-a-saved-block arrangement. If it is, the two lists can be merged by number.
+- The union of the two lists, and which entries are genuinely absent from each rather than
+  renamed. Several of these characters appear in both games and may not use the same name.
+- Whether a costume from one game's texture set can be applied by the other at all, or
+  whether each has to be authored against its own model. The two games do not share a
+  Spider-Man mesh, so a 1452-byte skin from one is unlikely to index correctly against the
+  other's textures -- this is the question that decides whether the work is a port or a
+  re-author.
+- The move sets, listed per game, with the source of each move identified in code. A move
+  that exists in one game and not the other is only "uniform" once it is known whether it
+  is an animation the other game lacks, a state the other game's controller never enters,
+  or simply a different button.
+
+### Why this is not started here
+
+It needs Spider-Man 2 booting far enough to enumerate its costumes and moves, which is
+where that port is now. Until then, half the inventory does not exist and any design
+decided from the Spider-Man side alone would be a guess.
+
 ### Open: the HUD jumps between the adjusted and original position
 
 Observed in play, not in a capture, and the distinction matters: a single screenshot of
