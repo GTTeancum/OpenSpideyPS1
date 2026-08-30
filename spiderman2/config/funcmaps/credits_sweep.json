@@ -1,0 +1,40 @@
+{
+  "functions": [
+    {
+      "address": "0x80203000",
+      "name": "func_80203000",
+      "size": 28
+    },
+    {
+      "address": "0x8020301C",
+      "name": "func_8020301C",
+      "size": 44
+    },
+    {
+      "address": "0x80203048",
+      "name": "func_80203048",
+      "size": 48
+    },
+    {
+      "address": "0x80203078",
+      "name": "func_80203078",
+      "size": 1040
+    },
+    {
+      "address": "0x80203488",
+      "name": "func_80203488",
+      "size": 100
+    },
+    {
+      "address": "0x802034EC",
+      "name": "func_802034EC",
+      "size": 108
+    },
+    {
+      "address": "0x80203558",
+      "name": "func_80203558",
+      "size": 384
+    }
+  ],
+  "labels": []
+}

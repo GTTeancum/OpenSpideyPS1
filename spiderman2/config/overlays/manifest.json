@@ -1,0 +1,142 @@
+{
+  "chopper": {
+    "base": "0x80200000",
+    "size": 8464,
+    "relocs": 138
+  },
+  "credits": {
+    "base": "0x80203000",
+    "size": 1800,
+    "relocs": 17
+  },
+  "e2m1bomb": {
+    "base": "0x80204000",
+    "size": 5140,
+    "relocs": 88
+  },
+  "e3m0hud": {
+    "base": "0x80206000",
+    "size": 1932,
+    "relocs": 13
+  },
+  "electro": {
+    "base": "0x80207000",
+    "size": 20560,
+    "relocs": 262
+  },
+  "hamhead": {
+    "base": "0x8020D000",
+    "size": 32928,
+    "relocs": 741
+  },
+  "hostage": {
+    "base": "0x80216000",
+    "size": 3880,
+    "relocs": 69
+  },
+  "lizard": {
+    "base": "0x80217000",
+    "size": 27236,
+    "relocs": 418
+  },
+  "mj": {
+    "base": "0x8021E000",
+    "size": 1000,
+    "relocs": 22
+  },
+  "plane": {
+    "base": "0x8021F000",
+    "size": 10584,
+    "relocs": 147
+  },
+  "samurai": {
+    "base": "0x80222000",
+    "size": 12812,
+    "relocs": 183
+  },
+  "sandman": {
+    "base": "0x80226000",
+    "size": 20504,
+    "relocs": 311
+  },
+  "sandman2": {
+    "base": "0x8022C000",
+    "size": 22728,
+    "relocs": 400
+  },
+  "selectro": {
+    "base": "0x80232000",
+    "size": 25380,
+    "relocs": 374
+  },
+  "sentry": {
+    "base": "0x80239000",
+    "size": 15088,
+    "relocs": 224
+  },
+  "shell": {
+    "base": "0x8023D000",
+    "size": 84720,
+    "relocs": 1649
+  },
+  "shocker": {
+    "base": "0x80252000",
+    "size": 19524,
+    "relocs": 266
+  },
+  "smoke": {
+    "base": "0x80257000",
+    "size": 3052,
+    "relocs": 30
+  },
+  "sniper": {
+    "base": "0x80258000",
+    "size": 4748,
+    "relocs": 23
+  },
+  "specweb": {
+    "base": "0x8025A000",
+    "size": 20020,
+    "relocs": 193
+  },
+  "srchlght": {
+    "base": "0x8025F000",
+    "size": 6148,
+    "relocs": 31
+  },
+  "terminal": {
+    "base": "0x80261000",
+    "size": 19032,
+    "relocs": 364
+  },
+  "thermo": {
+    "base": "0x80266000",
+    "size": 1240,
+    "relocs": 12
+  },
+  "thug": {
+    "base": "0x80267000",
+    "size": 58404,
+    "relocs": 1030
+  },
+  "training": {
+    "base": "0x80276000",
+    "size": 3624,
+    "relocs": 103
+  },
+  "turret": {
+    "base": "0x80277000",
+    "size": 9772,
+    "relocs": 127
+  },
+  "waterpmp": {
+    "base": "0x8027A000",
+    "size": 1920,
+    "relocs": 13
+  },
+  "xmen": {
+    "base": "0x8027B000",
+    "size": 7468,
+    "relocs": 133
+  }
+}

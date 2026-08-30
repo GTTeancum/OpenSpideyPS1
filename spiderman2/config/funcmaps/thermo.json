@@ -1,0 +1,34 @@
+{
+ "functions": [
+  {
+   "address": "0x80266000",
+   "name": "func_80266000",
+   "size": 28
+  },
+  {
+   "address": "0x8026601C",
+   "name": "ptr_8026601C",
+   "size": 124
+  },
+  {
+   "address": "0x80266098",
+   "name": "ptr_80266098",
+   "size": 92
+  },
+  {
+   "address": "0x802660F4",
+   "name": "func_802660F4",
+   "size": 208
+  },
+  {
+   "address": "0x802661C4",
+   "name": "ptr_802661C4",
+   "size": 112
+  },
+  {
+   "address": "0x80266234",
+   "name": "ptr_80266234",
+   "size": 628
+  }
+ ]
+}

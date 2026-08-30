@@ -13,6 +13,7 @@ publish/
 
 # Generated recompiler output
 spiderman/port/generated/
+spiderman2/port/generated/
 generated/
 
 # Runtime artifacts
@@ -23,12 +24,19 @@ logs/
 
 # Extracted disc data
 spiderman/extracted/
+spiderman2/extracted/
 
 # Published single-file build
 spiderman/port/dist/
+spiderman2/port/dist/
 # Capture output
 spiderman/port/**/shots*/
+spiderman2/port/**/shots*/
 run*.txt
 
 # Disc cue sheets -- part of a disc dump; supply your own
 *.cue
+
+# Python bytecode
+__pycache__/
+*.pyc

@@ -1,0 +1,278 @@
+{
+  "game": {
+    "id": "SLUS-01378",
+    "name": "SpiderMan2",
+    "output": "../generated"
+  },
+  "cue": "../../Spider-Man 2 - Enter - Electro (USA) (Rev 1).cue",
+  "funcMap": "funcmaps/main.json",
+  "overlays": [
+    {
+      "name": "chopper",
+      "path": "overlays/chopper.bin",
+      "base": "0x80200000",
+      "funcMap": "funcmaps/chopper.json"
+    },
+    {
+      "name": "credits",
+      "path": "overlays/credits.bin",
+      "base": "0x80203000",
+      "funcMap": "funcmaps/credits.json"
+    },
+    {
+      "name": "e2m1bomb",
+      "path": "overlays/e2m1bomb.bin",
+      "base": "0x80204000",
+      "funcMap": "funcmaps/e2m1bomb.json"
+    },
+    {
+      "name": "e3m0hud",
+      "path": "overlays/e3m0hud.bin",
+      "base": "0x80206000",
+      "funcMap": "funcmaps/e3m0hud.json"
+    },
+    {
+      "name": "electro",
+      "path": "overlays/electro.bin",
+      "base": "0x80207000",
+      "funcMap": "funcmaps/electro.json"
+    },
+    {
+      "name": "hamhead",
+      "path": "overlays/hamhead.bin",
+      "base": "0x8020D000",
+      "funcMap": "funcmaps/hamhead.json"
+    },
+    {
+      "name": "hostage",
+      "path": "overlays/hostage.bin",
+      "base": "0x80216000",
+      "funcMap": "funcmaps/hostage.json"
+    },
+    {
+      "name": "lizard",
+      "path": "overlays/lizard.bin",
+      "base": "0x80217000",
+      "funcMap": "funcmaps/lizard.json"
+    },
+    {
+      "name": "mj",
+      "path": "overlays/mj.bin",
+      "base": "0x8021E000",
+      "funcMap": "funcmaps/mj.json"
+    },
+    {
+      "name": "plane",
+      "path": "overlays/plane.bin",
+      "base": "0x8021F000",
+      "funcMap": "funcmaps/plane.json"
+    },
+    {
+      "name": "samurai",
+      "path": "overlays/samurai.bin",
+      "base": "0x80222000",
+      "funcMap": "funcmaps/samurai.json"
+    },
+    {
+      "name": "sandman",
+      "path": "overlays/sandman.bin",
+      "base": "0x80226000",
+      "funcMap": "funcmaps/sandman.json"
+    },
+    {
+      "name": "sandman2",
+      "path": "overlays/sandman2.bin",
+      "base": "0x8022C000",
+      "funcMap": "funcmaps/sandman2.json"
+    },
+    {
+      "name": "selectro",
+      "path": "overlays/selectro.bin",
+      "base": "0x80232000",
+      "funcMap": "funcmaps/selectro.json"
+    },
+    {
+      "name": "sentry",
+      "path": "overlays/sentry.bin",
+      "base": "0x80239000",
+      "funcMap": "funcmaps/sentry.json"
+    },
+    {
+      "name": "shell",
+      "path": "overlays/shell.bin",
+      "base": "0x8023D000",
+      "funcMap": "funcmaps/shell.json"
+    },
+    {
+      "name": "shocker",
+      "path": "overlays/shocker.bin",
+      "base": "0x80252000",
+      "funcMap": "funcmaps/shocker.json"
+    },
+    {
+      "name": "smoke",
+      "path": "overlays/smoke.bin",
+      "base": "0x80257000",
+      "funcMap": "funcmaps/smoke.json"
+    },
+    {
+      "name": "sniper",
+      "path": "overlays/sniper.bin",
+      "base": "0x80258000",
+      "funcMap": "funcmaps/sniper.json"
+    },
+    {
+      "name": "specweb",
+      "path": "overlays/specweb.bin",
+      "base": "0x8025A000",
+      "funcMap": "funcmaps/specweb.json"
+    },
+    {
+      "name": "srchlght",
+      "path": "overlays/srchlght.bin",
+      "base": "0x8025F000",
+      "funcMap": "funcmaps/srchlght.json"
+    },
+    {
+      "name": "terminal",
+      "path": "overlays/terminal.bin",
+      "base": "0x80261000",
+      "funcMap": "funcmaps/terminal.json"
+    },
+    {
+      "name": "thermo",
+      "path": "overlays/thermo.bin",
+      "base": "0x80266000",
+      "funcMap": "funcmaps/thermo.json"
+    },
+    {
+      "name": "thug",
+      "path": "overlays/thug.bin",
+      "base": "0x80267000",
+      "funcMap": "funcmaps/thug.json"
+    },
+    {
+      "name": "training",
+      "path": "overlays/training.bin",
+      "base": "0x80276000",
+      "funcMap": "funcmaps/training.json"
+    },
+    {
+      "name": "turret",
+      "path": "overlays/turret.bin",
+      "base": "0x80277000",
+      "funcMap": "funcmaps/turret.json"
+    },
+    {
+      "name": "waterpmp",
+      "path": "overlays/waterpmp.bin",
+      "base": "0x8027A000",
+      "funcMap": "funcmaps/waterpmp.json"
+    },
+    {
+      "name": "xmen",
+      "path": "overlays/xmen.bin",
+      "base": "0x8027B000",
+      "funcMap": "funcmaps/xmen.json"
+    }
+  ],
+  "patches": [
+    {
+      "overlay": "main",
+      "function": "CdWadFind",
+      "mode": "pre",
+      "target": "Recompiled.OverlayPatches.CdWadFind"
+    },
+    {
+      "overlay": "main",
+      "function": "CdWadFind",
+      "mode": "post",
+      "target": "Recompiled.OverlayPatches.CdWadFindExit"
+    },
+    {
+      "overlay": "main",
+      "function": "HeapAlloc",
+      "mode": "pre",
+      "target": "Recompiled.OverlayPatches.HeapAlloc"
+    },
+    {
+      "overlay": "main",
+      "function": "HeapFree",
+      "mode": "pre",
+      "target": "Recompiled.OverlayPatches.HeapFree"
+    },
+    {
+      "overlay": "main",
+      "function": "MovieNextFrame",
+      "mode": "post",
+      "target": "Recompiled.MovieTrace.NextFrameExit"
+    },
+    {
+      "overlay": "main",
+      "function": "PadInitMtap",
+      "mode": "pre",
+      "target": "Recompiled.PadPatches.PadInitMtapEnter"
+    },
+    {
+      "overlay": "main",
+      "function": "PadInitMtap",
+      "mode": "post",
+      "target": "Recompiled.PadPatches.PadInitMtapExit"
+    },
+    {
+      "overlay": "*",
+      "function": "ClearImage",
+      "mode": "replace",
+      "target": "RecompOne.Runtime.Sdk.LibGpu.ClearImage"
+    },
+    {
+      "overlay": "*",
+      "function": "LoadImage",
+      "mode": "replace",
+      "target": "RecompOne.Runtime.Sdk.LibGpu.LoadImage"
+    },
+    {
+      "overlay": "*",
+      "function": "MoveImage",
+      "mode": "replace",
+      "target": "RecompOne.Runtime.Sdk.LibGpu.MoveImage"
+    },
+    {
+      "overlay": "*",
+      "function": "StoreImage",
+      "mode": "replace",
+      "target": "RecompOne.Runtime.Sdk.LibGpu.StoreImage"
+    },
+    {
+      "overlay": "*",
+      "function": "SetDispMask",
+      "mode": "replace",
+      "target": "Recompiled.GpuPatches.SetDispMask"
+    },
+    {
+      "overlay": "*",
+      "function": "DrawPrim",
+      "mode": "replace",
+      "target": "Recompiled.GpuPatches.DrawPrim"
+    },
+    {
+      "overlay": "*",
+      "function": "ClearOTagR",
+      "mode": "replace",
+      "target": "Recompiled.GpuPatches.ClearOTagR"
+    },
+    {
+      "overlay": "*",
+      "function": "SetGraphDebug",
+      "mode": "replace",
+      "target": "Recompiled.GpuPatches.SetGraphDebug"
+    },
+    {
+      "overlay": "*",
+      "function": "ResetGraph",
+      "mode": "pre",
+      "target": "Recompiled.GpuPatches.ResetGraph"
+    }
+  ],
+  "callRing": true
+}

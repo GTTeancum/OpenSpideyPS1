@@ -1,0 +1,44 @@
+{
+ "functions": [
+  {
+   "address": "0x8021E000",
+   "name": "func_8021E000",
+   "size": 28
+  },
+  {
+   "address": "0x8021E01C",
+   "name": "ptr_8021E01C",
+   "size": 124
+  },
+  {
+   "address": "0x8021E098",
+   "name": "ptr_8021E098",
+   "size": 92
+  },
+  {
+   "address": "0x8021E0F4",
+   "name": "func_8021E0F4",
+   "size": 108
+  },
+  {
+   "address": "0x8021E160",
+   "name": "func_8021E160",
+   "size": 220
+  },
+  {
+   "address": "0x8021E23C",
+   "name": "ptr_8021E23C",
+   "size": 100
+  },
+  {
+   "address": "0x8021E2A0",
+   "name": "ptr_8021E2A0",
+   "size": 112
+  },
+  {
+   "address": "0x8021E310",
+   "name": "ptr_8021E310",
+   "size": 8
+  }
+ ]
+}

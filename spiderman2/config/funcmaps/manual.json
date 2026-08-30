@@ -1,0 +1,55 @@
+{
+ "_comment": "Hand-identified symbols for Spider-Man 2, verified by reading the code at each address. Seeded by tools/enginematch.py from the Spider-Man map and then checked: LoadOverlay calls CdWadFind, HeapAlloc, CdWadRead and CdWadWait twice (image, then relocation stream), then OverlayRelocate, then HeapFree, then jalr into the overlay's first word -- which confirms all six at once. OverlayRelocate's 2-bit type decode matches tools/overlays.py instruction for instruction. CdWadFind folds case and strides the CD.HED name field by (len + 3) & ~3 over the table at 0x800C6BE0. Names here are hard seeds for fixmaps.py and the handles config/spiderman2.json patches by.",
+ "functions": [
+  {
+   "address": "0x8001E8E4",
+   "name": "LoadOverlay",
+   "size": 428
+  },
+  {
+   "address": "0x8001EEF0",
+   "name": "OverlayRelocate",
+   "size": 236
+  },
+  {
+   "address": "0x80030D08",
+   "name": "MovieNextFrame",
+   "size": 100
+  },
+  {
+   "address": "0x8006FC9C",
+   "name": "CdWadFind",
+   "size": 492
+  },
+  {
+   "address": "0x8006FE88",
+   "name": "CdWadRead",
+   "size": 124
+  },
+  {
+   "address": "0x800700A0",
+   "name": "CdWadWait",
+   "size": 56
+  },
+  {
+   "address": "0x8007032C",
+   "name": "HeapAlloc",
+   "size": 800
+  },
+  {
+   "address": "0x8007064C",
+   "name": "HeapFree",
+   "size": 156
+  },
+  {
+   "address": "0x8007463C",
+   "name": "ModelFind",
+   "size": 100
+  },
+  {
+   "address": "0x80074C38",
+   "name": "LoadPsx",
+   "size": 560
+  }
+ ]
+}
