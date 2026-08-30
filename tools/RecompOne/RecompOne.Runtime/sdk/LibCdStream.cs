@@ -12,6 +12,18 @@ public static class LibCdStream
     const int PrimeFrames = 2;
 
     public static bool InUse { get; private set; }
+
+    /// <summary>
+    /// What the ring has actually done, for diagnosing a game that has stopped getting
+    /// frames. A movie player waits on StGetNext, so "the picture froze" can mean the
+    /// reader never enqueued another frame, or that the game stopped asking -- and the
+    /// screen looks identical either way. These separate the two.
+    /// </summary>
+    public static long FramesQueued, FramesTaken, EmptyGets, SectorsSkipped;
+
+    public static string RingState =>
+        $"streamLba={_streamLba} start={_streamStartLba} queued={FramesQueued} taken={FramesTaken} " +
+        $"empty={EmptyGets} skipped={SectorsSkipped} ready={_ready.Count} active={_active} reading={_reading}";
     static uint _statusBase;
     static int _slots;
     static uint _dataBase;
@@ -66,6 +78,7 @@ public static class LibCdStream
         lock (_lock)
         {
             _streamLba = -1;
+            FramesQueued = FramesTaken = EmptyGets = SectorsSkipped = 0;
             ResetRing(m);
             XaAudio.Reset();
         }
@@ -88,7 +101,7 @@ public static class LibCdStream
                 _prevStart = -1;
             }
 
-            if (_ready.Count == 0) { c.V0 = 1; return; }
+            if (_ready.Count == 0) { EmptyGets++; c.V0 = 1; return; }
 
             var (start, n) = _ready.Dequeue();
             uint dataPtr = _dataBase + (uint)(start * SlotData);
@@ -97,6 +110,7 @@ public static class LibCdStream
             m.WriteU32(c.A1, hdrPtr);
             _prevStart = start;
             _prevN = n;
+            FramesTaken++;
             c.V0 = 0;
         }
     }
@@ -188,7 +202,7 @@ public static class LibCdStream
             catch { Thread.Sleep(2); continue; }
 
             if ((sec[2] & 0x04) != 0) { Assets.Xa.XaRouter.Sector(_streamLba, sec, true); _streamLba++; continue; }
-            if (Read16(sec, 8) != VideoMagic || Read16(sec, 12) != 0) { _streamLba++; continue; }
+            if (Read16(sec, 8) != VideoMagic || Read16(sec, 12) != 0) { SectorsSkipped++; _streamLba++; continue; }
 
             int n = Read16(sec, 14);
             if (n <= 0 || n > _slots) { _streamLba++; continue; }
@@ -215,6 +229,7 @@ public static class LibCdStream
             {
                 for (int i = 0; i < n; i++) _busy[start + i] = true;
                 _ready.Enqueue((start, n));
+                FramesQueued++;
                 _writeIdx = start + n;
 
                 if (!_primed && _ready.Count >= PrimeFrames)

@@ -22,7 +22,15 @@ public static class CallRing
     public const int Size = 1 << 16;
 
     static readonly uint[] _buf = new uint[Size];
-    static int _idx;
+
+    /// <summary>
+    /// Long, not int. A game that spins on an SDK call polls it millions of times a
+    /// second, so a 32-bit index wraps negative within minutes -- and then Tail's
+    /// "start &lt; 0" clamp set the count from a negative end and threw, which took the
+    /// stall dump out exactly when a long run finally wedged and the dump was the whole
+    /// point of keeping the ring.
+    /// </summary>
+    static long _idx;
 
     /// <summary>Calls without an intervening frame before the stall breaker fires.</summary>
     /// <summary>
@@ -57,15 +65,16 @@ public static class CallRing
     /// <summary>Called once a frame has actually been presented.</summary>
     public static void NoteFrame() => _sinceFrame = 0;
 
-    public static long TotalCalls => (uint)_idx;
+    public static long TotalCalls => _idx;
 
     /// <summary>Most recent entries, oldest first.</summary>
     public static uint[] Tail(int count)
     {
         if (count > Size) count = Size;
-        int end = _idx;
-        int start = end - count;
-        if (start < 0) { start = 0; count = end; }
+        if (count < 0) count = 0;
+        long end = _idx;
+        long start = end - count;
+        if (start < 0) { start = 0; count = (int)end; }
         var outp = new uint[count];
         for (int i = 0; i < count; i++)
             outp[i] = _buf[(start + i) & (Size - 1)];
