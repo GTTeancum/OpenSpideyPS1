@@ -62,6 +62,8 @@ public static class Wide
         _den = (int)MathF.Round(1000f * _aspect / GpuHle.BaseAspect);
 
         RecompOne.Runtime.Hardware.GteScreen.Tracking = true;
+        _legacy = Environment.GetEnvironmentVariable("SPIDEY_WIDE_LEGACY") == "1";
+        if (_legacy) Console.WriteLine("[wide] legacy HUD rules: shape and position only");
 
         Event.AddListener<VSyncEvent>(_ => Follow());
         Event.AddListener<RenderPrimEvent>(Screen);
@@ -114,7 +116,9 @@ public static class Wide
         // they are axis-aligned quads in the corner the HUD occupies, which is precisely
         // what the HUD test looks for. Asking where the vertices came from settles it
         // without a heuristic.
-        if (FromGte(e))
+        // SPIDEY_WIDE_LEGACY=1 puts the shape-only rules back, so the two can be run
+        // against the same recording from one build and compared.
+        if (!_legacy && FromGte(e))
         {
             // How much damage the shape test was doing on its own: world geometry that
             // the HUD rules would have claimed and moved.
@@ -169,6 +173,7 @@ public static class Wide
     /// a projected one by chance is common enough, all four doing so is not.
     /// </summary>
     static long _rescued, _frames;
+    static bool _legacy;
 
     /// <summary>Would the shape-and-corner rules have claimed this world primitive?</summary>
     static bool Rescued(RenderPrimEvent e)

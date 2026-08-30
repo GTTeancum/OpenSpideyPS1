@@ -239,6 +239,69 @@ vertices the GTE did not produce, so squeezing everything non-GTE would distort 
 It gates them, which is what stops the world being moved. Still open: the ammo counter's
 digits are split, because the corner test admits the `0` and rejects the `9`.
 
+### Open: the HUD jumps between the adjusted and original position
+
+Observed in play, not in a capture, and the distinction matters: a single screenshot of
+it reads as one element torn in half -- the ammo counter showing `x 0    9` -- but it is
+not spatial. The whole upper-left HUD sits in the adjusted position most frames and snaps
+back to the original one on some frames. A still frame catches it mid-flicker and the two
+digits appear to have been separated.
+
+So this is a per-frame classification that is not stable, and the likeliest suspect is the
+provenance test that was just added. `GteScreen` keeps **two** generations of projected
+points, which doubles the surface for a coincidence: a HUD primitive whose every vertex
+happens to land on a projected world point is taken for world and left un-squeezed for
+that one frame. Every vertex has to collide, which is rare -- but the HUD is drawn every
+frame, and rare per frame is frequent over a minute.
+
+Three things worth trying, cheapest first:
+
+- Narrow to one generation with the correct phase, rather than covering both. The two-
+  generation window was added because the game builds one ordering table while walking the
+  other; if the phase can be established exactly, one window is enough and halves the
+  collision surface.
+- Require a HUD element to have been in the same place last frame. The HUD does not move;
+  world geometry that collides by accident will not repeat the accident.
+- Better: carry provenance with the primitive instead of recovering it by matching
+  coordinates. Matching is what makes collisions possible at all.
+
+### Open: geometry still drops out occasionally, away from the edges
+
+Reported in play after the provenance fix, which cleared up the edges. Not reproduced by
+any sweep here: across the recorded route no primitive was rejected by the span limit
+(0 of ~380 in both aspects), widescreen submits more geometry than 4:3 rather than less
+(386 against 360 at the same frame), and primitive coverage is flat across the whole
+framebuffer width including the new margins. So whatever this is, it is not the renderer
+refusing geometry and not the game declining to fill the margins.
+
+It needs to be caught in the act. The recorder has no way to say "here" -- adding a marker
+key that stamps a `# mark` into the recording as it is played would turn "here and there"
+into exact frames, which is the missing instrument.
+
+### Open: a replay reproduces a route, not a frame
+
+`clip1.rec` diverges from what was played about two thirds of the way through. The game
+paces itself off the wall clock, so identical input does not produce identical state, and
+the drift compounds. The recorded anchor fixes where a route *starts*; nothing holds it
+together after that. This is why the primitive-level diff between the two aspects failed
+-- only 61 of 360 primitives matched between runs -- and why comparisons here have to rest
+on counts of a condition rather than on comparing two pictures.
+
+### Open, and not being worked on here: the game runs at roughly double speed
+
+Confirmed in play, repeatedly. Present rate is 30.0/s and the vblank counter steps 60.0/s,
+which is faithful to a 30 fps title on hardware, so the frame pacing itself is not
+obviously the fault. `SPIDEY_VBLANK=1` halves the counter step and is the knob to reach
+for first.
+
+One correction worth recording, because it wasted time: the `GAME TICK` figure the `Rates`
+panel reports is **not** a measure of game speed. `0x800A4E2C` is not a simulation tick --
+it is inside the button-state array at `0x800A4DF4`, slot 3 (Cross), field `+0x8`, which
+counts polls since that button was released. It advances once per input update, so it can
+only ever report that the update rate equals the present rate, which is nearly a
+tautology. Any future attempt at this needs a real clock: the training modes count down a
+displayed 30, 60, 90 or 120 seconds, which can be timed against the wall.
+
 **The HUD** is squeezed to match, so presentation leaves it the shape the game drew, and
 each element is anchored to its nearest edge rather than to the frame centre. Anchoring
 matters: scaling about the centre preserves an element's *fraction* of the frame, which
