@@ -1,6 +1,7 @@
 # OpenSpideyPS1
 
-Native recompilations of Neversoft's PlayStation Spider-Man games, built with
+Native recompilations of the PlayStation Spider-Man games — Neversoft's Spider-Man and
+Vicarious Visions' Spider-Man 2: Enter Electro — built with
 [RecompOne](https://github.com/BlackLabelHQ/RecompOne). The PlayStation executable is
 translated to C# ahead of time and linked against a runtime that reimplements the console's
 libraries, so the result is an ordinary .NET application rather than an emulator.
@@ -11,6 +12,8 @@ libraries, so the result is an ordinary .NET application rather than an emulator
 | **Level 1** — rooftops over Manhattan, with the health bar, web cartridge count and Spidey compass | **Level 5** — the sewers, reached by booting straight into the act with `SPIDEY_LEVEL=l5a3` |
 | [![Level 7 office](docs/screenshots/level7-office.png)](docs/screenshots/level7-office.png) | [![Symbiote costume](docs/screenshots/costume-symbiote.png)](docs/screenshots/costume-symbiote.png) |
 | **Level 7** — hanging from a web line in an office interior | **Costumes** — the symbiote suit, selected with `SPIDEY_COSTUME=symbiote` |
+| [![Enter Electro rooftops](docs/screenshots/sm2-e1m0-rooftops.png)](docs/screenshots/sm2-e1m0-rooftops.png) | [![Enter Electro gameplay](docs/screenshots/sm2-e1m0-gameplay.png)](docs/screenshots/sm2-e1m0-gameplay.png) |
+| **Enter Electro, episode 1** — the opening shot over the rooftops | **Enter Electro** — the first level in play, with the health bar, web cartridges and spider-sense compass |
 
 ---
 
@@ -21,25 +24,57 @@ data or build output. Only the recompiler and its runtime are shared.
 
 ```
 tools/RecompOne/     the recompiler and runtime -- SHARED
-spiderman/           Spider-Man (USA, SLUS-00875)      -- self-contained
-spiderman2/          Spider-Man 2: Enter Electro       -- self-contained, not yet started
+tools/enginematch.py carries hand-identified names between titles -- SHARED, game-agnostic
+spiderman/           Spider-Man (USA, SLUS-00875)                  -- self-contained
+spiderman2/          Spider-Man 2: Enter Electro (USA, SLUS-01378) -- self-contained
 ```
 
 Each game directory owns its own `config/`, `patches/`, `port/`, `tools/` and `extracted/`.
 Nothing in one game's directory refers to the other's, and neither is buildable from the
 other's outputs.
 
-**If you are adding the second game, keep it that way.** Put everything game-specific under
-`spiderman2/`. Anything that would need to be shared belongs in `tools/RecompOne/`, and a
-change there must be game-agnostic — the whole point of the split is that a fix for one game
-cannot quietly break the other. Two games' worth of hand-written patches in one directory
-becomes unpickable very quickly.
+**If you are adding a third game, keep it that way.** Put everything game-specific under
+its own directory. Anything that would need to be shared belongs in `tools/`, and a change
+there must be game-agnostic — the whole point of the split is that a fix for one game cannot
+quietly break the other. Two games' worth of hand-written patches in one directory becomes
+unpickable very quickly.
+
+The silo held while Spider-Man 2 was added. Its hand-identified function names *came from*
+Spider-Man's, but through `tools/enginematch.py`, which takes both executables as arguments
+and belongs to neither game; the result is committed under `spiderman2/config/funcmaps/`, so
+neither game reads the other's files or needs the other's build. The two shared-runtime fixes
+Spider-Man 2 required were made game-agnostic, and Spider-Man was rebuilt and re-run to
+level 1 gameplay afterwards to confirm they changed nothing for it.
 
 ---
 
 ## What works
 
-Spider-Man (USA) boots, plays its logos and intro movie, reaches every menu and plays.
+### Spider-Man 2: Enter Electro
+
+Boots, plays its logos and intro movie, reaches every menu, and a new game reaches the first
+level and plays it.
+
+- **The same engine.** `CD.HED`/`CD.WAD`, the relocatable-overlay format and the relocator
+  are identical to Spider-Man's — 7,381 relocations decoded with zero errors — so the whole
+  pipeline was retargeted rather than rediscovered, and the port built and booted on its
+  first recompile.
+- **First level.** Episode 1 mission 0, reached through the real menu path in 3 of 3 runs,
+  then 10,000+ frames of live gameplay with no frozen stretch: HUD, pickups, physics, camera,
+  working controls.
+- **Frame pacing.** 28.5 draws a second against a 30 fps target. Like Spider-Man it never
+  waits on a vblank during gameplay — `VSync(0)` and `VSync(-1)` both measure zero — so the
+  GPU busy model is what paces it.
+- **Audio.** SPU voices measured at full-scale peak, with XA and MDEC feeding the movies.
+- **Level select and cheats.** All ten of the game's own cheat handlers read off and
+  reproduced; `SPIDEY_LEVEL` boots any of 44 level prefixes.
+
+Not verified: finishing a level, the memory card, and 42 of the 44 levels. See
+[spiderman2/TO_DO.md](spiderman2/TO_DO.md).
+
+### Spider-Man
+
+Boots, plays its logos and intro movie, reaches every menu and plays.
 
 - **Frame pacing.** The game never calls `VSync` during gameplay: it submits an ordering
   table and spins on `DrawSync` until the GPU has finished, and that spin *is* the frame. The
@@ -67,8 +102,10 @@ the executable, the archives, the overlays and the movies are all read from your
 
 Needs .NET 10 and Python 3 with `numpy` and `PIL`. Put the disc at the repository root, then:
 
+Both games follow the same five steps, from their own directory:
+
 ```bash
-cd spiderman
+cd spiderman        # or: cd spiderman2
 python tools/disc.py extract extracted
 python tools/cdwad.py extract extracted/wad
 python tools/overlays.py build config/overlays
@@ -76,31 +113,41 @@ python tools/genmaps.py
 python tools/build.py
 ```
 
-`tools/build.py` runs the whole loop and stops when the unmapped-call count stops falling. It
-converges at 3,314 functions across 31 modules.
+`tools/build.py` runs the whole loop and stops when the unmapped-call count stops falling.
+Spider-Man converges at 3,314 functions across 31 modules; Spider-Man 2 at 3,262 across 29.
 
 ```bash
 ./spiderman/port/bin/Release/net10.0/SpiderMan.exe
+./spiderman2/port/bin/Release/net10.0/SpiderMan2.exe
 ```
 
 ## Switches
 
+Both ports share the `SPIDEY_*` prefix; the level names and the cheat lists differ.
+
 ```
 SPIDEY_HZ=30               the rate the game runs at
-SPIDEY_LEVEL=l5a3          boot straight into a level (47 prefixes, l1a1..l9a4)
-SPIDEY_COSTUME=symbiote    spiderman 2099 symbiote captain unlimited bagman
+SPIDEY_LEVEL=l5a3          boot straight into a level (Spider-Man: 47 prefixes,
+                           l1a1..l9a4; Spider-Man 2: 44, e1m0..e6m4 plus the
+                           training, warm-up and demo sets)
+SPIDEY_COSTUME=symbiote    Spider-Man only: 2099 symbiote captain unlimited bagman
                            scarlet benreilly quickchange peterparker
-SPIDEY_CHEATS=all          the game's own cheats: everything, levelselect, invuln, ...
+SPIDEY_CHEATS=all          the game's own cheats, each read off its own handler
 SPIDEY_SHOTS=1050,1500     write a PNG on these frames
 SPIDEY_SNAP=crash          dump the game's RAM on the crash, or on named frames
 ```
 
-The per-game notes are the interesting reading: [spiderman/README.md](spiderman/README.md) for
-how the archive, the relocatable overlays and the SDK symbol recovery work, and
-[spiderman/TO_DO.md](spiderman/TO_DO.md) for what each bug turned out to be — including the
+The per-game notes are the interesting reading. [spiderman/README.md](spiderman/README.md)
+covers how the archive, the relocatable overlays and the SDK symbol recovery work, and
+[spiderman/TO_DO.md](spiderman/TO_DO.md) what each bug turned out to be — including the
 several that turned out *not* to be the cause, recorded with their evidence.
+[spiderman2/README.md](spiderman2/README.md) covers carrying a symbol map between two games
+built on one engine, and [spiderman2/TO_DO.md](spiderman2/TO_DO.md) records the investigation
+of a "hang" that turned out to be the game waiting for the player — including the three
+plausible causes that measurement killed first.
 
 ## Licence
 
-The code here is the port and its tooling. Spider-Man and its assets are the property of their
-respective rights holders; nothing from the disc is distributed with it.
+The code here is the ports and their tooling. Spider-Man, Spider-Man 2: Enter Electro and
+their assets are the property of their respective rights holders; nothing from either disc is
+distributed with it.
