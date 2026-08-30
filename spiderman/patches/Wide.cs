@@ -43,6 +43,13 @@ public static class Wide
 
     public static void Install()
     {
+        // Before the widescreen bail-out, so the same measurement can be taken in 4:3.
+        // SPIDEY_WIDE_DEBUG=1 paints the background fill magenta, which is the only way
+        // to tell ground the frame never covered from geometry that was drawn and is
+        // simply dark. The switch was documented but nothing set the flag.
+        RecompOne.Runtime.Diagnostics.DrawEnvWarn.TintBackground =
+            Environment.GetEnvironmentVariable("SPIDEY_WIDE_DEBUG") == "1";
+
         if (Environment.GetEnvironmentVariable("SPIDEY_WIDE") != "1") return;
         Enabled = true;
 
@@ -53,6 +60,8 @@ public static class Wide
         // aspect, so the squeeze is the ratio between them.
         _num = 1000;
         _den = (int)MathF.Round(1000f * _aspect / GpuHle.BaseAspect);
+
+        RecompOne.Runtime.Hardware.GteScreen.Tracking = true;
 
         Event.AddListener<VSyncEvent>(_ => Follow());
         Event.AddListener<RenderPrimEvent>(Screen);
@@ -70,6 +79,12 @@ public static class Wide
         GpuHle.FovNum = wide ? _num : 1;
         GpuHle.FovDen = wide ? _den : 1;
         RollElements();
+
+        // The recorded projection output belongs to one frame; see GteScreen.
+        RecompOne.Runtime.Hardware.GteScreen.Roll();
+
+        if (RecompOne.Runtime.Diagnostics.DrawEnvWarn.TintBackground && ++_frames % 600 == 0)
+            Console.WriteLine($"[wide] world primitives rescued from the HUD rules so far: {_rescued}");
 
         // No margin: the framebuffer keeps the size the game expects, and only the
         // aspect it is presented at changes. That is what keeps the edges free of the
@@ -92,6 +107,20 @@ public static class Wide
     static void Screen(RenderPrimEvent e)
     {
         if (!Enabled || GpuHle.FovNum == GpuHle.FovDen) return;
+
+        // World geometry, and nothing else, arrives by way of the GTE. Everything below
+        // this line is guesswork from shape and screen position, and guesswork is what
+        // dragged the building sign's letters into the corner on top of the health bar:
+        // they are axis-aligned quads in the corner the HUD occupies, which is precisely
+        // what the HUD test looks for. Asking where the vertices came from settles it
+        // without a heuristic.
+        if (FromGte(e))
+        {
+            // How much damage the shape test was doing on its own: world geometry that
+            // the HUD rules would have claimed and moved.
+            if (Rescued(e)) _rescued++;
+            return;
+        }
 
         int lo = e.X[0], hi = e.X[0], top = e.Y[0], bot = e.Y[0];
         for (int i = 1; i < e.Count; i++)
@@ -129,6 +158,42 @@ public static class Wide
         // up full-width and half-width quads from the world, and a half-screen box would
         // adopt anything small that strayed into it.
         if (panel) Remember(rlo, rhi, rtop, rbot, true);
+    }
+
+    /// <summary>
+    /// Did every vertex of this primitive come out of the GTE this frame?
+    ///
+    /// Vertices are compared with the draw origin removed, because the GTE records what
+    /// it produced and the GPU adds the drawing offset afterwards. Requiring *every*
+    /// vertex to match is what makes a false positive negligible: a HUD vertex landing on
+    /// a projected one by chance is common enough, all four doing so is not.
+    /// </summary>
+    static long _rescued, _frames;
+
+    /// <summary>Would the shape-and-corner rules have claimed this world primitive?</summary>
+    static bool Rescued(RenderPrimEvent e)
+    {
+        int lo = e.X[0], hi = e.X[0], top = e.Y[0], bot = e.Y[0];
+        for (int i = 1; i < e.Count; i++)
+        {
+            if (e.X[i] < lo) lo = e.X[i];
+            if (e.X[i] > hi) hi = e.X[i];
+            if (e.Y[i] < top) top = e.Y[i];
+            if (e.Y[i] > bot) bot = e.Y[i];
+        }
+        int w = e.DrawRight - e.DrawLeft + 1, h = e.DrawBottom - e.DrawTop + 1;
+        int rlo = lo - e.DrawLeft, rhi = hi - e.DrawLeft;
+        int rtop = top - e.DrawTop, rbot = bot - e.DrawTop;
+        if (IsScreenAligned(e) && InHudCorner(rlo, rhi, rtop, rbot, w, h)) return true;
+        return CarryHost(rlo, rhi, rtop, rbot) >= 0;
+    }
+
+    static bool FromGte(RenderPrimEvent e)
+    {
+        for (int i = 0; i < e.Count; i++)
+            if (!RecompOne.Runtime.Hardware.GteScreen.Has(e.X[i] - e.DrawLeft, e.Y[i] - e.DrawTop))
+                return false;
+        return true;
     }
 
     // Boxes of the HUD elements squeezed so far this frame, so that parts of an element

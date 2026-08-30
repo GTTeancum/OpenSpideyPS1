@@ -363,6 +363,7 @@ public static class Diag
     // SPIDEY_PRIMS=4200,4210 -- log every primitive drawn on those frames. The event
     // fires per primitive, so this is only wired up when asked for.
     static readonly HashSet<long> _primFrames = new();
+    static long _primHeader = -1;
 
     static void InstallPrimDump()
     {
@@ -381,7 +382,17 @@ public static class Diag
         if (!_primFrames.Contains(Interlocked.Read(ref Frame))) return;
         var v = new StringBuilder();
         for (int i = 0; i < e.Count; i++) v.Append($"({e.X[i]},{e.Y[i]}) ");
-        Write($"[prim] n={e.Count} " +
+        if (_primHeader != Interlocked.Read(ref Frame))
+        {
+            _primHeader = Interlocked.Read(ref Frame);
+            Write($"[prim] gte points={RecompOne.Runtime.Hardware.GteScreen.Count} " +
+                  $"sample={RecompOne.Runtime.Hardware.GteScreen.Sample()}");
+        }
+        bool gte = true;
+        for (int i = 0; i < e.Count; i++)
+            if (!RecompOne.Runtime.Hardware.GteScreen.Has(e.X[i] - e.DrawLeft, e.Y[i] - e.DrawTop))
+            { gte = false; break; }
+        Write($"[prim] {(gte ? "world" : "  HUD")} n={e.Count} " +
               $"{(e.Textured ? "T" : "-")}{(e.SemiTransparent ? "S" : "-")}" +
               $"{(e.Gouraud ? "G" : "-")}{(e.Raw ? "R" : "-")} " +
               $"clut={e.Clut:X4} area=[{e.DrawLeft},{e.DrawTop}..{e.DrawRight},{e.DrawBottom}] {v}");

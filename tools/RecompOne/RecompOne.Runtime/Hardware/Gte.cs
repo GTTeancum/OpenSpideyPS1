@@ -202,6 +202,10 @@ public static class Gte
         SX[0] = SX[1]; SX[1] = SX[2]; SX[2] = (short)nx;
         SY[0] = SY[1]; SY[1] = SY[2]; SY[2] = (short)ny;
 
+        // What the world looks like on screen, recorded so a widescreen hack can tell
+        // world geometry from the HUD by where it came from rather than by its shape.
+        Hardware.GteScreen.Note(nx, ny);
+
         if (last)
         {
             long dp = CheckMac0((long)div * DQA + DQB);

@@ -210,6 +210,35 @@ pixels against 57390 -- noise). The magenta background tint (`SPIDEY_WIDE_DEBUG=
 what made those answerable: it separates ground the frame never covered from geometry
 drawn wrongly.
 
+### The HUD test was moving the world
+
+Identifying the HUD by shape and screen position was wrong, and measurably so: over one
+recorded route **3,698 world primitives** matched the HUD rules and were squeezed out of
+place. It shows up as the building sign's letters piling into the top-left corner on top
+of the health bar, a pickup marker dragged out of the world, and a crate face sheared
+across half the frame. Every refinement of the rule -- screen-aligned, element-sized, must
+hug the corner -- narrowed it without closing it, because a sign letter genuinely *is* an
+axis-aligned quad of about the right size in about the right place.
+
+What separates them is not what a primitive looks like but where it came from. World
+geometry reaches the GPU through the GTE; the HUD is laid out on the CPU and never goes
+near it. `Hardware/GteScreen.cs` records the screen coordinates the GTE produced, and a
+primitive whose every vertex is one of them is world and is left alone.
+
+Two details it needs to be right about:
+
+- **Two generations, not one.** The game builds one ordering table while walking the
+  other, so the primitives drawn between two vblanks were projected in the window before
+  them. Clearing on a single frame boundary left the set empty at the exact moment it was
+  consulted, and *everything* read as HUD -- 0 world primitives in a frame of 448.
+- **Every vertex must match.** A single HUD vertex landing on a projected one happens
+  often enough to matter; all four doing so does not.
+
+This does not yet replace the shape rules -- ground strips still come through with
+vertices the GTE did not produce, so squeezing everything non-GTE would distort the floor.
+It gates them, which is what stops the world being moved. Still open: the ammo counter's
+digits are split, because the corner test admits the `0` and rejects the `9`.
+
 **The HUD** is squeezed to match, so presentation leaves it the shape the game drew, and
 each element is anchored to its nearest edge rather than to the frame centre. Anchoring
 matters: scaling about the centre preserves an element's *fraction* of the frame, which
