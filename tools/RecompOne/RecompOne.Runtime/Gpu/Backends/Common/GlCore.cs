@@ -141,7 +141,7 @@ public sealed class GlCore : IGpuBackend
 
         _presentTex = _gl.GenTexture();
         _gl.BindTexture(TextureTarget.Texture2D, _presentTex);
-        _gl.TexParameter(TextureTarget.Texture2D, TextureParameterName.TextureMinFilter, (int)GLEnum.Linear);
+        _gl.TexParameter(TextureTarget.Texture2D, TextureParameterName.TextureMinFilter, (int)GLEnum.LinearMipmapLinear);
         _gl.TexParameter(TextureTarget.Texture2D, TextureParameterName.TextureMagFilter, (int)GLEnum.Linear);
         _presentFbo = _gl.GenFramebuffer();
         _gl.BindFramebuffer(FramebufferTarget.Framebuffer, _presentFbo);
@@ -390,6 +390,7 @@ public sealed class GlCore : IGpuBackend
         _gl.TexParameter(TextureTarget.Texture2D, TextureParameterName.TextureWrapT, (int)GLEnum.ClampToEdge);
         _gl.TexImage2D<byte>(TextureTarget.Texture2D, 0, InternalFormat.Rgba8, (uint)tex.Width, (uint)tex.Height, 0,
             PixelFormat.Rgba, PixelType.UnsignedByte, tex.Rgba);
+        _gl.GenerateMipmap(TextureTarget.Texture2D);
         _gl.ActiveTexture(TextureUnit.Texture0);
 
         _repTextures[tex] = handle;

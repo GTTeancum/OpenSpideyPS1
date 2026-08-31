@@ -294,6 +294,39 @@ It needs Spider-Man 2 booting far enough to enumerate its costumes and moves, wh
 where that port is now. Until then, half the inventory does not exist and any design
 decided from the Spider-Man side alone would be a guess.
 
+## Cross-game: optional perspective-correct texturing
+
+Preserve the current renderer, but add an option to remove the PS1's affine texture
+warping. Instead of interpolating texture coordinates directly in screen space, carry
+and interpolate `u/w`, `v/w`, and `1/w`, then divide per pixel to recover `u` and `v`.
+
+This should be a renderer-level option shared by both games, with affine mapping retained
+as the authentic/default compatibility mode until the perspective-correct path has been
+checked across representative levels. It addresses texture swimming and diagonal warping
+only; vertex snapping, low-precision geometry jitter, filtering, colour quantisation, and
+other PS1 rendering traits are separate concerns and should remain unchanged.
+
+## Cross-game: optional FXAA
+
+Add FXAA as an optional final-frame post-process shared by both games. Apply it after the
+scene has been rendered at the selected host resolution so it smooths polygon and texture
+edges without reintroducing a PS1-era resolution limit. Keep it independently toggleable
+from texture filtering, render scale, perspective-correct texturing, and the authentic
+nearest-neighbour path. Validate at native and increased render scales, including menus,
+HUD text, thin web lines, character silhouettes, and high-contrast texture details so the
+edge pass does not visibly blur interface art or erase fine geometry.
+
+## Cross-game: remove PS1 color dithering permanently
+
+Remove the PS1 GPU's ordered color-dither pass from the modern renderer in both games.
+This is required rather than an authenticity option: render scale currently evaluates the
+4x4 console dither matrix in original PS1 coordinates, which magnifies each dither cell at
+higher internal resolutions and makes otherwise clean 4x output look grainy. Replacement
+textures already bypass the 5-bit quantization/dither branch; extend that full-color policy
+to native scene geometry, sprites, lines, and non-replacement textures as well. Delete or
+disable both the GL shader and software-rasterizer dither paths, then verify gradients,
+lighting, transparency, HUD art, FMV transitions, and captures at 1x through 8x.
+
 ### Open: the HUD jumps between the adjusted and original position
 
 Observed in play, not in a capture, and the distinction matters: a single screenshot of

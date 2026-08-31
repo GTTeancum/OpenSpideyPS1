@@ -75,10 +75,17 @@ public static class TextureDumper
     static void Start()
     {
         {
-            string game = Sanitize(AssetReplacerManager.Instance.GameId);
-            _root = Path.GetFullPath(Path.Combine("dump", game, "textures"));
-            _clutRoot = Path.GetFullPath(Path.Combine("dump", game, "cluts"));
-            _pageRoot = Path.GetFullPath(Path.Combine("dump", game, "pages"));
+            string? explicitRoot = Environment.GetEnvironmentVariable("RECOMP_TEXTURE_DUMP_DIR");
+            string dumpRoot;
+            if (string.IsNullOrWhiteSpace(explicitRoot))
+            {
+                string game = Sanitize(AssetReplacerManager.Instance.GameId);
+                dumpRoot = Path.GetFullPath(Path.Combine("dump", game));
+            }
+            else dumpRoot = Path.GetFullPath(explicitRoot);
+            _root = Path.Combine(dumpRoot, "textures");
+            _clutRoot = Path.Combine(dumpRoot, "cluts");
+            _pageRoot = Path.Combine(dumpRoot, "pages");
             try
             {
                 Directory.CreateDirectory(_root);

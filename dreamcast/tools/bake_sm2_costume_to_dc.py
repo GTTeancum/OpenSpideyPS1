@@ -37,6 +37,8 @@ def parse_args() -> argparse.Namespace:
     parser.add_argument("--output", required=True)
     parser.add_argument("--textures-output", required=True)
     parser.add_argument("--name", required=True)
+    parser.add_argument("--cage-extrusion", type=float, default=1.5)
+    parser.add_argument("--max-ray-distance", type=float, default=3.0)
     return parser.parse_args(argv)
 
 
@@ -98,7 +100,12 @@ def prepare_bake_images(
     return images
 
 
-def bake_body(source: bpy.types.Object, target: bpy.types.Object) -> None:
+def bake_body(
+    source: bpy.types.Object,
+    target: bpy.types.Object,
+    cage_extrusion: float,
+    max_ray_distance: float,
+) -> None:
     bpy.ops.object.select_all(action="DESELECT")
     source.select_set(True)
     target.select_set(True)
@@ -106,8 +113,8 @@ def bake_body(source: bpy.types.Object, target: bpy.types.Object) -> None:
     scene = bpy.context.scene
     scene.render.engine = "CYCLES"
     scene.render.bake.use_selected_to_active = True
-    scene.render.bake.cage_extrusion = 1.5
-    scene.render.bake.max_ray_distance = 3.0
+    scene.render.bake.cage_extrusion = cage_extrusion
+    scene.render.bake.max_ray_distance = max_ray_distance
     scene.render.bake.margin = 8
     bpy.ops.object.bake(type="EMIT", target="IMAGE_TEXTURES")
 
@@ -226,7 +233,12 @@ def main() -> None:
         source_armature, source_mesh, source_group = import_group(source_path)
 
         images = prepare_bake_images(target_mesh, args.name)
-        bake_body(source_mesh, target_mesh)
+        bake_body(
+            source_mesh,
+            target_mesh,
+            args.cage_extrusion,
+            args.max_ray_distance,
+        )
         copy_source_wing(source_mesh, target_mesh, images)
         connect_baked_images(target_mesh, images)
         save_images(images, args.textures_output)

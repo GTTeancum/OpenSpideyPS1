@@ -91,7 +91,7 @@ public static class OverlayPatches
         name = LevelSwitch.Redirect(c, m, name);
         _lastLookup = name;
         _lastRa = c.RA;
-        AssetOverrides.Find(name);
+        AssetOverrides.Find(name, m);
         if (name.Length > 4 && name.EndsWith(".bin", StringComparison.OrdinalIgnoreCase))
         {
             string key = name.Substring(0, name.Length - 4);

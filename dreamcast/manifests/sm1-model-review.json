@@ -1,0 +1,161 @@
+{
+  "schemaVersion": 1,
+  "description": "Persistent manual-review queue for Dreamcast character ports whose deformation or layering cannot be cleared by the automated head-geometry audit alone.",
+  "lastUpdated": "2026-08-31",
+  "actors": {
+    "SPQUICK": {
+      "costume": "quickchange",
+      "status": "user-review-required",
+      "blocksClearance": true,
+      "concerns": [
+        {
+          "area": "feet",
+          "kind": "possible-weighting-deformation",
+          "reportedBy": "user"
+        },
+        {
+          "area": "jacket",
+          "kind": "possible-weighting-deformation",
+          "reportedBy": "user"
+        }
+      ],
+      "evidence": {
+        "automatedReport": "dreamcast/converted/all-characters-costumes-menuaudit-headfix/runtime-validation.json",
+        "menuCapture": "dreamcast/converted/all-characters-costumes-menuaudit-headfix/08-quickchange/frame_02450.png"
+      },
+      "note": "The current projected-face-span audit validates head topology only; it does not clear limb or garment weighting. Preserve this item for the user's more thorough in-game review."
+    },
+    "BLACKCAT": {
+      "status": "runtime-validated-awaiting-user-review",
+      "blocksClearance": true,
+      "concerns": [
+        {
+          "area": "animated-model",
+          "kind": "user-reported-visual-failure",
+          "reportedBy": "user"
+        }
+      ],
+      "evidence": {
+        "staticSourceRender": "dreamcast/converted/all-characters-validation-current/renders/blackcat_front_left.png",
+        "failedPaletteProof": "dreamcast/converted/blackcat-palette-id-fix-proof/frame_04125.png",
+        "runtimeReport": "dreamcast/converted/blackcat-shared-clut-final-proof/runtime-validation.json",
+        "entranceCapture": "dreamcast/converted/blackcat-shared-clut-final-proof/l1a1/frame_04100.png",
+        "animatedCapture": "dreamcast/converted/blackcat-shared-clut-final-proof/l1a1/frame_04115.png",
+        "runtimeTextureDump": "dreamcast/converted/blackcat-shared-clut-final-proof/l1a1/texture-dump/pages",
+        "hostTextureManifest": "dreamcast/converted/all-characters/packs/dreamcast-sm1-actors/texture-manifest.json"
+      },
+      "rootCause": "The converter first reused container-local palette ids in SM1's process-global cache. Once those ids were made model-scoped, L1A1 still exhausted SM1's 68 physical 8-bit CLUT slots and six later Black Cat materials repeatedly overwrote slot 68.",
+      "resolvedAdaptation": "Assign every converted actor a stable model-scoped cache id and encode its compact compatibility pages against one shared actor-level CLUT. Preserve every original Dreamcast source image as a separate full-resolution host replacement keyed from the compact page and shared palette.",
+      "note": "The one-instance 4x L1A1 proof passed. All 15 Black Cat mappings (13 unique runtime keys) were present in the runtime page dump, every distinct host page loaded at 4x source resolution, and both unobstructed authored animation captures show the correct blue/white materials without orange/black palette contamination. Await user visual acceptance before clearing the reported failure."
+    },
+    "JJVIEWER": {
+      "status": "runtime-validated-awaiting-user-review",
+      "blocksClearance": true,
+      "concerns": [
+        {
+          "area": "outfit-and-skin",
+          "kind": "technicolor-face-lighting",
+          "reportedBy": "user",
+          "symptom": "The Character Viewer model is covered by unintended full-range RGB lighting instead of the retail neutral Jameson shading."
+        }
+      ],
+      "evidence": {
+        "failedRuntimeReport": "dreamcast/converted/all-characters-viewer-runtime-current/runtime-validation.json",
+        "failedViewerCapture": "dreamcast/converted/all-characters-viewer-runtime-current/frame_05850.png",
+        "failedStaticSourceRender": "dreamcast/converted/all-characters-validation-current/renders/jjviewer_front_left.png",
+        "retailBaselineCapture": "dreamcast/converted/retail-ps1-jameson-scorpion-baseline/frame_05850.png",
+        "fixedRuntimeReport": "dreamcast/converted/jameson-scorpion-runtime-alias-fix-proof/runtime-validation.json",
+        "fixedViewerCapture": "dreamcast/converted/jameson-scorpion-runtime-alias-fix-proof/frame_05850.png",
+        "fixedGameplayReport": "dreamcast/converted/jameson-scorpion-runtime-alias-gameplay-proof/runtime-validation.json",
+        "fixedGameplayCapture": "dreamcast/converted/jameson-scorpion-runtime-alias-gameplay-proof/l2a2/frame_04375.png"
+      },
+      "rootCause": "Both Dreamcast Jameson containers set face flag 0x0800, so the three bytes at face+8 are indices into Dreamcast's animated RGBs table rather than literal colors. SM1 interpreted those indices through its v4 path, producing the technicolor suit. Retail PS1 SM1 jameson.psx and jjviewer.psx use neutral literal (110,110,110) face lighting and their own v4 animation metadata. The decoded Dreamcast texture images themselves are correct.",
+      "resolvedAdaptation": "Keep the high-detail Dreamcast meshes, UVs, material hashes, and original-resolution texture pixels; clear indexed-RGB flag 0x0800, write the retail SM1 neutral face-lighting packet, remove the incompatible RGBs channel, and pair each variant with its matching retail SM1 object order, hierarchy, and animation metadata by stable mesh name.",
+      "note": "The final one-instance 4x Character Viewer proof passed 9/9 loads, overrides, and captures with no technicolor gradients. The independent skeleton audit verifies neutral lighting and a cleared 0x0800 flag on every face; the dense L2A2 sequence also shows Jameson in his neutral grey outfit. Await user visual acceptance before clearing the reported failure."
+    },
+    "SCORPION": {
+      "status": "runtime-validated-awaiting-user-review",
+      "blocksClearance": true,
+      "concerns": [
+        {
+          "area": "tail-chain",
+          "kind": "hierarchy-or-transform-failure",
+          "reportedBy": "user",
+          "symptom": "Tail segments stretch vertically out of frame and do not form the authored articulated chain behind Scorpion."
+        },
+        {
+          "area": "procedural-tail-surface",
+          "kind": "missing-runtime-material-alias",
+          "reportedBy": "user",
+          "symptom": "After articulation was restored, the generated tube still appeared flat purple-black without the source skin's blue/green segmentation."
+        }
+      ],
+      "evidence": {
+        "failedRuntimeReport": "dreamcast/converted/all-characters-viewer-runtime-current/runtime-validation.json",
+        "failedViewerCapture": "dreamcast/converted/all-characters-viewer-runtime-current/frame_06150.png",
+        "failedStaticSourceRender": "dreamcast/converted/all-characters-validation-current/renders/scorpion_rear_right.png",
+        "retailBaselineCapture": "dreamcast/converted/retail-ps1-jameson-scorpion-baseline/frame_06150.png",
+        "intermediateFlatTailCapture": "dreamcast/converted/jameson-scorpion-spline-texture-fix-proof/frame_06150.png",
+        "fixedRuntimeReport": "dreamcast/converted/jameson-scorpion-runtime-alias-fix-proof/runtime-validation.json",
+        "fixedViewerCapture": "dreamcast/converted/jameson-scorpion-runtime-alias-fix-proof/frame_06150.png",
+        "fixedTailCloseup": "dreamcast/converted/jameson-scorpion-runtime-alias-fix-proof/scorpion-tail-closeup.png",
+        "fixedGameplayReport": "dreamcast/converted/jameson-scorpion-runtime-alias-gameplay-proof/runtime-validation.json",
+        "fixedGameplayFirstCapture": "dreamcast/converted/jameson-scorpion-runtime-alias-gameplay-proof/l2a2/frame_04200.png",
+        "fixedGameplaySwingCapture": "dreamcast/converted/jameson-scorpion-runtime-alias-gameplay-proof/l2a2/frame_04275.png",
+        "fixedGameplayLastCapture": "dreamcast/converted/jameson-scorpion-runtime-alias-gameplay-proof/l2a2/frame_04450.png"
+      },
+      "rootCause": "Two independent compatibility failures were present. First, the converter retained Dreamcast mesh order plus its 0x2A animation and HIER metadata inside a v4 container, so SM1 interpreted the controller chain through incompatible object ordering and produced detached vertical strips. After that was repaired, the tube remained flat purple-black because Dreamcast stores the shared hook/tube skin at material index 0 while SM1's procedural spline renderer independently selects retail slot 18; the converted table ended at 17 and never supplied the tube material.",
+      "resolvedAdaptation": "Reorder every high-detail Dreamcast mesh by stable name and pair it with retail SM1 Scorpion's object table, hierarchy, and 0x2C animation. Preserve all seven byte-exact controller cubes. Keep the authored Dreamcast hook on native material 0, then append the retail-semantic index-18 spline alias: a 64x64 compatibility page keyed to the same source-exact 128x128 Dreamcast blue/green host texture.",
+      "note": "The final one-instance 4x Character Viewer proof passed 9/9 loads, overrides, and captures with a segmented, readable tube. All 11 L2A2 frames from 4200 through 4450 were inspected sequentially: the tail stays attached through the swing, bends continuously, preserves blue/green surface definition, and keeps its hook aligned. The independent audits enforce the seven controller meshes, index-18 alias, 64x64 compatibility page, and exact 128x128 Dreamcast host pixels. Await user visual acceptance before clearing the reported failure."
+    },
+    "PARKER": {
+      "status": "runtime-validated",
+      "blocksClearance": false,
+      "concerns": [
+        {
+          "area": "entire-animated-body",
+          "kind": "incompatible-animation-bank",
+          "reportedBy": "automated-roster-audit",
+          "symptom": "The Character Viewer body collapses and self-intersects around the torso."
+        }
+      ],
+      "evidence": {
+        "failedViewerCapture": "dreamcast/converted/jameson-scorpion-final-proof/frame_04050.png",
+        "retailBaselineCapture": "dreamcast/converted/retail-ps1-jameson-scorpion-baseline/frame_04050.png",
+        "fixedRuntimeReport": "dreamcast/converted/parker-skeleton-fix-proof/runtime-validation.json",
+        "fixedViewerCapture": "dreamcast/converted/parker-skeleton-fix-proof/frame_04050.png"
+      },
+      "rootCause": "PARKER is a viewer/cutscene actor, but the batch classified it as a playable costume and injected Spider-Man's shared animation bank. SPPARK is the separate playable Peter costume.",
+      "resolvedAdaptation": "Keep PARKER's high-detail Dreamcast geometry and textures, but pair it with retail SM1 parker.psx object order, hierarchy, and animation metadata. Leave SPPARK in the playable costume path.",
+      "note": "The focused one-instance 4x Character Viewer proof passed 2/2 loads, overrides, and captures and shows the complete high-detail body in the authored running pose."
+    },
+    "SPBAGMAN": {
+      "costume": "bagman",
+      "status": "user-accepted-and-runtime-validated",
+      "blocksClearance": false,
+      "concerns": [
+        {
+          "area": "head-and-paper-bag",
+          "kind": "nested-shell-draw-order",
+          "reportedBy": "user",
+          "symptom": "Peter's head clips or draws through opaque areas of the paper bag"
+        }
+      ],
+      "evidence": {
+        "failedCandidate": "dreamcast/converted/all-characters-costumes-menuproof-bagdepth-hires/05-bagman/frame_02450.png",
+        "sourceReference": "dreamcast/converted/bagman-animation-audit/render-t0/bagman_anim0_anim0_t0.png",
+        "rejectedNoNeckMenuReport": "dreamcast/converted/all-characters-costumes-menuproof-bagman-eyebake-hires/runtime-validation.json",
+        "rejectedNoNeckMenuCapture": "dreamcast/converted/all-characters-costumes-menuproof-bagman-eyebake-hires/05-bagman/frame_03350.png",
+        "rejectedNoNeckGameplayReport": "dreamcast/converted/all-characters-costumes-gameplay-bagman-eyebake/runtime-validation.json",
+        "rejectedNoNeckGameplayCapture": "dreamcast/converted/all-characters-costumes-gameplay-bagman-eyebake/05-bagman/frame_04150.png",
+        "acceptedMenuReport": "dreamcast/converted/all-characters-costumes-menuproof-bagman-depthlayer-final/runtime-validation.json",
+        "acceptedMenuCapture": "dreamcast/converted/all-characters-costumes-menuproof-bagman-depthlayer-final/05-bagman/frame_03200.png",
+        "denseGameplayReport": "dreamcast/converted/all-characters-costumes-gameplay-bagman-depthlayer-dense/runtime-validation.json",
+        "denseGameplayCapture": "dreamcast/converted/all-characters-costumes-gameplay-bagman-depthlayer-dense/05-bagman/frame_04500.png"
+      },
+      "rejectedAdaptation": "Baking the eyes into the paper and removing the 86-face inner shell eliminated the neck and is invalid.",
+      "resolvedAdaptation": "Preserve all 100 vertices, 279 normals, 179 faces, and original textures; mark the 86 inner head/neck faces for SM1's native ordering-table depth-offset channel and scope the offset to the topology-validated Bag-Man head batch.",
+      "note": "User accepted the restored neck and corrected paper/face layering. Seven 4x menu poses and a one-instance 21-frame gameplay run passed; no geometry or authored texture pixels were removed or baked."
+    }
+  }
+}

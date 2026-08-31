@@ -34,11 +34,20 @@ version-4 layout. `spiderman/tools/port_dc_character.py` performs these changes:
    PS1 coordinates using the generated texture dimensions. The v4 face record is
    eight bytes shorter because each UV component becomes one byte.
 4. Rewrite mesh pointers and face-normal indices after relocation.
-5. Quantize decoded RGBA PNGs to indexed 8-bit PS1 textures. Palette index zero
-   is the transparent magenta key; opaque colors begin at index one.
-6. Divide Dreamcast texture dimensions by four. This retains the DC atlas while
-   keeping the aggregate actor texture load near the original SM1 VRAM budget.
-7. Emit a v4 container whose embedded texture section is self-contained.
+5. Build one deterministic 255-color compatibility palette across the actor's
+   complete texture set. Palette index zero remains the transparent magenta key,
+   while every ordinary material in that actor shares one stable model-scoped
+   cache id. This avoids both cross-actor palette aliasing and exhaustion of
+   SM1's 68 physical 8-bit CLUT slots.
+6. Embed quarter-size indexed pages only as the emulated-VRAM fallback and as
+   stable replacement keys. This compact representation is not the visible
+   quality ceiling and does not constrain texture mods.
+7. Copy every original Dreamcast RGBA image, at its original dimensions and
+   pixels, to the host texture pack. The recomp renderer resolves the compact
+   page/CLUT key and samples this full-color host image directly, bypassing PS1
+   5-bit framebuffer quantization and dithering. The same host path accepts
+   arbitrary replacement dimensions for future HD packs.
+8. Emit a v4 container whose compatibility texture section is self-contained.
 
 The output remains one loose `.psx` file per WAD entry. For Spider-Man, a matching
 loose `sp_tex00.psx` is also generated because the shell loads that companion
@@ -215,11 +224,27 @@ The current manifest is
 - Spider-Man uses the donor-preserving, DC-seam-fitted wing transfer and the
   default magenta paint-out.
 
+The generated actor pack contains 618 source-to-runtime mappings backed by 589
+unique full-resolution PNGs. Audit every generated v4 record, shared palette,
+runtime key, source image, and packed RGBA image without relying on the converter
+reader:
+
+```powershell
+python dreamcast/tools/audit_character_texture_pack.py
+```
+
+The audit currently passes all 51 converted actors, all 618 mappings, all 589
+unique keys, and all 589 exact host PNGs. Scorpion accounts for the additional
+mapping/key: its runtime-only material-18 alias points to the same source-exact
+Dreamcast RGBA artwork as hook material 0, but is keyed through the independent
+64x64 compatibility page required by SM1's spline renderer. Its report is
+`dreamcast/converted/all-characters/packs/dreamcast-sm1-actors/texture-audit.json`.
+
 The entire output directory can be supplied as `SPIDEY_ASSET_DIR`. SM1 requests
 only the names needed by the active level, so unrelated batch entries remain
-dormant. Independent batch validation reconstructs all 65 GLBs, decodes 763
-textures, counts 65,537 triangles, and creates five views for every actor (325
-renders):
+dormant. Independent batch validation reconstructs all 65 GLBs, decodes 847
+textures from the 65 actors plus ten costume texture companions, counts 65,541
+triangles, and creates five views for every actor (325 renders):
 
 ```powershell
 python dreamcast/tools/validate_all_characters.py `
@@ -230,19 +255,118 @@ The process-local runtime matrix launches 18 minimal story levels, captures two
 native frames per level, and verifies all 34 actors referenced by story triggers:
 
 ```powershell
-python dreamcast/tools/validate_character_runtime.py --concurrency 3 --resume
+python dreamcast/tools/validate_character_runtime.py --concurrency 1 --resume
 ```
 
 The current reports pass 65/65 static actors and 18/18 runtime levels with
-34/34 story-loaded actors covered.
+34/34 story-loaded actors covered. The ten playable models also pass the preferred
+4x main-menu 3D proof, sequentially:
 
-## SM2-exclusive costume proofs
+```powershell
+python dreamcast/tools/validate_sm1_costume_models_runtime.py `
+  --concurrency 1 --render-scale 4 --proof-mode menu
+```
 
-The selected SM2 costumes are baked onto the wing-capable high-detail Dreamcast
-body and exported as static T-pose GLBs. The current set is Prodigy (`sp_tex02`),
-Dusk (`sp_tex03`), and Ricochet (`sp_tex08`). Each output has five whole-model
-review views and six tight wing views covering front, rear, underside, and both
-obliques.
+Quick Change remains a deliberate manual-review hold for its reported feet and
+jacket deformation concerns; automated load/capture success does not clear it.
+
+The complete selectable Character Viewer roster is also exercised in one game
+process at 4x. SM1 exposes 26 entries, ending at Sub-Mariner; the extra J. James
+Jewett record in `charbio.dat` is not selectable in the retail viewer.
+
+```powershell
+python dreamcast/tools/validate_character_viewer_runtime.py --render-scale 4
+```
+
+Together, the story, costume, and Character Viewer routes naturally exercise 52
+of the 65 actor-batch entries. Of the thirteen entries outside those routes, only
+`CLAW`, `HOSTAGEF`, and `SYMBIOTE` are names SM1 can actually request. `CLAW` is
+byte-identical in PS1 SM1 and Dreamcast. The other ten are Dreamcast-only
+supplemental components, so they remain in the exhaustive source census but are
+not installed as invented SM1 resource aliases. This actor-only batch never
+replaces level geometry, collision, lighting, or object archives.
+
+The viewer validator's recorded probe mode covers complete converted actors that
+SM1 owns but does not expose through its normal viewer/story proof routes. It
+temporarily aliases the source through a real viewer slot, keeps the original
+high-resolution texture pack active, records the true source model in the JSON
+report, and removes the temporary alias after the one-process run:
+
+```powershell
+python dreamcast/tools/validate_character_viewer_runtime.py `
+  --probe-model hostagef --probe-slot parker `
+  --output dreamcast/converted/hostagef-viewer-probe --render-scale 4
+
+python dreamcast/tools/validate_character_viewer_runtime.py `
+  --probe-model symbiote --probe-slot symbi_02 `
+  --output dreamcast/converted/symbiote-compatible-viewer-probe --render-scale 4
+```
+
+Both final probes pass their loads, loose overrides, native captures, and clean
+exits. `SYMBIOTE` deliberately uses the compatible `symbi_02` slot; a diagnostic
+Peter-Parker-slot run proved that a mismatched viewer animation can fold a valid
+model and therefore must not be used as deformation evidence.
+
+This route caught three conversion-specific metadata failures that ordinary load
+tests could not: technicolor Jameson face lighting, Scorpion's detached tail
+chain, and a collapsed viewer-only Peter Parker. Jameson/JJVIEWER, Scorpion, and
+PARKER now keep their Dreamcast meshes, UVs, materials, and full-resolution
+textures but use the matching retail SM1 object order, hierarchy, and animation
+metadata by stable mesh name. Jameson also clears Dreamcast's indexed-RGB face
+mode (`0x0800`), restores retail SM1's neutral face lighting, and omits the
+incompatible animated `RGBs` channel. Scorpion preserves the seven retail-exact
+controller cubes and adds the procedural renderer's missing material slot 18 as
+a 64x64 compatibility alias to the source-exact 128x128 Dreamcast hook/tube
+skin; the authored hook remains on Dreamcast material 0. `SPPARK` remains the
+distinct playable Peter costume and continues to use the playable costume path.
+
+An independent parser verifies all four adapted containers without importing the
+converter. It checks donor-exact object tables, mesh order, tagged metadata,
+source-exact Dreamcast vertices and normals, Jameson's neutral face-lighting
+bytes plus cleared indexed-RGB flags, and all seven Scorpion tail meshes against
+retail geometry. It also verifies Scorpion's material-18 spline alias and
+64x64 compatibility page:
+
+```powershell
+python dreamcast/tools/audit_sm1_skeleton_adaptations.py
+```
+
+The current audit passes JAMESON (58 checks), JJVIEWER (58), PARKER (52), and
+SCORPION (108). The one-process 4x L2A2 proof captures 11 consecutive gameplay
+frames from 4200 through 4450; the complete sequence keeps Scorpion's tube
+attached and blue/green-segmented throughout its swing while Jameson retains his
+neutral grey outfit.
+
+## SM2 costume texture-mapping proofs
+
+`map_sm2_dc_actors.py` first restricts the SM2 inventory to character actors—no
+level/environment files or animated props—then compares each one against the DC
+actor batch by object count, stable mesh-name hashes, hierarchy, animation tags,
+and material hashes:
+
+```powershell
+python dreamcast/tools/map_sm2_dc_actors.py
+```
+
+The current census contains 30 SM2 character actors: ten exact-name DC
+candidates, one structurally exact known alias (`HOSTAGE2` -> `HOSTAGE`), and
+nineteen explicit fallbacks that retain their original SM2 models until a real
+counterpart is demonstrated. Almost none of the selected candidates share
+material hashes, so a same-name model is not treated as texture compatible.
+
+The selected SM2 costumes are transferred onto the wing-capable high-detail
+Dreamcast body and exported as static T-pose GLBs. The current set is Default
+(`sp_tex00`), Prodigy (`sp_tex02`), Dusk (`sp_tex03`), and Ricochet (`sp_tex08`).
+Each output has five whole-model review views and six tight wing views covering
+front, rear, underside, and both obliques.
+
+The original projection-bake prototype was rejected because Dreamcast's reused,
+overlapping UV islands allowed unrelated target polygons to overwrite one
+another, producing triangular color fragments. The production path transfers
+each target polygon to one nearest SM2 source triangle, then barycentrically
+maps all of that polygon's loops from the same material/UV domain. This keeps the
+original SM2 texture pages intact and avoids cross-material seam contamination.
+The four donor-exact wing polygons retain their authored UVs separately.
 
 `audit_wing_glb.py` independently reads both source and output GLBs. It requires
 exact wing UV coordinates, UV triangles, texture dimensions, and RGBA pixels,
@@ -255,13 +379,18 @@ the visible black/white web treatment.
 python dreamcast/tools/validate_sm2_costumes.py
 ```
 
-The report passes all three costumes, 15 T-pose views, and 18 wing close-ups.
+The report passes all four costumes, 20 T-pose views, and 24 wing close-ups.
+These GLBs are independent texture-mapping proofs, not game inputs. SM1 and SM2
+continue to load `.psx` containers at runtime; converting the proven transfers
+back into SM2-compatible `.psx` actors and texture packs is the next stage.
 
 ## One-command pipeline
 
-`run_port_pipeline.py` connects conversion, exact wing parity, native in-game
-capture and close-crop authorship, all-character reconstruction/rendering,
-18-level runtime coverage, costume baking, and final reports:
+`run_port_pipeline.py` connects conversion, the complete host-texture audit,
+exact wing parity, native in-game capture and close-crop authorship, all-character
+reconstruction/rendering, 18-level runtime coverage, all ten SM1 menu costume
+proofs, the complete 26-entry Character Viewer sweep, costume baking, and final
+reports. Runtime validation is restricted to one game process:
 
 ```powershell
 python dreamcast/tools/run_port_pipeline.py `
@@ -299,7 +428,8 @@ Before calling a new port complete:
 
 1. Run the converter only against loose extracted files.
 2. Parse the output with an independent PSX container reader.
-3. Decode every palette and texture record.
+3. Run `audit_character_texture_pack.py` to decode every compatibility palette
+   and texture record and prove its full-resolution host mapping.
 4. Reconstruct and render the whole model, not just its first mesh.
 5. For stitched additions, run `verify_wing_parity.py` or an equivalent byte-level
    ownership/attachment audit.

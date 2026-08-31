@@ -42,6 +42,29 @@ public static class Program
         SeedSettings(gameData);
         RecompOne.Runtime.Assets.LooseWadOverrides.Initialize(gameData);
 
+        // A generated loose-actor batch may carry its matching host-resolution
+        // texture pack beside the PSX compatibility assets. Keep the batch
+        // self-contained unless an explicit pack root was supplied.
+        if (string.IsNullOrWhiteSpace(Environment.GetEnvironmentVariable("RECOMP_ASSET_PACK_DIR")))
+        {
+            string actorRoot = Environment.GetEnvironmentVariable("SPIDEY_ASSET_DIR");
+            string actorPacks = string.IsNullOrWhiteSpace(actorRoot)
+                ? null
+                : Path.Combine(Path.GetFullPath(actorRoot), "packs");
+            if (actorPacks != null && Directory.Exists(actorPacks))
+                Environment.SetEnvironmentVariable("RECOMP_ASSET_PACK_DIR", actorPacks);
+        }
+
+        // Non-interactive texture-pack authoring. This only observes the emulated
+        // game's own draws and writes decoded uploads; it never drives the host UI.
+        var dumpTextures = Environment.GetEnvironmentVariable("SPIDEY_DUMP_TEXTURES");
+        if (string.Equals(dumpTextures, "pages", StringComparison.OrdinalIgnoreCase))
+            RecompOne.Runtime.Assets.Textures.TextureDumper.SetPages(true);
+        else if (string.Equals(dumpTextures, "tiles", StringComparison.OrdinalIgnoreCase))
+            RecompOne.Runtime.Assets.Textures.TextureDumper.SetTiles(true);
+        else if (string.Equals(dumpTextures, "all", StringComparison.OrdinalIgnoreCase))
+            RecompOne.Runtime.Assets.Textures.TextureDumper.SetEnabled(true);
+
         // SPIDEY_GUARD=8009c5d4 -- report whatever writes rubbish into this address.
         var guard = Environment.GetEnvironmentVariable("SPIDEY_GUARD");
         if (!string.IsNullOrEmpty(guard))

@@ -183,7 +183,10 @@ internal static class GlShaders
                 if (img.a < 0.5) discard;
                 ivec3 e8 = (ivec3(img.rgb * 255.0 + 0.5) * ivec3(vColor.rgb * 255.0 + 0.5)) >> 7;
                 float stp = img.a < 0.95 ? 1.0 : 0.0;
-                FragColor = vec4(quant5(e8), max(stp, uSetMask));
+                // Replacement art is host-GPU data, not PS1 VRAM data. Keep
+                // the full 8-bit result instead of applying console-era
+                // framebuffer quantization to the upgraded texture.
+                FragColor = vec4(vec3(clamp(e8, 0, 255)) / 255.0, max(stp, uSetMask));
                 BlendColor = stp > 0.5 ? uBlend : uBlendOpaque;
                 return;
             }
@@ -420,6 +423,7 @@ internal static class GlShaders
             vec3 rgb;
             float stp;
             float mask;
+            float hostReplacement = 0.0;
 
             if (vTexMode > 3.5 && vTexMode < 4.5) {
                 rgb = vColor.rgb * 255.0;
@@ -446,6 +450,7 @@ internal static class GlShaders
                     rgb = floor(img.rgb * 255.0 + 0.5) * floor(vColor.rgb * 255.0 + 0.5) / 128.0;
                     stp = img.a < 0.95 ? 1.0 : 0.0;
                     mask = max(stp, uSetMask);
+                    hostReplacement = 1.0;
                 } else {
                     vec2 uv = vec2(mod(rawU, win.x), mod(rawV, win.y)) + uTexWindow.zw;
                     uv = vec2(mod(uv.x, 256.0), mod(uv.y, 256.0));
@@ -484,7 +489,9 @@ internal static class GlShaders
                 }
             }
 
-            vec3 outRgb = quant5(floor(rgb));
+            vec3 outRgb = hostReplacement > 0.5
+                ? clamp(rgb, 0.0, 255.0) / 255.0
+                : quant5(floor(rgb));
             if (uSemiTrans * stp > 0.5) outRgb = clamp(blendWith(outRgb, dstTexel.rgb), 0.0, 1.0);
 
             gl_FragColor = vec4(outRgb, mask);

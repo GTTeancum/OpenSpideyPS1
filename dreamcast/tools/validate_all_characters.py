@@ -144,11 +144,27 @@ def main() -> None:
     expected_models = {Path(entry["output"]).stem.lower() for entry in entries}
     if len(expected_models) != manifest.get("actorCount"):
         raise ValueError("manifest actorCount does not match its unique output names")
-    expected_psx = expected_models | {"sp_tex00"}
+    costume_companions = manifest.get("costumeTextureCompanions", [])
+    expected_companions = {Path(entry["output"]).stem.lower() for entry in costume_companions}
+    if len(expected_companions) != 10:
+        raise ValueError(
+            f"manifest must contain all 10 costume texture companions, got "
+            f"{sorted(expected_companions)}"
+        )
+    expected_psx = expected_models | expected_companions
 
     tool_logs: dict[str, str] = {}
     if not args.skip_tools:
         multitool = find_multitool(args.multitool)
+        # Every tool writes a complete generated set. Remove only these three
+        # validated children of the requested output root so stale PNG/GLB names
+        # from an earlier model revision cannot inflate counts or satisfy set checks.
+        for generated_dir in (texture_dir, glb_dir, render_dir):
+            resolved = generated_dir.resolve()
+            if resolved.parent != output:
+                raise ValueError(f"generated validation path escaped output root: {resolved}")
+            if resolved.exists():
+                shutil.rmtree(resolved)
         tool_logs["textures"] = run_tool(
             [
                 str(multitool),
@@ -162,8 +178,8 @@ def main() -> None:
         )
         tool_logs["meshes"] = run_tool(
             [str(multitool), "psx-mesh", str(batch), "-o", str(glb_dir), "--format", "glb"],
-            # The batch intentionally includes sp_tex00.psx, a texture-only companion.
-            # Multitool reports that expected non-mesh input with exit code 1.  The exact
+            # The batch intentionally includes ten texture-only sp_tex companions.
+            # Multitool reports those expected non-mesh inputs with exit code 1.  The exact
             # GLB name-set check below still catches any actor that failed reconstruction.
             acceptable_returncodes=(0, 1),
         )

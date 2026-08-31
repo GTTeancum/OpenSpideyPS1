@@ -100,7 +100,7 @@ public static class LooseWadOverrides
             .ToDictionary(path => Path.GetFileName(path)!, Path.GetFullPath, StringComparer.OrdinalIgnoreCase);
     }
 
-    public static void Find(string name)
+    public static void Find(string name, string? externalAlias = null)
     {
         _pending = null;
         _pendingName = null;
@@ -109,13 +109,17 @@ public static class LooseWadOverrides
 
         if (!Path.GetFileName(name).Equals(name, StringComparison.Ordinal)) return;
         string? path;
-        if (_overrides.TryGetValue(name, out path)) _pendingExternal = true;
+        string overrideName = externalAlias ?? name;
+        if (!Path.GetFileName(overrideName).Equals(overrideName, StringComparison.Ordinal)) return;
+        if (_overrides.TryGetValue(overrideName, out path)) _pendingExternal = true;
         else if (!_files.TryGetValue(name, out path)) return;
 
         byte[] data = File.ReadAllBytes(path);
         if (data.Length == 0) throw new InvalidDataException($"loose WAD entry is empty: {path}");
         _pending = data;
-        _pendingName = name;
+        _pendingName = externalAlias == null || name.Equals(overrideName, StringComparison.OrdinalIgnoreCase)
+            ? name
+            : $"{name} <- {overrideName}";
         _pendingRoundedSize = checked((uint)((data.Length + 0x7FF) & ~0x7FF));
     }
 

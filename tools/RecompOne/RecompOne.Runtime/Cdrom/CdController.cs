@@ -164,7 +164,8 @@ public sealed class CdController
         BiosA.SetFs(fs);
         BiosA.SetCd(this);
         Runtime.Cd = this;
-        Assets.AssetReplacerManager.Instance.LoadAll();
+        Assets.AssetReplacerManager.Instance.LoadAll(
+            Environment.GetEnvironmentVariable("RECOMP_ASSET_PACK_DIR"));
     }
 
     public void LoadToMemory(string path, uint address, int offset = 0, int length = -1)

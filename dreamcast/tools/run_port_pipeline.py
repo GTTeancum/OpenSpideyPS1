@@ -19,8 +19,12 @@ TOOLS = ROOT / "dreamcast" / "tools"
 CONVERTED = ROOT / "dreamcast" / "converted"
 VISIBLE = CONVERTED / "sm1-winged-runtime"
 PRODUCTION = CONVERTED / "sm1-winged-production"
+JAMESON_SCORPION_PROOF = CONVERTED / "jameson-scorpion-runtime-alias-gameplay-proof"
+HOSTAGEF_PROOF = CONVERTED / "hostagef-viewer-probe"
+SYMBIOTE_PROOF = CONVERTED / "symbiote-compatible-viewer-probe"
 COSTUME_ROOT = CONVERTED / "sm2-costume-tests"
 COSTUMES = {
+    "default": ("sp_tex00.glb", "DEFAULT_DC_WINGED_TPOSE.glb"),
     "dusk": ("sp_tex03.glb", "DUSK_DC_WINGED_TPOSE.glb"),
     "prodigy": ("sp_tex02.glb", "PRODIGY_DC_WINGED_TPOSE.glb"),
     "ricochet": ("sp_tex08.glb", "RICOCHET_DC_WINGED_TPOSE.glb"),
@@ -38,7 +42,13 @@ def parse_args() -> argparse.Namespace:
     parser.add_argument("--skip-runtime", action="store_true")
     parser.add_argument("--resume-runtime", action="store_true")
     parser.add_argument("--reuse-wing-captures", action="store_true")
-    parser.add_argument("--runtime-concurrency", type=int, default=3)
+    parser.add_argument(
+        "--runtime-concurrency",
+        type=int,
+        choices=(1,),
+        default=1,
+        help="runtime proofs are deliberately restricted to one game process",
+    )
     return parser.parse_args()
 
 
@@ -165,6 +175,14 @@ def main() -> None:
         stages["portAllCharacters"] = run(
             "port every Dreamcast actor", [python, str(TOOLS / "port_all_characters.py")]
         )
+    stages["auditCharacterTexturePack"] = run(
+        "audit compact actor pages and full-resolution texture pack",
+        [python, str(TOOLS / "audit_character_texture_pack.py")],
+    )
+    stages["auditSm1SkeletonAdaptations"] = run(
+        "audit SM1-native skeleton adaptations for Dreamcast actor meshes",
+        [python, str(TOOLS / "audit_sm1_skeleton_adaptations.py")],
+    )
     static_command = [python, str(TOOLS / "validate_all_characters.py")]
     if args.skip_static_tools:
         static_command.append("--skip-tools")
@@ -182,6 +200,83 @@ def main() -> None:
         if args.resume_runtime:
             runtime_command.append("--resume")
         stages["validateStoryRuntime"] = run("validate story actor runtime matrix", runtime_command)
+        stages["validateSm1CostumeRuntime"] = run(
+            "validate all SM1 costume models on the 3D main menu",
+            [
+                python,
+                str(TOOLS / "validate_sm1_costume_models_runtime.py"),
+                "--concurrency",
+                "1",
+                "--render-scale",
+                "4",
+                "--proof-mode",
+                "menu",
+            ],
+        )
+        stages["validateCharacterViewerRuntime"] = run(
+            "validate the complete selectable SM1 Character Viewer roster",
+            [
+                python,
+                str(TOOLS / "validate_character_viewer_runtime.py"),
+                "--render-scale",
+                "4",
+            ],
+        )
+        stages["validateHostagefViewerProbe"] = run(
+            "validate the otherwise unrouted SM1 HOSTAGEF actor",
+            [
+                python,
+                str(TOOLS / "validate_character_viewer_runtime.py"),
+                "--probe-model",
+                "hostagef",
+                "--probe-slot",
+                "parker",
+                "--output",
+                str(HOSTAGEF_PROOF),
+                "--render-scale",
+                "4",
+            ],
+        )
+        stages["validateSymbioteViewerProbe"] = run(
+            "validate the otherwise unrouted SM1 SYMBIOTE actor",
+            [
+                python,
+                str(TOOLS / "validate_character_viewer_runtime.py"),
+                "--probe-model",
+                "symbiote",
+                "--probe-slot",
+                "symbi_02",
+                "--output",
+                str(SYMBIOTE_PROOF),
+                "--render-scale",
+                "4",
+            ],
+        )
+        stages["validateJamesonScorpionGameplayRuntime"] = run(
+            "validate Jameson lighting and Scorpion's procedural tail in L2A2",
+            [
+                python,
+                str(TOOLS / "validate_character_runtime.py"),
+                "--levels",
+                "l2a2",
+                "--concurrency",
+                "1",
+                "--render-scale",
+                "4",
+                "--shots",
+                "4200,4225,4250,4275,4300,4325,4350,4375,4400,4425,4450",
+                "--exit-frame",
+                "4500",
+                "--output",
+                str(JAMESON_SCORPION_PROOF),
+                "--allow-partial-coverage",
+            ],
+        )
+
+    stages["mapSm2DcActors"] = run(
+        "map PS1 SM2 character actors to compatible Dreamcast SM1 actors",
+        [python, str(TOOLS / "map_sm2_dc_actors.py")],
+    )
 
     base_glb = COSTUME_ROOT / "base" / "glb" / "spidey_dc_winged_hd.glb"
     for name, (source_file, output_file) in COSTUMES.items():
@@ -195,7 +290,7 @@ def main() -> None:
                     str(blender),
                     "--background",
                     "--python",
-                    str(TOOLS / "bake_sm2_costume_to_dc.py"),
+                    str(TOOLS / "transfer_sm2_costume_to_dc.py"),
                     "--",
                     "--source",
                     str(source_glb),
@@ -271,10 +366,18 @@ def main() -> None:
             "productionModel": digest(PRODUCTION / "spidey.psx"),
             "productionTextures": digest(PRODUCTION / "sp_tex00.psx"),
             "wingTextureValidation": str((CONVERTED / "wing-texture-validation.json").resolve()),
-            "wingRuntimeProof": str((VISIBLE / "runtime-wing-real-proof" / "wing-runtime-proof.json").resolve()),
+            "wingRuntimeProof": str((VISIBLE / "runtime-wing-seam-proof" / "wing-runtime-proof.json").resolve()),
             "allCharacterManifest": str((CONVERTED / "all-characters" / "manifest.json").resolve()),
+            "actorTexturePackAudit": str((CONVERTED / "all-characters" / "packs" / "dreamcast-sm1-actors" / "texture-audit.json").resolve()),
+            "skeletonAdaptationAudit": str((CONVERTED / "all-characters" / "skeleton-adaptation-audit.json").resolve()),
             "allCharacterValidation": str((CONVERTED / "all-characters-validation-current" / "validation.json").resolve()),
             "runtimeValidation": str((CONVERTED / "all-characters-runtime-current" / "runtime-validation.json").resolve()),
+            "sm1CostumeRuntimeValidation": str((CONVERTED / "all-characters-costumes-runtime-current" / "runtime-validation.json").resolve()),
+            "characterViewerRuntimeValidation": str((CONVERTED / "all-characters-viewer-runtime-current" / "runtime-validation.json").resolve()),
+            "hostagefViewerProbe": str((HOSTAGEF_PROOF / "runtime-validation.json").resolve()),
+            "symbioteViewerProbe": str((SYMBIOTE_PROOF / "runtime-validation.json").resolve()),
+            "jamesonScorpionGameplayValidation": str((JAMESON_SCORPION_PROOF / "runtime-validation.json").resolve()),
+            "sm2DcActorMap": str((CONVERTED / "sm2-dc-actor-map.json").resolve()),
             "costumeValidation": str((COSTUME_ROOT / "validation.json").resolve()),
         },
     }

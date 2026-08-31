@@ -88,10 +88,29 @@ The batch currently contains 65 actor models: 51 converted Dreamcast v6 actors
 and 14 actor/entity components that already ship in PS1 v3/v4 form. Default
 Spider-Man is wing-capable but uses a transparent magenta wing texture; the proof
 variant substitutes the retail SM2 black/white `DC38D248` artwork and has been
-captured at 2560x1920 inside L1A1. Independent validation passes 65 GLBs, 763
-decoded textures, 325 object-review renders, and an 18-level runtime matrix that
-covers all 34 story-loaded actors. Prodigy, Dusk, and Ricochet also have audited
-static T-pose ports with exact source wing UV/texture parity.
+captured at 2560x1920 inside L1A1. Independent validation passes 65 GLBs, 847
+decoded textures across the actors and costume companions, 325 object-review
+renders, and an 18-level runtime matrix that
+covers all 34 story-loaded actors. All ten playable models also pass the 4x main-menu
+proof sequentially, and the 26 selectable Character Viewer entries have a separate
+one-process 4x sweep. Those routes naturally cover 52 of the 65 batch entries;
+the two otherwise unreachable SM1 actors (`HOSTAGEF` and `SYMBIOTE`) have recorded
+viewer-slot probes, while `CLAW` is byte-identical across PS1 and Dreamcast. The ten
+other non-routed entries are Dreamcast-only supplemental components and are not
+invented as SM1 aliases. Only actor/model resources are overridden; environments
+remain the PS1 originals. That viewer route caught and now guards SM1-native skeleton/
+animation adaptations for Jameson, Scorpion, and viewer-only Peter Parker while
+retaining their Dreamcast meshes and textures. Jameson's indexed-RGB face mode
+is translated to SM1's neutral literal-lighting path, and Scorpion's procedural
+tube receives SM1's required material-18 alias to the original Dreamcast skin.
+A separate converter-independent texture-pack audit passes 51
+converted actors, 618 mappings, 589 unique runtime keys, and 589 host PNGs whose
+dimensions and RGBA pixels exactly match their Dreamcast sources. SM2 Default,
+Prodigy, Dusk, and Ricochet also have audited static T-pose mappings onto the DC
+body with exact source wing UV/texture parity. A separate 30-actor SM2 structural
+map currently identifies ten exact-name DC candidates, the exact `HOSTAGE2` to
+`HOSTAGE` alias, and nineteen explicit original-SM2 fallbacks. The GLBs are audit
+artifacts only; both games continue to use `.psx` runtime assets.
 
 The complete automated build/capture/validation entry point is
 `tools/run_port_pipeline.py`; its aggregate result is written to

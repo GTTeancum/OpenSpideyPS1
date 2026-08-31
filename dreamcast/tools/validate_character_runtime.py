@@ -69,15 +69,31 @@ def parse_args() -> argparse.Namespace:
     parser.add_argument("--triggers", type=Path, default=DEFAULT_TRIGGERS)
     parser.add_argument("--output", type=Path, default=DEFAULT_OUTPUT)
     parser.add_argument("--levels", default=",".join(DEFAULT_LEVELS))
-    parser.add_argument("--concurrency", type=int, default=3)
+    parser.add_argument(
+        "--concurrency",
+        type=int,
+        choices=(1,),
+        default=1,
+        help="runtime validation is deliberately restricted to one game process",
+    )
     parser.add_argument("--render-scale", type=int, default=1)
     parser.add_argument("--shots", default="4300,4400")
     parser.add_argument("--exit-frame", type=int, default=4450)
     parser.add_argument("--timeout", type=int, default=180)
     parser.add_argument(
+        "--dump-textures",
+        action="store_true",
+        help="dump complete runtime texture uploads for actor-specific CLUT diagnostics",
+    )
+    parser.add_argument(
         "--resume",
         action="store_true",
         help="reuse existing clean level results and rerun only missing/failed levels",
+    )
+    parser.add_argument(
+        "--allow-partial-coverage",
+        action="store_true",
+        help="pass a focused --levels run when every requested level passes",
     )
     return parser.parse_args()
 
@@ -152,6 +168,7 @@ def run_level(
     exit_frame: int,
     timeout: int,
     resume: bool,
+    dump_textures: bool,
 ) -> dict[str, Any]:
     level_dir = output / level
     level_dir.mkdir(parents=True, exist_ok=True)
@@ -188,6 +205,9 @@ def run_level(
             "SPIDEY_TRACE_WAD": "1",
         }
     )
+    if dump_textures:
+        env["SPIDEY_DUMP_TEXTURES"] = "pages"
+        env["RECOMP_TEXTURE_DUMP_DIR"] = str(level_dir / "texture-dump")
     try:
         result = subprocess.run(
             [str(exe)],
@@ -247,6 +267,7 @@ def main() -> None:
                 args.exit_frame,
                 args.timeout,
                 args.resume,
+                args.dump_textures,
             ): level
             for level in levels
         }
@@ -280,8 +301,10 @@ def main() -> None:
         "runtimeCoveredActors": sorted(covered),
         "runtimeMissingActors": missing,
         "results": results,
+        "coveragePolicy": "requested-levels" if args.allow_partial_coverage else "all-story-actors",
         "status": "pass"
-        if not missing and all(result["status"] == "pass" for result in results)
+        if all(result["status"] == "pass" for result in results)
+        and (args.allow_partial_coverage or not missing)
         else "fail",
     }
     report_path = output / "runtime-validation.json"

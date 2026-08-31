@@ -96,7 +96,29 @@ def main():
             ('SpawnActor',  'pre',  'Recompiled.GameTrace.SpawnActor'),
             ('SpawnActor',  'post', 'Recompiled.GameTrace.SpawnActorExit'),
             ('ModelFind',   'pre',  'Recompiled.ModelGuard.FindEnter'),
-            ('ModelFind',   'post', 'Recompiled.ModelGuard.FindExit')):
+            ('ModelFind',   'post', 'Recompiled.ModelGuard.FindExit'),
+            # SM1's menu expression targets are hard-coded for the retail
+            # 38-vertex head. Restore the game's own backup after that pass when
+            # a higher-detail Dreamcast head is active.
+            ('func_800472C0', 'post', 'Recompiled.DcModelCompatibility.RestoreHeadAfterPs1Morph'),
+            # Bag-Man's complete inner head/neck uses the engine's per-face OT
+            # depth-offset channel behind the outer paper shell.
+            ('DrawPrimSet', 'pre', 'Recompiled.DcModelCompatibility.ApplyBagmanNestedShellDepth'),
+            ('DrawPrimSet', 'post', 'Recompiled.DcModelCompatibility.RestoreBagmanNestedShellDepth'),
+            # Opt-in segmented-character diagnostics. These hooks are inert unless
+            # RECOMP_TRACE_MODEL_STITCHES is set; keeping them in generated output
+            # makes the Dreamcast compatibility audit reproducible.
+            ('func_80074C98', 'pre',  'Recompiled.ModelDiagnostics.ParseEnter'),
+            ('func_80074C98', 'post', 'Recompiled.ModelDiagnostics.ParseExit'),
+            ('func_8007B798', 'pre',  'Recompiled.ModelDiagnostics.TransformEnter'),
+            ('func_8007B798', 'post', 'Recompiled.ModelDiagnostics.TransformExit'),
+            ('func_8007B9CC', 'pre',  'Recompiled.ModelDiagnostics.TransformEnter'),
+            ('func_8007B9CC', 'post', 'Recompiled.ModelDiagnostics.TransformExit'),
+            ('func_8007BBD4', 'pre',  'Recompiled.ModelDiagnostics.TransformEnter'),
+            ('func_8007BBD4', 'post', 'Recompiled.ModelDiagnostics.TransformExit'),
+            ('func_8007BD04', 'pre',  'Recompiled.ModelDiagnostics.TransformEnter'),
+            ('func_8007BD04', 'post', 'Recompiled.ModelDiagnostics.TransformExit'),
+            ('DrawPrimSet', 'pre', 'Recompiled.ModelDiagnostics.DrawFacesEnter')):
         if fn in names:
             patches.append({'overlay': 'main', 'function': fn, 'mode': mode, 'target': target})
         else:

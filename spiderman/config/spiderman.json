@@ -383,6 +383,90 @@
     },
     {
       "overlay": "main",
+      "function": "func_800472C0",
+      "mode": "post",
+      "target": "Recompiled.DcModelCompatibility.RestoreHeadAfterPs1Morph"
+    },
+    {
+      "overlay": "main",
+      "function": "DrawPrimSet",
+      "mode": "pre",
+      "target": "Recompiled.DcModelCompatibility.ApplyBagmanNestedShellDepth"
+    },
+    {
+      "overlay": "main",
+      "function": "DrawPrimSet",
+      "mode": "post",
+      "target": "Recompiled.DcModelCompatibility.RestoreBagmanNestedShellDepth"
+    },
+    {
+      "overlay": "main",
+      "function": "func_80074C98",
+      "mode": "pre",
+      "target": "Recompiled.ModelDiagnostics.ParseEnter"
+    },
+    {
+      "overlay": "main",
+      "function": "func_80074C98",
+      "mode": "post",
+      "target": "Recompiled.ModelDiagnostics.ParseExit"
+    },
+    {
+      "overlay": "main",
+      "function": "func_8007B798",
+      "mode": "pre",
+      "target": "Recompiled.ModelDiagnostics.TransformEnter"
+    },
+    {
+      "overlay": "main",
+      "function": "func_8007B798",
+      "mode": "post",
+      "target": "Recompiled.ModelDiagnostics.TransformExit"
+    },
+    {
+      "overlay": "main",
+      "function": "func_8007B9CC",
+      "mode": "pre",
+      "target": "Recompiled.ModelDiagnostics.TransformEnter"
+    },
+    {
+      "overlay": "main",
+      "function": "func_8007B9CC",
+      "mode": "post",
+      "target": "Recompiled.ModelDiagnostics.TransformExit"
+    },
+    {
+      "overlay": "main",
+      "function": "func_8007BBD4",
+      "mode": "pre",
+      "target": "Recompiled.ModelDiagnostics.TransformEnter"
+    },
+    {
+      "overlay": "main",
+      "function": "func_8007BBD4",
+      "mode": "post",
+      "target": "Recompiled.ModelDiagnostics.TransformExit"
+    },
+    {
+      "overlay": "main",
+      "function": "func_8007BD04",
+      "mode": "pre",
+      "target": "Recompiled.ModelDiagnostics.TransformEnter"
+    },
+    {
+      "overlay": "main",
+      "function": "func_8007BD04",
+      "mode": "post",
+      "target": "Recompiled.ModelDiagnostics.TransformExit"
+    },
+    {
+      "overlay": "main",
+      "function": "DrawPrimSet",
+      "mode": "pre",
+      "target": "Recompiled.ModelDiagnostics.DrawFacesEnter"
+    },
+    {
+      "overlay": "main",
       "function": "PadInitMtap",
       "mode": "pre",
       "target": "Recompiled.PadPatches.PadInitMtapEnter"

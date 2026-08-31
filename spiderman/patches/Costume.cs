@@ -27,6 +27,17 @@ public static class Costume
 {
     const uint Selected = 0x800A5704;
 
+    // SM1 changes Spider-Man's appearance by loading sp_tex00..09 over one
+    // low-detail spidey.psx.  The Dreamcast release instead ships a dedicated
+    // high-detail actor for each slot.  Keep the game's requested resource name
+    // intact, but let the loose override loader source that request from the
+    // corresponding converted Dreamcast actor.
+    static readonly string[] DreamcastModels =
+    {
+        "spidey.psx", "sp2099.psx", "spsymbi.psx", "spuniv.psx", "spunlim.psx",
+        "spbagman.psx", "spscar.psx", "spreilly.psx", "spquick.psx", "sppark.psx",
+    };
+
     /// <summary>The COSTUME VIEWER's list, in its own order.</summary>
     static readonly string[] Names =
     {
@@ -50,6 +61,19 @@ public static class Costume
     };
 
     static int _want = -1;
+
+    public static string DreamcastModelFor(string requestedName, IMemory memory)
+    {
+        if (!requestedName.Equals("spidey.psx", StringComparison.OrdinalIgnoreCase))
+            return requestedName;
+
+        int selected = _want >= 0 ? _want : unchecked((int)memory.ReadU32(Selected));
+        if ((uint)selected >= DreamcastModels.Length) selected = 0;
+        string source = DreamcastModels[selected];
+        if (!source.Equals(requestedName, StringComparison.OrdinalIgnoreCase))
+            Console.WriteLine($"[costume] Dreamcast model {requestedName} <- {source}");
+        return source;
+    }
 
     public static void Install()
     {

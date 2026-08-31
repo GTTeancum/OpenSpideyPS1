@@ -25,6 +25,13 @@ CLOSEUP_VIEWS = (
     "right_oblique",
 )
 COSTUMES = {
+    "default": {
+        "glb": "DEFAULT_DC_WINGED_TPOSE.glb",
+        "source": "sp_tex00.glb",
+        "textureSize": [64, 64],
+        "alphaMode": "MASK",
+        "alphaHistogram": {"0": 526, "255": 3570},
+    },
     "dusk": {
         "glb": "DUSK_DC_WINGED_TPOSE.glb",
         "source": "sp_tex03.glb",

@@ -64,8 +64,8 @@ def parse_args() -> argparse.Namespace:
     parser.add_argument(
         "--texture-scale",
         type=int,
-        default=4,
-        help="DC dimension divisor; 4 fits the native SM1 aggregate texture budget",
+        default=1,
+        help="DC dimension divisor; 1 preserves the original Dreamcast texture resolution",
     )
     parser.add_argument(
         "--visible-wing-proof",
