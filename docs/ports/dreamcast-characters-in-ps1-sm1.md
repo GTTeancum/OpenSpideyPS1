@@ -381,16 +381,36 @@ python dreamcast/tools/validate_sm2_costumes.py
 
 The report passes all four costumes, 20 T-pose views, and 24 wing close-ups.
 These GLBs are independent texture-mapping proofs, not game inputs. SM1 and SM2
-continue to load `.psx` containers at runtime; converting the proven transfers
-back into SM2-compatible `.psx` actors and texture packs is the next stage.
+continue to load `.psx` containers at runtime.
+
+Default now completes the native path. `transfer_sm2_costume_to_dc.py` emits an
+exact per-polygon material/UV sidecar, and `pack_sm2_costume_to_dc.py` matches it
+back to the Dreamcast face records, maps all four open/closed hand meshes by
+stable mesh name, restores SM2's hierarchy and animations, and embeds the
+unchanged retail SM2 texture section. The output files are:
+
+```text
+dreamcast/converted/sm2-costume-tests/runtime/default/spidey.psx
+dreamcast/converted/sm2-costume-tests/runtime/default/sp_tex00.psx
+```
+
+`capture_sm2_default_runtime.py` launches exactly one `SpiderMan2.exe` process,
+uses only the process-local controller harness, anchors menu/gameplay captures to
+archive loads, and validates the loose model and texture overrides. Its 8x
+captures and unfiltered native-pixel crops are recorded in
+`runtime/default/runtime-wing-proof/runtime-validation.json`. This proves that
+the packed `.psx`, not the GLB, renders the mapped suit and connected wings in
+normal gameplay. The remaining exact-name and known-alias actors stay pending
+until they pass the same native-pack and runtime-evidence standard.
 
 ## One-command pipeline
 
 `run_port_pipeline.py` connects conversion, the complete host-texture audit,
 exact wing parity, native in-game capture and close-crop authorship, all-character
 reconstruction/rendering, 18-level runtime coverage, all ten SM1 menu costume
-proofs, the complete 26-entry Character Viewer sweep, costume baking, and final
-reports. Runtime validation is restricted to one game process:
+proofs, the complete 26-entry Character Viewer sweep, costume mapping, native SM2
+Default packing and its menu/gameplay proof, and final reports. Runtime validation
+is restricted to one game process:
 
 ```powershell
 python dreamcast/tools/run_port_pipeline.py `

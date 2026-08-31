@@ -10,6 +10,7 @@ wing UVs are preserved and paired with the source's native DC38D248 material.
 from __future__ import annotations
 
 import argparse
+import json
 import os
 from pathlib import Path
 import sys
@@ -42,6 +43,13 @@ def parse_args() -> argparse.Namespace:
     parser.add_argument("--output", required=True)
     parser.add_argument("--textures-output", required=True)
     parser.add_argument("--name", required=True)
+    parser.add_argument(
+        "--mapping-output",
+        help=(
+            "optional JSON sidecar containing the original target triangle identity "
+            "and the transferred SM2 material/UVs for native PSX repacking"
+        ),
+    )
     return parser.parse_args(argv)
 
 
@@ -87,7 +95,37 @@ def save_source_images(source: bpy.types.Object, output: str) -> None:
         saved.add(material.name)
 
 
-def transfer_surface(source: bpy.types.Object, target: bpy.types.Object) -> dict[str, int]:
+def gltf_uv(uv: Vector) -> list[float]:
+    """Convert Blender's imported UV convention back to glTF's convention."""
+    return [float(uv.x), float(1.0 - uv.y)]
+
+
+def polygon_snapshot(
+    target: bpy.types.Object,
+    polygon: bpy.types.MeshPolygon,
+    materials: list[bpy.types.Material],
+) -> dict[str, object]:
+    mesh = target.data
+    material = materials[polygon.material_index]
+    image = material_image(material)
+    return {
+        "materialIndex": polygon.material_index,
+        "material": material.name,
+        "image": image.name,
+        "imageSize": [int(image.size[0]), int(image.size[1])],
+        "vertexIndices": [int(mesh.loops[index].vertex_index) for index in polygon.loop_indices],
+        "positions": [
+            [float(value) for value in mesh.vertices[mesh.loops[index].vertex_index].co]
+            for index in polygon.loop_indices
+        ],
+        "uvs": [gltf_uv(mesh.uv_layers.active.data[index].uv) for index in polygon.loop_indices],
+    }
+
+
+def transfer_surface(
+    source: bpy.types.Object,
+    target: bpy.types.Object,
+) -> tuple[dict[str, int], list[dict[str, object]]]:
     source_mesh = source.data
     target_mesh = target.data
     source_uv = source_mesh.uv_layers.active
@@ -134,6 +172,18 @@ def transfer_surface(source: bpy.types.Object, target: bpy.types.Object) -> dict
         if polygon.material_index in target_wing_indices
     }
 
+    original_target_materials = [slot.material for slot in target.material_slots]
+    if any(material is None for material in original_target_materials):
+        raise RuntimeError("target contains an empty material slot")
+    mappings = [
+        {
+            "polygonIndex": int(polygon.index),
+            "isWing": polygon.index in target_wing_polygons,
+            "original": polygon_snapshot(target, polygon, original_target_materials),
+        }
+        for polygon in target_mesh.polygons
+    ]
+
     target_mesh.materials.clear()
     for material in source_materials:
         target_mesh.materials.append(material)
@@ -177,11 +227,16 @@ def transfer_surface(source: bpy.types.Object, target: bpy.types.Object) -> dict
 
     if misses:
         raise RuntimeError(f"nearest-surface transfer missed {misses} elements")
-    return {
-        "transferredPolygons": transferred_polygons,
-        "transferredLoops": transferred_loops,
-        "preservedWingPolygons": preserved_wing_polygons,
-    }
+    for polygon, mapping in zip(target_mesh.polygons, mappings, strict=True):
+        mapping["mapped"] = polygon_snapshot(target, polygon, source_materials)
+    return (
+        {
+            "transferredPolygons": transferred_polygons,
+            "transferredLoops": transferred_loops,
+            "preservedWingPolygons": preserved_wing_polygons,
+        },
+        mappings,
+    )
 
 
 def main() -> None:
@@ -194,7 +249,26 @@ def main() -> None:
         _, source_mesh, source_group = import_group(source_path)
 
         save_source_images(source_mesh, args.textures_output)
-        counts = transfer_surface(source_mesh, target_mesh)
+        counts, mappings = transfer_surface(source_mesh, target_mesh)
+        if args.mapping_output:
+            mapping_path = Path(args.mapping_output).resolve()
+            mapping_path.parent.mkdir(parents=True, exist_ok=True)
+            mapping_path.write_text(
+                json.dumps(
+                    {
+                        "schemaVersion": 1,
+                        "name": args.name,
+                        "source": os.path.abspath(args.source),
+                        "target": os.path.abspath(args.target),
+                        "polygonCount": len(mappings),
+                        "counts": counts,
+                        "polygons": mappings,
+                    },
+                    indent=2,
+                )
+                + "\n",
+                encoding="utf-8",
+            )
         for obj in source_group:
             bpy.data.objects.remove(obj, do_unlink=True)
         pose_arms(target_armature)

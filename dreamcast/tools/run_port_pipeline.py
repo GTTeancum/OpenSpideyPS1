@@ -23,6 +23,7 @@ JAMESON_SCORPION_PROOF = CONVERTED / "jameson-scorpion-runtime-alias-gameplay-pr
 HOSTAGEF_PROOF = CONVERTED / "hostagef-viewer-probe"
 SYMBIOTE_PROOF = CONVERTED / "symbiote-compatible-viewer-probe"
 COSTUME_ROOT = CONVERTED / "sm2-costume-tests"
+SM2_DEFAULT_RUNTIME = COSTUME_ROOT / "runtime" / "default"
 COSTUMES = {
     "default": ("sp_tex00.glb", "DEFAULT_DC_WINGED_TPOSE.glb"),
     "dusk": ("sp_tex03.glb", "DUSK_DC_WINGED_TPOSE.glb"),
@@ -114,7 +115,11 @@ def main() -> None:
     args = parse_args()
     python = str(Path(args.python).resolve())
     blender = None if args.skip_costume_build else resolve_blender(args.blender)
-    multitool = None if args.skip_static_tools else resolve_multitool(args.multitool)
+    multitool = (
+        None
+        if args.skip_static_tools and args.skip_costume_build
+        else resolve_multitool(args.multitool)
+    )
     stages: dict[str, Any] = {}
 
     if not args.skip_build:
@@ -273,36 +278,36 @@ def main() -> None:
             ],
         )
 
-    stages["mapSm2DcActors"] = run(
-        "map PS1 SM2 character actors to compatible Dreamcast SM1 actors",
-        [python, str(TOOLS / "map_sm2_dc_actors.py")],
-    )
-
     base_glb = COSTUME_ROOT / "base" / "glb" / "spidey_dc_winged_hd.glb"
     for name, (source_file, output_file) in COSTUMES.items():
         port_root = COSTUME_ROOT / "ports" / name
         source_glb = COSTUME_ROOT / "variants-glb" / source_file
         output_glb = port_root / output_file
         if not args.skip_costume_build:
+            transfer_command = [
+                str(blender),
+                "--background",
+                "--python",
+                str(TOOLS / "transfer_sm2_costume_to_dc.py"),
+                "--",
+                "--source",
+                str(source_glb),
+                "--target",
+                str(base_glb),
+                "--output",
+                str(output_glb),
+                "--textures-output",
+                str(port_root / "textures"),
+                "--name",
+                name.upper(),
+            ]
+            if name == "default":
+                transfer_command.extend(
+                    ["--mapping-output", str(port_root / "native-face-map.json")]
+                )
             stages[f"buildCostume:{name}"] = run(
                 f"build {name} T-pose costume",
-                [
-                    str(blender),
-                    "--background",
-                    "--python",
-                    str(TOOLS / "transfer_sm2_costume_to_dc.py"),
-                    "--",
-                    "--source",
-                    str(source_glb),
-                    "--target",
-                    str(base_glb),
-                    "--output",
-                    str(output_glb),
-                    "--textures-output",
-                    str(port_root / "textures"),
-                    "--name",
-                    name.upper(),
-                ],
+                transfer_command,
             )
         stages[f"auditCostume:{name}"] = run(
             f"audit {name} wings",
@@ -355,6 +360,34 @@ def main() -> None:
     stages["validateCostumes"] = run(
         "validate selected SM2 costumes", [python, str(TOOLS / "validate_sm2_costumes.py")]
     )
+    if not args.skip_costume_build:
+        stages["packSm2DefaultNative"] = run(
+            "pack mapped SM2 Default textures into a native Dreamcast-mesh actor",
+            [
+                python,
+                str(TOOLS / "pack_sm2_costume_to_dc.py"),
+                "--multitool",
+                str(multitool),
+            ],
+        )
+    if not args.skip_runtime:
+        sm2_capture_command = [
+            python,
+            str(TOOLS / "capture_sm2_default_runtime.py"),
+        ]
+        if args.reuse_wing_captures:
+            sm2_capture_command.append("--reuse-captures")
+        stages["captureSm2DefaultNative"] = run(
+            "capture native SM2 Default Dreamcast actor in one game process",
+            sm2_capture_command,
+        )
+
+    # Generate the mapping report after the native pack and runtime proof so its
+    # per-actor status reflects current evidence rather than intended work.
+    stages["mapSm2DcActors"] = run(
+        "map PS1 SM2 character actors to compatible Dreamcast SM1 actors",
+        [python, str(TOOLS / "map_sm2_dc_actors.py")],
+    )
 
     report = {
         "schemaVersion": 1,
@@ -379,6 +412,12 @@ def main() -> None:
             "jamesonScorpionGameplayValidation": str((JAMESON_SCORPION_PROOF / "runtime-validation.json").resolve()),
             "sm2DcActorMap": str((CONVERTED / "sm2-dc-actor-map.json").resolve()),
             "costumeValidation": str((COSTUME_ROOT / "validation.json").resolve()),
+            "sm2DefaultRuntimeModel": digest(SM2_DEFAULT_RUNTIME / "spidey.psx"),
+            "sm2DefaultRuntimeTextures": digest(SM2_DEFAULT_RUNTIME / "sp_tex00.psx"),
+            "sm2DefaultPackReport": str((SM2_DEFAULT_RUNTIME / "pack-report.json").resolve()),
+            "sm2DefaultRuntimeValidation": str((SM2_DEFAULT_RUNTIME / "runtime-wing-proof" / "runtime-validation.json").resolve()),
+            "sm2DefaultMenuWingProof": str((SM2_DEFAULT_RUNTIME / "runtime-wing-proof" / "sm2_default_menu_wings_close.png").resolve()),
+            "sm2DefaultGameplayWingProof": str((SM2_DEFAULT_RUNTIME / "runtime-wing-proof" / "sm2_default_gameplay_wings_close.png").resolve()),
         },
     }
     report_path = CONVERTED / "port-pipeline-report.json"

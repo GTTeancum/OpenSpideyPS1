@@ -107,7 +107,11 @@ A separate converter-independent texture-pack audit passes 51
 converted actors, 618 mappings, 589 unique runtime keys, and 589 host PNGs whose
 dimensions and RGBA pixels exactly match their Dreamcast sources. SM2 Default,
 Prodigy, Dusk, and Ricochet also have audited static T-pose mappings onto the DC
-body with exact source wing UV/texture parity. A separate 30-actor SM2 structural
+body with exact source wing UV/texture parity. Default is additionally repacked as
+a native SM2 `spidey.psx` with the Dreamcast geometry, SM2 hierarchy/animations,
+the unchanged retail `sp_tex00.psx`, all alternate hand meshes, and authored wing
+seams. Its 8x one-process validation covers the 3D menu and normal gameplay and
+emits exact-pixel close-ups of both wing attachments. A separate 30-actor SM2 structural
 map currently identifies ten exact-name DC candidates, the exact `HOSTAGE2` to
 `HOSTAGE` alias, and nineteen explicit original-SM2 fallbacks. The GLBs are audit
 artifacts only; both games continue to use `.psx` runtime assets.

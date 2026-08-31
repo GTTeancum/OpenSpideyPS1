@@ -207,7 +207,8 @@ SPIDEY_HZ=30               host presentation/GPU pacing budget; default 30 Hz
 SPIDEY_LEVEL=e3m1          boot straight into a level (44 prefixes)
 SPIDEY_CHEATS=all          the game's own cheats: everything, levels, costumes,
                            gallery, training, debug, bigfeet, bighead, whatif
-SPIDEY_SHOTS=1050,1500     write a PNG on these frames
+SPIDEY_SHOTS=1050,title.bmr+450
+                           write a PNG on an absolute frame or after an archive load
 SPIDEY_SHOT_EVERY=200      ...or every N frames
 SPIDEY_SHOT_DIR=shots      where they go
 SPIDEY_EXIT=13000          quit after frame N
@@ -239,7 +240,8 @@ which means the same thing every run. Two probe runs put `title.bmr` at frames 1
 
 `name#2+400` anchors to the *second* load of a file. Some archives are read more than
 once — the attract loop reloads `shell.bin` and `title.bmr` every cycle — so a step that
-must mean the later one can say so.
+must mean the later one can say so. The same `name#N+offset` syntax works for
+`SPIDEY_SHOTS`, so proof captures and scripted inputs share one deterministic clock.
 
 ### Two harness traps found here
 

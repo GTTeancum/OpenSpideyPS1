@@ -1,10 +1,10 @@
 #!/usr/bin/env python3
 """Map PS1 SM2 actors to structurally compatible Dreamcast SM1 actors.
 
-This is a planning/audit step, not an asset swap.  It parses the loose PSX
-containers directly and records the evidence needed before SM2 textures are
-adapted to a higher-detail Dreamcast mesh.  Level/environment files are never
-considered.
+This parses the loose PSX containers directly, records the texture-remapping
+state for each compatible actor, and names the original-SM2 fallbacks.  A model
+is promoted from pending only when its native packed actor and runtime evidence
+validate.  Level/environment files are never considered.
 """
 
 from __future__ import annotations
@@ -69,12 +69,25 @@ KNOWN_ALIASES = {
     "hostage2": "hostage",
 }
 
-STATIC_MAPPING_PROOFS = {
+MAPPING_PROOFS = {
     "spidey": {
         "sourceTextureModel": "sp_tex00.glb",
         "dcMappedModel": "sm2-costume-tests/ports/default/DEFAULT_DC_WINGED_TPOSE.glb",
-        "validation": "sm2-costume-tests/validation.json",
-        "scope": "static UV/material transfer; runtime PSX packing remains pending",
+        "staticValidation": "sm2-costume-tests/validation.json",
+        "nativeActor": "sm2-costume-tests/runtime/default/spidey.psx",
+        "nativeTextures": "sm2-costume-tests/runtime/default/sp_tex00.psx",
+        "packReport": "sm2-costume-tests/runtime/default/pack-report.json",
+        "runtimeValidation": (
+            "sm2-costume-tests/runtime/default/runtime-wing-proof/"
+            "runtime-validation.json"
+        ),
+        "runtimeWingProofs": [
+            "sm2-costume-tests/runtime/default/runtime-wing-proof/"
+            "sm2_default_menu_wings_close.png",
+            "sm2-costume-tests/runtime/default/runtime-wing-proof/"
+            "sm2_default_gameplay_wings_close.png",
+        ],
+        "scope": "native SM2 .psx actor using Dreamcast geometry and original SM2 textures",
     }
 }
 
@@ -85,6 +98,61 @@ def u32(data: bytes, offset: int) -> int:
 
 def sha256(path: Path) -> str:
     return hashlib.sha256(path.read_bytes()).hexdigest()
+
+
+def read_pass_report(path: Path) -> dict[str, Any] | None:
+    if not path.is_file():
+        return None
+    try:
+        report = json.loads(path.read_text(encoding="utf-8"))
+    except (OSError, UnicodeDecodeError, json.JSONDecodeError):
+        return None
+    return report if report.get("status") == "pass" else None
+
+
+def validate_mapping_proof(name: str) -> tuple[str, dict[str, Any] | None]:
+    definition = MAPPING_PROOFS.get(name)
+    if definition is None:
+        return "exact-name-texture-mapping-pending", None
+
+    proof = dict(definition)
+    model = DEFAULT_DC_BATCH.parent / definition["nativeActor"]
+    textures = DEFAULT_DC_BATCH.parent / definition["nativeTextures"]
+    pack_report = read_pass_report(DEFAULT_DC_BATCH.parent / definition["packReport"])
+    runtime_report = read_pass_report(
+        DEFAULT_DC_BATCH.parent / definition["runtimeValidation"]
+    )
+    pack_valid = bool(
+        pack_report
+        and model.is_file()
+        and textures.is_file()
+        and pack_report.get("outputModelSha256") == sha256(model)
+        and pack_report.get("outputTextureSha256") == sha256(textures)
+    )
+    runtime_valid = bool(
+        runtime_report
+        and all(runtime_report.get("runtimeMarkers", {}).values())
+        and runtime_report.get("inputMethod")
+        == "process-local SPIDEY_SCRIPT controller state"
+    )
+    proof_hashes: dict[str, str] = {}
+    if runtime_valid:
+        authored = runtime_report.get("authoredProofs", {})
+        for relative in definition["runtimeWingProofs"]:
+            path = DEFAULT_DC_BATCH.parent / relative
+            record = authored.get(path.name)
+            if not path.is_file() or not record or record.get("sha256") != sha256(path):
+                runtime_valid = False
+                break
+            proof_hashes[relative] = record["sha256"]
+    proof["checks"] = {
+        "nativePack": pack_valid,
+        "oneProcessRuntime": runtime_valid,
+        "runtimeProofHashes": proof_hashes,
+    }
+    if pack_valid and runtime_valid:
+        return "runtime-native-texture-mapping-proven", proof
+    return "static-texture-mapping-proven-runtime-psx-pending", proof
 
 
 def parse_actor(path: Path) -> dict[str, Any]:
@@ -210,12 +278,9 @@ def main() -> None:
         selected_evidence = next(
             (item for item in ranked if item["dcActor"] == selected), None
         )
+        mapping_proof: dict[str, Any] | None = None
         if exact_name:
-            status = (
-                "static-texture-mapping-proven-runtime-psx-pending"
-                if name in STATIC_MAPPING_PROOFS
-                else "exact-name-texture-mapping-pending"
-            )
+            status, mapping_proof = validate_mapping_proof(name)
             mapping_type = "exact-name"
         elif selected and selected in dc_actors:
             status = "known-alias-texture-mapping-pending"
@@ -241,7 +306,7 @@ def main() -> None:
                     if selected in dc_actors
                     else "retain the original PS1 SM2 model and textures"
                 ),
-                "staticMappingProof": STATIC_MAPPING_PROOFS.get(name),
+                "mappingProof": mapping_proof,
             }
         )
 

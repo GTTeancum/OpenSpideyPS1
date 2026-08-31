@@ -14,7 +14,8 @@ namespace Recompiled;
 /// Headless verification harness. Off unless the environment asks for it, so a normal
 /// launch is unaffected.
 ///
-///   SPIDEY_SHOTS=60,300,600   frames to write a PNG on
+///   SPIDEY_SHOTS=60,title.bmr+450
+///                              absolute or archive-anchored frames to write a PNG on
 ///   SPIDEY_SHOT_EVERY=120     ...or write one every N frames
 ///   SPIDEY_SHOT_DIR=shots     where they go (default "shots")
 ///   SPIDEY_EXIT=900           quit after this frame
@@ -40,7 +41,17 @@ public static class Capture
         public int Seen;
     }
 
-    static readonly HashSet<long> _shotFrames = new();
+    sealed class Shot
+    {
+        public long Frame;          // -1 until an anchor resolves it
+        public string Anchor;
+        public long Offset;
+        public int Occurrence = 1;
+        public int Seen;
+        public bool Fired;
+    }
+
+    static readonly List<Shot> _shots = new();
 
     /// <summary>
     /// SPIDEY_HOT=8000,9000 -- print the functions dominating the call ring on these
@@ -79,7 +90,10 @@ public static class Capture
     public static void Install()
     {
         foreach (var f in Split("SPIDEY_SHOTS"))
-            if (long.TryParse(f, out var n)) { _shotFrames.Add(n); _active = true; }
+        {
+            _shots.Add(MakeShot(f));
+            _active = true;
+        }
 
         foreach (var f in Split("SPIDEY_HOT"))
             if (long.TryParse(f, out var hf)) { _hotFrames.Add(hf); _active = true; }
@@ -117,7 +131,7 @@ public static class Capture
         if (_active) Directory.CreateDirectory(_dir);
         Event.AddListener<VSyncEvent>(OnFrame);
         if (!_active) return;
-        Console.WriteLine($"[capture] armed: shots={_shotFrames.Count} every={_every} exit={_exit} script={_script.Count}");
+        Console.WriteLine($"[capture] armed: shots={_shots.Count} every={_every} exit={_exit} script={_script.Count}");
     }
 
     /// <summary>
@@ -175,8 +189,14 @@ public static class Capture
                 Console.WriteLine($"[hot f{e.Frame}] {Diag.Hot(14)}");
             }
 
-        if (_shotFrames.Contains(e.Frame) || (_every > 0 && e.Frame % _every == 0))
-            Save(e.Frame);
+        bool explicitShot = false;
+        foreach (var shot in _shots)
+        {
+            if (shot.Fired || shot.Frame < 0 || e.Frame < shot.Frame) continue;
+            shot.Fired = true;
+            explicitShot = true;
+        }
+        if (explicitShot || (_every > 0 && e.Frame % _every == 0)) Save(e.Frame);
 
         if (_exit > 0 && e.Frame >= _exit)
         {
@@ -248,6 +268,30 @@ public static class Capture
                            Offset = offset, Occurrence = occurrence };
     }
 
+    static Shot MakeShot(string raw)
+    {
+        if (long.TryParse(raw, NumberStyles.Integer, CultureInfo.InvariantCulture, out var abs))
+            return new Shot { Frame = abs };
+
+        long offset = 0;
+        string anchor = raw;
+        int plus = raw.LastIndexOf('+');
+        if (plus > 0 && long.TryParse(raw.Substring(plus + 1), out var off))
+        {
+            anchor = raw.Substring(0, plus);
+            offset = off;
+        }
+
+        int occurrence = 1;
+        int hash = anchor.LastIndexOf('#');
+        if (hash > 0 && int.TryParse(anchor.Substring(hash + 1), out var occ) && occ > 0)
+        {
+            occurrence = occ;
+            anchor = anchor.Substring(0, hash);
+        }
+        return new Shot { Frame = -1, Anchor = anchor, Offset = offset, Occurrence = occurrence };
+    }
+
     /// <summary>Called for every archive lookup; resolves any step anchored to it.</summary>
     public static void NoteWadLoad(string name, long frame)
     {
@@ -258,6 +302,14 @@ public static class Capture
                 if (++p.Seen < p.Occurrence) continue;
                 p.Frame = frame + p.Offset;
                 Console.WriteLine($"[capture] '{name}' load #{p.Seen} at frame {frame}: step resolved to frame {p.Frame}");
+            }
+        foreach (var shot in _shots)
+            if (shot.Frame < 0 && shot.Anchor != null &&
+                string.Equals(shot.Anchor, name, StringComparison.OrdinalIgnoreCase))
+            {
+                if (++shot.Seen < shot.Occurrence) continue;
+                shot.Frame = frame + shot.Offset;
+                Console.WriteLine($"[capture] '{name}' load #{shot.Seen} at frame {frame}: shot resolved to frame {shot.Frame}");
             }
     }
 
