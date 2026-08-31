@@ -348,11 +348,13 @@ and material hashes:
 python dreamcast/tools/map_sm2_dc_actors.py
 ```
 
-The current census contains 30 SM2 character actors: ten exact-name DC
-candidates, one structurally exact known alias (`HOSTAGE2` -> `HOSTAGE`), and
-nineteen explicit fallbacks that retain their original SM2 models until a real
-counterpart is demonstrated. Almost none of the selected candidates share
-material hashes, so a same-name model is not treated as texture compatible.
+The current census contains 30 SM2 character actors. Its structural audit finds
+ten same-name DC candidates, one exact known alias (`HOSTAGE2` -> `HOSTAGE`), and
+nineteen actors with no confirmed counterpart. Structural resemblance is kept as
+evidence only: the current upgrade scope selects Spider-Man and records all 29
+NPC/enemy actors as explicit fallbacks retaining their original SM2 models and
+textures. Almost none of the structural candidates share material hashes, so a
+same-name model is not treated as texture compatible.
 
 The selected SM2 costumes are transferred onto the wing-capable high-detail
 Dreamcast body and exported as static T-pose GLBs. The current set is Default
@@ -400,8 +402,8 @@ archive loads, and validates the loose model and texture overrides. Its 8x
 captures and unfiltered native-pixel crops are recorded in
 `runtime/default/runtime-wing-proof/runtime-validation.json`. This proves that
 the packed `.psx`, not the GLB, renders the mapped suit and connected wings in
-normal gameplay. The remaining exact-name and known-alias actors stay pending
-until they pass the same native-pack and runtime-evidence standard.
+normal gameplay. Every non-player structural candidate remains an explicit
+retail-SM2 fallback under the current player-only upgrade policy.
 
 ## One-command pipeline
 

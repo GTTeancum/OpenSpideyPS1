@@ -69,6 +69,11 @@ KNOWN_ALIASES = {
     "hostage2": "hostage",
 }
 
+# The current SM2 upgrade scope is deliberately player-only. Structural matches
+# remain useful audit evidence, but are not an instruction to replace NPCs or
+# enemies; every non-Spider-Man actor stays on its retail SM2 model and textures.
+PORT_TARGETS = {"spidey": "spidey"}
+
 MAPPING_PROOFS = {
     "spidey": {
         "sourceTextureModel": "sp_tex00.glb",
@@ -274,20 +279,26 @@ def main() -> None:
             key=lambda item: (-item["score"], item["dcActor"]),
         )
         exact_name = name if name in dc_actors else None
-        selected = exact_name or KNOWN_ALIASES.get(name)
-        selected_evidence = next(
-            (item for item in ranked if item["dcActor"] == selected), None
+        structural_dc_actor = exact_name or KNOWN_ALIASES.get(name)
+        structural_evidence = next(
+            (item for item in ranked if item["dcActor"] == structural_dc_actor), None
         )
         mapping_proof: dict[str, Any] | None = None
-        if exact_name:
+        if name in PORT_TARGETS:
+            selected = PORT_TARGETS[name]
             status, mapping_proof = validate_mapping_proof(name)
-            mapping_type = "exact-name"
-        elif selected and selected in dc_actors:
-            status = "known-alias-texture-mapping-pending"
-            mapping_type = "known-alias"
+            mapping_type = "dreamcast-texture-port"
         else:
-            status = "no-confirmed-dc-counterpart"
+            selected = None
+            status = "original-sm2-model-explicit-fallback"
             mapping_type = "fallback-sm2-model"
+
+        if exact_name:
+            structural_match_type = "exact-name"
+        elif structural_dc_actor and structural_dc_actor in dc_actors:
+            structural_match_type = "known-alias"
+        else:
+            structural_match_type = "no-confirmed-dc-counterpart"
         entries.append(
             {
                 "sm2Actor": name,
@@ -298,13 +309,26 @@ def main() -> None:
                 },
                 "status": status,
                 "mappingType": mapping_type,
-                "selectedDcActor": selected if selected in dc_actors else None,
-                "selectedEvidence": selected_evidence,
+                "selectedDcActor": selected,
+                "structuralMatchType": structural_match_type,
+                "structuralDcActor": (
+                    structural_dc_actor if structural_dc_actor in dc_actors else None
+                ),
+                "structuralEvidence": structural_evidence,
                 "rankedStructuralCandidates": ranked[:5],
                 "texturePolicy": (
-                    "bake or remap original PS1 SM2 textures onto the selected DC mesh"
-                    if selected in dc_actors
+                    "map the original PS1 SM2 Spider-Man textures onto the selected DC mesh"
+                    if selected
                     else "retain the original PS1 SM2 model and textures"
+                ),
+                "fallbackReason": (
+                    None
+                    if selected
+                    else (
+                        "non-player actor deferred by current player-only upgrade scope"
+                        if structural_dc_actor in dc_actors
+                        else "no confirmed Dreamcast counterpart"
+                    )
                 ),
                 "mappingProof": mapping_proof,
             }
@@ -316,8 +340,16 @@ def main() -> None:
         "sm2Wad": str(sm2_wad),
         "dcBatch": str(dc_batch),
         "actorCount": len(entries),
-        "exactNameCount": sum(item["mappingType"] == "exact-name" for item in entries),
-        "knownAliasCount": sum(item["mappingType"] == "known-alias" for item in entries),
+        "policy": "Dreamcast upgrade is Spider-Man-only; every NPC and enemy retains its retail SM2 assets",
+        "dreamcastPortCount": sum(
+            item["mappingType"] == "dreamcast-texture-port" for item in entries
+        ),
+        "structuralExactNameCount": sum(
+            item["structuralMatchType"] == "exact-name" for item in entries
+        ),
+        "structuralKnownAliasCount": sum(
+            item["structuralMatchType"] == "known-alias" for item in entries
+        ),
         "fallbackCount": sum(item["mappingType"] == "fallback-sm2-model" for item in entries),
         "entries": entries,
     }
@@ -325,8 +357,7 @@ def main() -> None:
     args.output.write_text(json.dumps(report, indent=2) + "\n", encoding="utf-8")
     print(
         f"SM2 actor map: {report['actorCount']} actors; "
-        f"{report['exactNameCount']} exact DC names; "
-        f"{report['knownAliasCount']} known aliases; "
+        f"{report['dreamcastPortCount']} Dreamcast player port; "
         f"{report['fallbackCount']} explicit SM2 fallbacks"
     )
     print(f"report: {args.output.resolve()}")

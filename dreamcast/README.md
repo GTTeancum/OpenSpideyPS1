@@ -112,9 +112,11 @@ a native SM2 `spidey.psx` with the Dreamcast geometry, SM2 hierarchy/animations,
 the unchanged retail `sp_tex00.psx`, all alternate hand meshes, and authored wing
 seams. Its 8x one-process validation covers the 3D menu and normal gameplay and
 emits exact-pixel close-ups of both wing attachments. A separate 30-actor SM2 structural
-map currently identifies ten exact-name DC candidates, the exact `HOSTAGE2` to
-`HOSTAGE` alias, and nineteen explicit original-SM2 fallbacks. The GLBs are audit
-artifacts only; both games continue to use `.psx` runtime assets.
+audit identifies ten same-name DC actors and the structural `HOSTAGE2` to
+`HOSTAGE` alias, but the current SM2 upgrade policy selects Spider-Man only. All
+29 NPC/enemy actors are explicit original-SM2 model-and-texture fallbacks, whether
+or not a same-name DC file exists. The GLBs are audit artifacts only; both games
+continue to use `.psx` runtime assets.
 
 The complete automated build/capture/validation entry point is
 `tools/run_port_pipeline.py`; its aggregate result is written to
