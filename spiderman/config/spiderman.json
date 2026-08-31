@@ -4,7 +4,7 @@
     "name": "SpiderMan",
     "output": "../generated"
   },
-  "cue": "../../Spider-Man (USA).cue",
+  "cue": "../extracted",
   "funcMap": "funcmaps/main.json",
   "overlays": [
     {
@@ -200,6 +200,12 @@
       "function": "CdWadFind",
       "mode": "post",
       "target": "Recompiled.OverlayPatches.CdWadFindExit"
+    },
+    {
+      "overlay": "main",
+      "function": "CdWadRead",
+      "mode": "pre",
+      "target": "Recompiled.AssetOverrides.CdWadRead"
     },
     {
       "overlay": "main",

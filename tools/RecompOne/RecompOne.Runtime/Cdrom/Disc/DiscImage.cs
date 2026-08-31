@@ -8,8 +8,11 @@ public static class DiscImage
     {
         if (string.IsNullOrWhiteSpace(path))
             throw new ArgumentException("disc path i empty", nameof(path));
-        if (!File.Exists(path))
+        if (!File.Exists(path) && !Directory.Exists(path))
             throw new FileNotFoundException($"disc image not found: {path}", path);
+
+        if (Directory.Exists(path))
+            return LooseDiscImage.Open(path);
 
         return Detect(path) switch
         {
@@ -24,6 +27,7 @@ public static class DiscImage
         var ext = Path.GetExtension(path);
         if (ext.Equals(".chd", StringComparison.OrdinalIgnoreCase)) return DiscFormat.Chd;
         if (ext.Equals(".cue", StringComparison.OrdinalIgnoreCase)) return DiscFormat.CueBin;
+        if (Directory.Exists(path) && LooseDiscImage.IsLooseDirectory(path)) return DiscFormat.Loose;
         return HasChdMagic(path) ? DiscFormat.Chd : DiscFormat.Unknown;
     }
 
@@ -47,4 +51,5 @@ public enum DiscFormat
     Unknown,
     CueBin,
     Chd,
+    Loose,
 }

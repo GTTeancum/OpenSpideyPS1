@@ -156,13 +156,10 @@ public static class Runtime
     }
 
     /// <summary>
-    /// How much the vblank counter advances per presented frame. Separate from
-    /// VBlanksPerFrame, which sets how long a frame lasts.
-    ///
-    /// They have to be separate. A game whose simulation advances per vblank tick runs
-    /// at the counter's rate, not the drawing rate, so pacing frames to 30 Hz while
-    /// still counting two vblanks each leaves the game running at 60 -- drawing at 30
-    /// and moving at twice speed.
+    /// How much the vblank counter advances, and how many vblank IRQs are delivered,
+    /// per presented frame. Separate from VBlanksPerFrame, which sets how long a frame
+    /// lasts. At a 30 Hz presentation cadence this must be 2 to preserve the console's
+    /// 60 Hz vblank signal for both polling code and VSyncCallback handlers.
     /// </summary>
     public static int VBlankStep { get; set; } = 1;
 
@@ -189,7 +186,12 @@ public static class Runtime
         Sdk.LibCd.Tick();
         if (Mem != null) { Bios.BiosB.RefreshPad(Mem); Sdk.LibPad.Refresh(Mem); } //is this correct?
         if (Cpu != null && Mem != null) Bios.BiosB.PumpCard(Cpu, Mem, _pumping);
-        DispatchIrq(0); //using this to dispatch irqs too if necessary, probably not needed after the rest of stuff is reimplemented
+        // IRQ 0 is the console's vblank interrupt. A 30 Hz game frame spans two
+        // 60 Hz vblanks, so deliver the same number that the counter advances. Keep
+        // this coupled to VBlankStep: code registered through VSyncCallback observes
+        // the interrupt, while VSync(-1) observes the counter, and hardware advances
+        // both from the same signal.
+        for (int i = 0; i < VBlankStep; i++) DispatchIrq(0);
     }
 
     static bool _pumping;
@@ -212,7 +214,7 @@ public static class Runtime
 
     /// <summary>
     /// Everything a frame does *except* declaring that a frame happened: service the
-    /// CD, refresh the pads, run pending interrupts and keep the host window alive.
+    /// CD and keep the host window alive.
     ///
     /// A game that spins without ever calling VSync still needs all of that -- its wait
     /// loop is usually waiting on exactly the CD or pad state this refreshes, and the
@@ -231,7 +233,11 @@ public static class Runtime
         // rate overwrites the pad buffers hundreds of times between frames, which
         // stomps on anything else that writes them -- a scripted press from the
         // capture harness lasted microseconds instead of a frame.
-        DispatchIrq(0);
+        // Deliberately no vblank IRQ. This path can run hundreds of times per second
+        // while DrawSync is polling a busy GPU. Delivering IRQ 0 here made the games'
+        // VSyncCallback handlers advance on every service pass (and once more through
+        // nested pending delivery), so animations and timers ran far ahead of the
+        // presented frame rate. Real vblanks are delivered only by PresentFrame.
     }
 
     public static void DispatchIrq(int irq)

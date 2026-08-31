@@ -41,7 +41,8 @@ spiderman/
 
 ## Building
 
-Needs .NET 10, Python 3 with `numpy`/`PIL`, and the disc at the repository root.
+Needs .NET 10, Python 3 with `numpy`/`PIL`, and the disc at the repository root for the
+first extraction only.
 
 ```bash
 cd spiderman
@@ -51,6 +52,12 @@ python tools/overlays.py build config/overlays  # relocate the overlays
 python tools/genmaps.py                         # linear-sweep maps (slow, once)
 python tools/build.py                           # maps -> recompile -> closure -> build
 ```
+
+`tools/disc.py` writes normal loose files, a `recompone-disc.json` LBA manifest, and
+sector-preserving XA/STR files. `config/spiderman.json`, the recompiler, and the built
+port all read `extracted/` afterward; BIN/CUE is not a runtime dependency and can be
+removed or archived after this first import. At runtime, CD.WAD lookups are served from
+the individual files under `extracted/wad/` as well.
 
 `tools/build.py` runs the whole loop and stops when the unmapped-call count stops
 falling. It currently converges at **3,314 functions** across 31 modules with
@@ -228,18 +235,44 @@ The recompiler has two matching switches: `"spAudit": true` in `config/spiderman
 checks that every function restores the stack pointer and the callee-saved registers,
 and `"callRing": true` keeps the ring the watchdog prints.
 
+## Using Spider-Man 2's default suit
+
+SM2's `spidey.psx` model is compatible with SM1, but its default texture library uses
+different texture-name hashes and is one disc sector larger than SM1's slot. Prepare an
+override from legally extracted SM2 assets, then point the SM1 port at it:
+
+```bash
+python spiderman/tools/port_sm2_default_suit.py
+SPIDEY_ASSET_DIR=spiderman/extracted/asset-overrides/sm2-default \
+  spiderman/port/bin/Release/net10.0/SpiderMan.exe
+```
+
+Run those commands from the repository root. The converter copies the SM2 model
+unchanged and rewrites only the fourteen-entry texture-name table in `sp_tex00.psx`.
+The runtime serves every archive entry from SM1's `extracted/wad/` directory. Files in
+`SPIDEY_ASSET_DIR` take precedence by name, so this two-file output replaces
+`spidey.psx` and `sp_tex00.psx` without editing SM1's extraction. The SM2 mesh
+intentionally includes underarm web-wing polygons that SM1's mesh does not; the current
+result leaves them in place. Source and converted assets remain under the gitignored
+`extracted/` directories.
+
+The full binary investigation, failed raw-swap diagnosis, index mapping, validation
+hashes, loose-file route, and repeatable capture procedure are documented in
+[`../docs/ports/sm2-default-suit-in-sm1.md`](../docs/ports/sm2-default-suit-in-sm1.md).
+
 ## Verifying
 
 `patches/Capture.cs` reads frames back from the GPU backend, so a capture is what the
 emulated console drew, not what the desktop showed.
 
 ```
-SPIDEY_HZ=30               the rate the game runs at; 30 is correct for this title
+SPIDEY_HZ=30               host presentation/GPU pacing budget; default 30 Hz
 SPIDEY_LEVEL=l5a3          boot straight into a level (47 prefixes, l1a1..l9a4)
 SPIDEY_CHEATS=all          the game's own cheats: everything, levelselect, invuln,
                            webbing, debug, bighead, viewers
 SPIDEY_COSTUME=symbiote    spiderman 2099 symbiote captain unlimited bagman
                            scarlet benreilly quickchange peterparker
+SPIDEY_ASSET_DIR=path      override extracted CD.WAD entries by filename
 SPIDEY_SNAP=crash          dump the game's RAM on the crash, or on named frames
 SPIDEY_SHOTS=1050,1500     write a PNG on these frames
 SPIDEY_SHOT_EVERY=150      ...or every N frames

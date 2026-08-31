@@ -91,6 +91,7 @@ public static class OverlayPatches
         name = LevelSwitch.Redirect(c, m, name);
         _lastLookup = name;
         _lastRa = c.RA;
+        AssetOverrides.Find(name);
         if (name.Length > 4 && name.EndsWith(".bin", StringComparison.OrdinalIgnoreCase))
         {
             string key = name.Substring(0, name.Length - 4);
@@ -101,6 +102,7 @@ public static class OverlayPatches
     /// <summary>post-hook on CdWadFind -- v0 is the sector-rounded size.</summary>
     public static void CdWadFindExit(CpuContext c, IMemory m)
     {
+        AssetOverrides.FindExit(c);
         Capture.NoteWadLoad(_lastLookup, System.Threading.Interlocked.Read(ref Diag.Frame));
         Replay.NoteWadLoad(_lastLookup, System.Threading.Interlocked.Read(ref Diag.Frame));
         if (TraceWad)
@@ -123,28 +125,39 @@ public static class OverlayPatches
     public static bool HeapAlloc(CpuContext c, IMemory m)
     {
         _allocSize = c.A0;
-        if (_pendingName == null || _allocSize != _pendingSize) return true;
+        if (_pendingName != null && _allocSize == _pendingSize)
+        {
+            uint fixedBase = Bases[_pendingName];
+            Log.Sdk($"overlay '{_pendingName}': {_allocSize} bytes served from 0x{fixedBase:X8} " +
+                    "instead of the heap");
+            c.V0 = fixedBase;
 
-        uint fixedBase = Bases[_pendingName];
-        Log.Sdk($"overlay '{_pendingName}': {_allocSize} bytes served from 0x{fixedBase:X8} " +
-                "instead of the heap");
-        c.V0 = fixedBase;
+            // Activate the overlay's function table. The dispatcher normally does this
+            // when the game reads the overlay's LBA off the disc, but these overlays live
+            // inside CD.WAD and are read as a byte range of one big file, so that never
+            // fires. Doing it here ties activation to the actual load. Regions never
+            // overlap, so nothing is evicted and repeat loads are harmless.
+            Dispatcher.Load(_pendingName);
 
-        // Activate the overlay's function table. The dispatcher normally does this
-        // when the game reads the overlay's LBA off the disc, but these overlays live
-        // inside CD.WAD and are read as a byte range of one big file, so that never
-        // fires. Doing it here ties activation to the actual load. Regions never
-        // overlap, so nothing is evicted and repeat loads are harmless.
-        Dispatcher.Load(_pendingName);
+            _pendingName = null;
+            Redirected++;
+            return false;
+        }
 
-        _pendingName = null;
-        Redirected++;
-        return false;
+        if (RecompOne.Runtime.Assets.LooseWadOverrides.TryAllocatePending(_allocSize, out uint address))
+        {
+            c.V0 = address;
+            return false;
+        }
+        return true;
     }
 
     /// <summary>
     /// pre-hook on HeapFree(void *p) -- returning false skips the function.
     /// </summary>
     public static bool HeapFree(CpuContext c, IMemory m)
-        => !(c.A0 >= RegionLo && c.A0 < RegionHi);
+    {
+        if (RecompOne.Runtime.Assets.LooseWadOverrides.TryFree(c.A0)) return false;
+        return !(c.A0 >= RegionLo && c.A0 < RegionHi);
+    }
 }

@@ -4,7 +4,7 @@
     "name": "SpiderMan2",
     "output": "../generated"
   },
-  "cue": "../../Spider-Man 2 - Enter - Electro (USA) (Rev 1).cue",
+  "cue": "../extracted",
   "funcMap": "funcmaps/main.json",
   "overlays": [
     {
@@ -188,6 +188,12 @@
       "function": "CdWadFind",
       "mode": "post",
       "target": "Recompiled.OverlayPatches.CdWadFindExit"
+    },
+    {
+      "overlay": "main",
+      "function": "CdWadRead",
+      "mode": "pre",
+      "target": "RecompOne.Runtime.Assets.LooseWadOverrides.Read"
     },
     {
       "overlay": "main",

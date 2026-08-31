@@ -20,7 +20,7 @@ import sys
 HERE = os.path.dirname(os.path.abspath(__file__))
 ROOT = os.path.dirname(HERE)
 RECOMP = os.path.join(ROOT, '..', 'tools', 'RecompOne', 'RecompOne.Recompiler')
-CUE = os.path.join(ROOT, '..', 'Spider-Man 2 - Enter - Electro (USA) (Rev 1).cue')
+GAME_DATA = os.path.join(ROOT, 'extracted')
 OUT = os.path.join(ROOT, 'config', 'funcmaps')
 
 MAIN_BASE = '0x80010000'
@@ -42,7 +42,7 @@ def main():
     os.makedirs(OUT, exist_ok=True)
     manifest = json.load(open(os.path.join(ROOT, 'config', 'overlays', 'manifest.json')))
 
-    jobs = [('main', ['-disc', CUE, '-base', MAIN_BASE, '-file', MAIN_FILE,
+    jobs = [('main', ['-disc', GAME_DATA, '-base', MAIN_BASE, '-file', MAIN_FILE,
                       '-skip', MAIN_SKIP, '-size', MAIN_SIZE])]
     for name, v in manifest.items():
         jobs.append((name, ['-base', v['base'], '-path',

@@ -3,6 +3,7 @@ namespace RecompOne.Runtime.Cdrom;
 //better disc handling
 public sealed class DiscFs : IDisposable
 {
+    public readonly record struct DiscFile(string Path, int Lba, uint Size);
     private record Entry(int Lba, uint Size, bool IsDir, string Name);
 
     private readonly IDiscImage _image;
@@ -39,6 +40,7 @@ public sealed class DiscFs : IDisposable
 
     public byte[] ReadFile(string path)
     {
+        if (_image is LooseDiscImage loose) return loose.ReadLooseFile(path);
         path = path.TrimStart('/', '\\');
         var parts = path.Split('/', '\\');
         var dir = Root();
@@ -50,6 +52,7 @@ public sealed class DiscFs : IDisposable
 
     public bool Exists(string path)
     {
+        if (_image is LooseDiscImage loose) return loose.LocateLooseFile(path, out _, out _);
         try
         {
             ReadFile(path);
@@ -61,10 +64,13 @@ public sealed class DiscFs : IDisposable
         }
     }
 
-    public string? FindFile(string name) => Search(Root(), "", name.ToUpperInvariant());
+    public string? FindFile(string name) => _image is LooseDiscImage loose
+        ? loose.FindLooseFile(name)
+        : Search(Root(), "", name.ToUpperInvariant());
 
     public bool Locate(string name, out int lba, out uint size)
     {
+        if (_image is LooseDiscImage loose) return loose.LocateLooseFile(name, out lba, out size);
         lba = 0;
         size = 0;
         var entry = LocateEntry(name);
@@ -72,6 +78,26 @@ public sealed class DiscFs : IDisposable
         lba = entry.Lba;
         size = entry.Size;
         return true;
+    }
+
+    public IEnumerable<DiscFile> EnumerateFiles()
+    {
+        if (_image is LooseDiscImage)
+            throw new InvalidOperationException("enumerating an already-loose disc is not an import operation");
+        return Enumerate(Root(), "");
+    }
+
+    private IEnumerable<DiscFile> Enumerate(Entry dir, string basePath)
+    {
+        foreach (var entry in Entries(dir))
+        {
+            string path = basePath.Length == 0 ? entry.Name : basePath + "/" + entry.Name;
+            if (entry.IsDir)
+            {
+                foreach (var child in Enumerate(entry, path)) yield return child;
+            }
+            else yield return new DiscFile(path, entry.Lba, entry.Size);
+        }
     }
 
     private Entry? LocateEntry(string name)

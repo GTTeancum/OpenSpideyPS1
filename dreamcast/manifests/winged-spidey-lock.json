@@ -1,0 +1,113 @@
+{
+  "schemaVersion": 1,
+  "description": "Reproducibility lock for the donor-preserving, Dreamcast-seam-fitted default Spider-Man wings.",
+  "parameters": {
+    "textureScale": 4,
+    "wingMaterialHash": "DC38D248",
+    "seamRootVertices": {
+      "4": 55,
+      "9": 55
+    },
+    "seamRootUv": [
+      0,
+      32
+    ],
+    "donorWingFaces": 7,
+    "recipientSeamFaces": 4
+  },
+  "inputs": [
+    {
+      "path": "dreamcast/extracted/SPIDEY.PSX",
+      "bytes": 461452,
+      "sha256": "047da043765af403a26db15915ac5cb30e78ecd0e0b3f8ba6918a27e284f2c20"
+    },
+    {
+      "path": "spiderman2/extracted/wad/spidey.psx",
+      "bytes": 275840,
+      "sha256": "e4864f82fae6086d54c96ccb6f28ff772ced625a0daafd850108e7325d189601"
+    },
+    {
+      "path": "spiderman2/extracted/wad/sp_tex00.psx",
+      "bytes": 23780,
+      "sha256": "ed91b03542653a3c3c19d9c76d5ef585014bf2e23737e05b50a04731b7858620"
+    },
+    {
+      "path": "dreamcast/decoded/textures/SPIDEY/SPIDEY_0005956C.png",
+      "bytes": 22318,
+      "sha256": "1909d89c017f06288b3b37322bae51e62750e407e29f554935f061f3c014a590"
+    },
+    {
+      "path": "dreamcast/decoded/textures/SPIDEY/SPIDEY_0005DD90.png",
+      "bytes": 24580,
+      "sha256": "9d51d071ea8edc1a7114e4eab1b64ebf07e627fddc30ffd3fbe1c9533681b43c"
+    },
+    {
+      "path": "dreamcast/decoded/textures/SPIDEY/SPIDEY_000625B4.png",
+      "bytes": 24835,
+      "sha256": "844215a1c5a7e01196c12b631f010a88151ffff872acda281a85dc44cb73d968"
+    },
+    {
+      "path": "dreamcast/decoded/textures/SPIDEY/SPIDEY_00066DD8.png",
+      "bytes": 11617,
+      "sha256": "fc9cffeb17e4b6eb423bb01cd10b8972dc00f3fe3bd28003eed5a55808a7954c"
+    },
+    {
+      "path": "dreamcast/decoded/textures/SPIDEY/SPIDEY_000685FC.png",
+      "bytes": 5392,
+      "sha256": "d42bf27fcf694801982dd9ef6b18869db3bff3170111118cdda6244ed0e5e592"
+    },
+    {
+      "path": "dreamcast/decoded/textures/SPIDEY/SPIDEY_00069E20.png",
+      "bytes": 19288,
+      "sha256": "2d4453869010db05b2ef686a437ab41cdffe5f504ca371a9dd7f69482adfd441"
+    },
+    {
+      "path": "dreamcast/decoded/textures/SPIDEY/SPIDEY_0006E644.png",
+      "bytes": 8038,
+      "sha256": "aca9e1dc5715e478a0f6441b6e1037b576b607472f0adbc56334f93215d421c0"
+    },
+    {
+      "path": "dreamcast/decoded/textures/SPIDEY/SPIDEY_0006FE68.png",
+      "bytes": 3686,
+      "sha256": "9c1af8e4916da8ed7ddadbfa305d1d111dd8bfa393c12d6d2071e5633b2cca99"
+    }
+  ],
+  "outputs": [
+    {
+      "path": "dreamcast/converted/sm1-winged-runtime/spidey.psx",
+      "bytes": 379424,
+      "sha256": "208b3017c0df7eb234380db9fd66575888e883dca9cd3d89ad67d77aee85b083"
+    },
+    {
+      "path": "dreamcast/converted/sm1-winged-runtime/sp_tex00.psx",
+      "bytes": 28740,
+      "sha256": "4c528ed5998b39ff08c79558f7c3bef3f9c4e1bafbcb760e0e453e5389501c02"
+    },
+    {
+      "path": "dreamcast/converted/sm1-winged-production/spidey.psx",
+      "bytes": 379424,
+      "sha256": "810956c00f7361103dc8509b1f364eb1a277bafcd80da37c736ffac54a45f93f"
+    },
+    {
+      "path": "dreamcast/converted/sm1-winged-production/sp_tex00.psx",
+      "bytes": 28740,
+      "sha256": "fdd45fc5e22b7e0e6cd48546d317ee3f4ae5a414979503421ecc085c92c2c375"
+    }
+  ],
+  "proof": {
+    "path": "dreamcast/converted/sm1-winged-runtime/runtime-wing-seam-proof/wing-runtime-proof.json",
+    "nativeFrameCount": 13,
+    "frameSize": [
+      2560,
+      1920
+    ],
+    "authoredProofCount": 3
+  },
+  "rebuildCommands": [
+    "python dreamcast/tools/build_winged_spidey.py --visible-wing-proof",
+    "python dreamcast/tools/build_winged_spidey.py --output-model dreamcast/converted/sm1-winged-production/spidey.psx --output-textures dreamcast/converted/sm1-winged-production/sp_tex00.psx",
+    "python dreamcast/tools/verify_wing_build_lock.py",
+    "python dreamcast/tools/verify_wing_parity.py --ported dreamcast/converted/sm1-winged-runtime/spidey.psx",
+    "python dreamcast/tools/capture_wing_runtime.py"
+  ]
+}

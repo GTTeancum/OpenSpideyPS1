@@ -17,6 +17,7 @@ namespace Recompiled;
 ///   SPIDEY_SHOTS=60,300,600   frames to write a PNG on
 ///   SPIDEY_SHOT_EVERY=120     ...or write one every N frames
 ///   SPIDEY_SHOT_DIR=shots     where they go (default "shots")
+///   SPIDEY_SHOT_CROP=x,y,w,h  also write an exact display-pixel close-up per shot
 ///   SPIDEY_EXIT=900           quit after this frame
 ///   SPIDEY_SCRIPT=120:start;300:cross:8
 ///                              press a button at a frame, optionally for N frames
@@ -44,6 +45,7 @@ public static class Capture
     static long _every;
     static long _exit = -1;
     static bool _active;
+    static int _cropX = -1, _cropY, _cropW, _cropH;
 
     static readonly Dictionary<string, ushort> Buttons = new(StringComparer.OrdinalIgnoreCase)
     {
@@ -76,6 +78,19 @@ public static class Capture
         var dir = Environment.GetEnvironmentVariable("SPIDEY_SHOT_DIR");
         if (!string.IsNullOrWhiteSpace(dir)) _dir = dir;
 
+        var crop = Environment.GetEnvironmentVariable("SPIDEY_SHOT_CROP");
+        if (!string.IsNullOrWhiteSpace(crop))
+        {
+            var parts = crop.Split(',');
+            if (parts.Length == 4 && int.TryParse(parts[0], out _cropX) &&
+                int.TryParse(parts[1], out _cropY) && int.TryParse(parts[2], out _cropW) &&
+                int.TryParse(parts[3], out _cropH) && _cropX >= 0 && _cropY >= 0 &&
+                _cropW > 0 && _cropH > 0)
+                _active = true;
+            else
+                throw new ArgumentException("SPIDEY_SHOT_CROP must be x,y,width,height in display pixels");
+        }
+
         var mark = Environment.GetEnvironmentVariable("SPIDEY_MARK");
         if (long.TryParse(mark, out var mk) && mk > 0) { _markEvery = mk; _active = true; }
 
@@ -101,7 +116,8 @@ public static class Capture
         if (_active) Directory.CreateDirectory(_dir);
         Event.AddListener<VSyncEvent>(OnFrame);
         if (!_active) return;
-        Console.WriteLine($"[capture] armed: shots={_shotFrames.Count} every={_every} exit={_exit} script={_script.Count}");
+        string cropStatus = _cropX >= 0 ? $" crop={_cropX},{_cropY},{_cropW},{_cropH}" : "";
+        Console.WriteLine($"[capture] armed: shots={_shotFrames.Count} every={_every} exit={_exit} script={_script.Count}{cropStatus}");
     }
 
     static IEnumerable<string> Split(string name, char sep = ',')
@@ -145,8 +161,14 @@ public static class Capture
 
         ushort held = 0;
         foreach (var p in _script)
+        {
+            // Anchored steps sit at -1 until their archive loads. Without this guard,
+            // the interval from -1 through Hold-2 is treated as active at boot, so a
+            // title-anchored START press also fires on frame zero.
+            if (p.Frame < 0) continue;
             if (e.Frame >= p.Frame && e.Frame < p.Frame + p.Hold)
                 held |= p.Mask;
+        }
 
         RecompOne.Runtime.Hardware.Controller.ScriptHeld = held;
     }
@@ -197,6 +219,33 @@ public static class Capture
         string path = Path.Combine(_dir, $"frame_{frame:D5}.png");
         PngWriter.WriteRgba(path, rgba, w, h);
         Console.WriteLine($"[capture] {path} {w}x{h} (display aspect)");
+        SaveCloseup(frame, rgba, w, h);
+    }
+
+    /// <summary>
+    /// Write a literal crop from the already aspect-correct GPU readback.  There is no
+    /// resampling or image synthesis: every close-up pixel is one captured game pixel.
+    /// Keeping the full frame beside it preserves the framing provenance.
+    /// </summary>
+    static void SaveCloseup(long frame, byte[] rgba, int w, int h)
+    {
+        if (_cropX < 0) return;
+        int x = Math.Clamp(_cropX, 0, w);
+        int y = Math.Clamp(_cropY, 0, h);
+        int cw = Math.Clamp(_cropW, 0, w - x);
+        int ch = Math.Clamp(_cropH, 0, h - y);
+        if (cw <= 0 || ch <= 0)
+        {
+            Console.Error.WriteLine($"[capture] crop {_cropX},{_cropY},{_cropW},{_cropH} is outside {w}x{h}");
+            return;
+        }
+
+        var closeup = new byte[cw * ch * 4];
+        for (int row = 0; row < ch; row++)
+            Buffer.BlockCopy(rgba, ((y + row) * w + x) * 4, closeup, row * cw * 4, cw * 4);
+        string path = Path.Combine(_dir, $"frame_{frame:D5}_closeup.png");
+        PngWriter.WriteRgba(path, closeup, cw, ch);
+        Console.WriteLine($"[capture] {path} {cw}x{ch} exact crop from ({x},{y})");
     }
 
     /// <summary>
@@ -315,5 +364,6 @@ public static class Capture
         string path = Path.Combine(_dir, $"frame_{frame:D5}.png");
         PngWriter.WriteRgba(path, rgba, w, h);
         Console.WriteLine($"[capture] {path} {w}x{h}{(gpu.Display24Bit ? " (24bpp)" : "")}");
+        SaveCloseup(frame, rgba, w, h);
     }
 }

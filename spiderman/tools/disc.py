@@ -9,6 +9,7 @@ Usage:
     python tools/disc.py list                 # every file, with LBA and size
     python tools/disc.py extract OUT_DIR      # write the whole tree to disk
 """
+import json
 import os
 import struct
 import sys
@@ -19,6 +20,7 @@ USER_SIZE = 2048
 
 DISC = os.path.join(os.path.dirname(os.path.abspath(__file__)),
                     '..', '..', 'Spider-Man (USA).bin')
+GAME_ID = 'SLUS_008.75'
 
 
 class Disc:
@@ -38,6 +40,11 @@ class Disc:
             out += self.sector(lba)
             lba += 1
         return bytes(out[:length])
+
+    def raw2336(self, lba):
+        """Mode 2 sector beginning at its duplicated XA subheader."""
+        self.fh.seek(lba * RAW_SECTOR + 16)
+        return self.fh.read(2336)
 
 
 def _name(raw):
@@ -103,11 +110,30 @@ def main():
         print(f'{len(files)} files, {total / 1048576:.1f} MB')
     elif cmd == 'extract':
         out = os.path.abspath(sys.argv[2])
+        manifest = {
+            'version': 1,
+            'gameId': GAME_ID,
+            'leadoutLba': disc.sectors,
+            'dataSectors': disc.sectors,
+            'tracks': [{'number': 1, 'kind': 'data', 'startLba': 0, 'sectorSize': 2352}],
+            'files': [],
+        }
         for path, lba, size in files:
             dst = os.path.join(out, path.replace('/', os.sep))
             os.makedirs(os.path.dirname(dst), exist_ok=True)
+            raw2336 = path.upper().endswith(('.XA', '.STR'))
             with open(dst, 'wb') as fh:
-                fh.write(disc.read(lba, size))
+                if raw2336:
+                    for sector in range((size + USER_SIZE - 1) // USER_SIZE):
+                        fh.write(disc.raw2336(lba + sector))
+                else:
+                    fh.write(disc.read(lba, size))
+            manifest['files'].append({
+                'path': path.replace('\\', '/'), 'lba': lba, 'size': size,
+                'raw2336': raw2336,
+            })
+        with open(os.path.join(out, 'recompone-disc.json'), 'w', encoding='utf-8') as fh:
+            json.dump(manifest, fh, indent=2)
         print(f'extracted {len(files)} files to {out}')
     else:
         sys.exit(__doc__)

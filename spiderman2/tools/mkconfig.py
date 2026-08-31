@@ -60,6 +60,7 @@ def main():
     for fn, mode, target in (
             ('CdWadFind', 'pre',  'Recompiled.OverlayPatches.CdWadFind'),
             ('CdWadFind', 'post', 'Recompiled.OverlayPatches.CdWadFindExit'),
+            ('CdWadRead', 'pre',  'RecompOne.Runtime.Assets.LooseWadOverrides.Read'),
             ('HeapAlloc', 'pre',  'Recompiled.OverlayPatches.HeapAlloc'),
             ('HeapFree',  'pre',  'Recompiled.OverlayPatches.HeapFree')):
         if fn in names:
@@ -113,7 +114,7 @@ def main():
 
     cfg = {
         'game': {'id': 'SLUS-01378', 'name': 'SpiderMan2', 'output': '../generated'},
-        'cue': '../../Spider-Man 2 - Enter - Electro (USA) (Rev 1).cue',
+        'cue': '../extracted',
         'funcMap': 'funcmaps/main.json',
         'overlays': overlays,
         'patches': patches,

@@ -13,7 +13,7 @@ What is verified, and how:
 |---|---|
 | Boot, Activision/Neversoft logos, intro FMV | captured movie frames decode correctly |
 | Title, main menu, difficulty, pause, memory card, SPECIAL, COSTUME VIEWER, LOAD/SAVE | captured frames of each |
-| **Frame rate** | gameplay loop measured at 29.9/s, matching the 30 fps the game was built around; was running at 131/s |
+| **Timing** | gameplay update/draw 14.8/s, host presents 29.6/s, and the game's VSync callback 59.2/s; the callback was incorrectly running above 260/s |
 | **Levels** | 21 prefixes booted directly, each reaching gameplay and holding 7000 frames, with a screenshot each -- all eight story levels plus the bonus l9 set |
 | **Memory card save** | a save written through the menus appears on the card as `BASLUS-00875SPD`, and LOAD GAME lists it back by the name typed with its level and difficulty |
 | **Costumes** | symbiote renders the black suit and swaps the HUD icon; peterparker renders street clothes and changes the HUD portrait and cartridge count |
@@ -80,10 +80,11 @@ have been enough. On hardware most of a frame is the CPU's own work -- game logi
 transforms, building the table -- and a recompile does all of that in a fraction of a
 millisecond, so even a perfect rasteriser model would still come out several times too
 fast. The cadence is what is reproducible, so the budget is expressed as a frame period.
-`SPIDEY_HZ` sets it; 30 is correct for this title, and `SPIDEY_HZ=0` frees it.
+`SPIDEY_HZ` sets the host presentation/GPU budget; 30 Hz is the default, and
+`SPIDEY_HZ=0` frees it.
 
-Measured after: gameplay loop **29.9/s**, presents **29.9/s** -- the game's own loop is
-the pacer again.
+The final measured cadence after the vblank IRQ repair below is gameplay update/draw
+**14.8/s**, presents **29.6/s**, and the game's own vblank callback **59.2/s**.
 
 ---
 
@@ -341,20 +342,30 @@ together after that. This is why the primitive-level diff between the two aspect
 -- only 61 of 360 primitives matched between runs -- and why comparisons here have to rest
 on counts of a condition rather than on comparing two pictures.
 
-### Open, and not being worked on here: the game runs at roughly double speed
+### Fixed: false vblank interrupts made gameplay run at roughly double speed
 
-Confirmed in play, repeatedly. Present rate is 30.0/s and the vblank counter steps 60.0/s,
-which is faithful to a 30 fps title on hardware, so the frame pacing itself is not
-obviously the fault. `SPIDEY_VBLANK=1` halves the counter step and is the knob to reach
-for first.
+The host present rate and the polled vblank counter were already plausible, but they did
+not show what game code received. Both retail executables register a `VSyncCallback`.
+Spider-Man's callback at `0x8005E510` increments `0x800B5468`; instrumenting that word
+showed **266--273 callback executions per second** while the runtime presented 30/s.
 
-One correction worth recording, because it wasted time: the `GAME TICK` figure the `Rates`
-panel reports is **not** a measure of game speed. `0x800A4E2C` is not a simulation tick --
+`Runtime.ServiceOnly()` was the cause. `DrawSync` calls this service path hundreds of
+times per second while it polls the GPU, and the path incorrectly dispatched IRQ 0 on
+every pass. IRQ 0 is vblank, so animations and timers advanced on service frequency rather
+than the console's 60 Hz clock. The repair removes IRQ delivery from service-only passes
+and makes `PresentFrame()` deliver exactly `VBlankStep` IRQs, keeping the callback and the
+polled vblank counter on the same signal.
+
+Verified over an exact wall-clock second in live level 1 gameplay: callback counter
+`1314 -> 1374` (**60**), game-update counter `328 -> 343` (**15**), with 29.6 host
+presents/s and 232 service-only passes/s. The service passes no longer affect game time.
+
+One correction worth recording, because it wasted time: the old `GAME TICK` address
+`0x800A4E2C` was **not** a measure of game speed --
 it is inside the button-state array at `0x800A4DF4`, slot 3 (Cross), field `+0x8`, which
 counts polls since that button was released. It advances once per input update, so it can
-only ever report that the update rate equals the present rate, which is nearly a
-tautology. Any future attempt at this needs a real clock: the training modes count down a
-displayed 30, 60, 90 or 120 seconds, which can be timed against the wall.
+only ever reported input polling. `Rates` now reads the verified gameplay-update counter
+at `0x800B4F38` and prints the callback counter separately as `VBLANK IRQ`.
 
 **The HUD** is squeezed to match, so presentation leaves it the shape the game drew, and
 each element is anchored to its nearest edge rather than to the frame centre. Anchoring

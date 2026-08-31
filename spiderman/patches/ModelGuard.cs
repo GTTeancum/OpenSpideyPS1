@@ -37,6 +37,7 @@ public static class ModelGuard
 
     static bool _on;
     static string _wanted;
+    static uint _wantedPtr;
     public static int Rescued { get; private set; }
 
     public static void Install()
@@ -56,16 +57,24 @@ public static class ModelGuard
 
     /// <summary>pre-hook -- a0 is the name being looked up.</summary>
     public static void FindEnter(CpuContext c, IMemory m)
-        => _wanted = _on ? ReadName(m, c.A0) : null;
+    {
+        _wantedPtr = _on ? c.A0 : 0;
+        _wanted = _on ? ReadName(m, c.A0) : null;
+    }
 
     /// <summary>post-hook -- v0 is the index, or -1.</summary>
     public static void FindExit(CpuContext c, IMemory m)
     {
         if (!_on || c.V0 != 0xFFFFFFFFu || string.IsNullOrEmpty(_wanted)) return;
 
-        // First choice is the digit pairing the resource lists use: venom <-> venom2.
-        string alt = Counterpart(_wanted);
-        int slot = alt == null ? -1 : IndexOf(m, alt);
+        // A direct act boot may omit a model that a previous act normally leaves
+        // resident.  When the exact loose override exists, load it through the game's
+        // own model loader and answer with the newly occupied slot.  This is safer and
+        // more faithful than aliasing symbi_02 to a different model, and it lets the
+        // automated level matrix exercise the actual converted asset.
+        int slot = TryLoadExact(c, m);
+        string alt = slot >= 0 ? _wanted : Counterpart(_wanted);
+        if (slot < 0) slot = alt == null ? -1 : IndexOf(m, alt);
 
         // Otherwise the closest relative that is loaded. Character variants are named by
         // prefix -- level 2 wants `henchman` and has `Henchngt` resident -- so the
@@ -94,6 +103,25 @@ public static class ModelGuard
         Console.WriteLine($"[model] '{_wanted}' is not loaded here; using '{alt}' (slot {slot})");
         c.V0 = (uint)slot;
         Rescued++;
+    }
+
+    const uint LoadPsxAddr = 0x80069A60u;
+
+    static int TryLoadExact(CpuContext c, IMemory m)
+    {
+        if (_wantedPtr == 0) return -1;
+        string root = Environment.GetEnvironmentVariable("SPIDEY_ASSET_DIR");
+        if (string.IsNullOrWhiteSpace(root) ||
+            !System.IO.File.Exists(System.IO.Path.Combine(root, _wanted + ".psx")))
+            return -1;
+
+        Console.WriteLine($"[model] '{_wanted}' is not resident; loading its exact loose override");
+        var snap = c.Snapshot();
+        c.A0 = _wantedPtr;
+        c.A1 = 0;
+        RecompOne.Runtime.Dispatch.Dispatcher.Call(c, m, LoadPsxAddr);
+        c.Restore(snap);
+        return IndexOf(m, _wanted);
     }
 
     static int IndexOf(IMemory m, string want)

@@ -101,6 +101,7 @@ public static class OverlayPatches
         name = LevelSwitch.Redirect(c, m, name);
         _lastLookup = name;
         _lastRa = c.RA;
+        RecompOne.Runtime.Assets.LooseWadOverrides.Find(name);
         if (name.Length > 4 && name.EndsWith(".bin", StringComparison.OrdinalIgnoreCase))
         {
             string key = name.Substring(0, name.Length - 4);
@@ -111,6 +112,7 @@ public static class OverlayPatches
     /// <summary>post-hook on CdWadFind -- v0 is the sector-rounded size.</summary>
     public static void CdWadFindExit(CpuContext c, IMemory m)
     {
+        RecompOne.Runtime.Assets.LooseWadOverrides.FindExit(c);
         Capture.NoteWadLoad(_lastLookup, System.Threading.Interlocked.Read(ref Diag.Frame));
         if (TraceWad)
             System.Console.WriteLine(

@@ -33,8 +33,14 @@ public static class Program
         }
         catch { }
 
-        string cue = ResolveCue(args);
-        if (cue != null) SeedSettings(cue);
+        string gameData = ResolveGameData(args);
+        if (gameData == null)
+        {
+            Console.Error.WriteLine("[SpiderMan] no loose game data; pass BIN/CUE once to import it");
+            return 2;
+        }
+        SeedSettings(gameData);
+        RecompOne.Runtime.Assets.LooseWadOverrides.Initialize(gameData);
 
         // SPIDEY_GUARD=8009c5d4 -- report whatever writes rubbish into this address.
         var guard = Environment.GetEnvironmentVariable("SPIDEY_GUARD");
@@ -61,21 +67,21 @@ public static class Program
         int hz = TargetHz();
         RecompOne.Runtime.GpuBusy.FrameBudgetMs = 1000.0 / hz;
 
-        // How many vblanks the counter advances per presented frame, separately from the
-        // frame budget above. SPIDEY_VBLANK overrides it: the game steps its simulation
-        // per vblank tick, so this decides the speed of everything that moves, while the
-        // budget only decides how often a frame is drawn.
-        // One, measured. The game steps its simulation once per vblank tick, so this is
-        // the speed of everything that moves; the budget above only sets how often a
-        // frame is drawn. Setting it to 2 -- on the reasoning that a 30 fps game sees
-        // two vblanks per frame and that vblank-based timers should measure real
-        // seconds -- ran the whole game at double speed while rendering at 30.
+        // How long a frame lasts: 2 vblanks, so 30 presented frames a second.
+        //
+        // The game loop is frame-rate dependent, but a host present is not necessarily a
+        // game update. At the default budget the measured steady-state relationship is
+        // 15 gameplay updates, 30 host presents and 60 vblanks per second.
+        // Vblank-driven timers are handled separately below.
         RecompOne.Runtime.Runtime.VBlanksPerFrame = Math.Max(1, (int)Math.Round(60.0 / hz));
 
         // Default 2, which keeps the vblank counter at the console's real 60 Hz while
-        // frames are presented at 30. SPIDEY_VBLANK=1 halves it -- everything the game
-        // times in vblanks then runs at half rate, which is the knob to reach for if the
-        // game looks like it is running fast.
+        // frames are presented at 30.
+        //
+        // VBlankStep also controls how many IRQ 0 deliveries the runtime makes per
+        // frame. The game registers a VSyncCallback and uses its counters for timers,
+        // so the counter and interrupt must describe the same 60 Hz console signal.
+        // Service-only host/CD pumps must never deliver this IRQ; see Runtime.ServiceOnly.
         var vb = Environment.GetEnvironmentVariable("SPIDEY_VBLANK");
         RecompOne.Runtime.Runtime.VBlankStep =
             int.TryParse(vb, out int n) && n >= 1 && n <= 4
@@ -105,7 +111,7 @@ public static class Program
             RecompOne.Runtime.Runtime.Run(() =>
             {
                 var mem = new PSMemory(RamSize);
-                Entry.Run(mem, cue, Title);
+                Entry.Run(mem, gameData, Title);
             });
         }
         catch (Exception ex)
@@ -162,10 +168,29 @@ public static class Program
         return string.IsNullOrEmpty(exe) ? AppContext.BaseDirectory : Path.GetDirectoryName(exe);
     }
 
-    // The disc lives in the repository root; the build output sits a few levels below.
-    static string ResolveCue(string[] args)
+    // Runtime media is a loose-file directory. A BIN/CUE or CHD is accepted only as
+    // one-time import media; once the manifest exists, it is never opened again.
+    static string ResolveGameData(string[] args)
     {
-        if (args.Length > 0 && File.Exists(args[0])) return Path.GetFullPath(args[0]);
+        if (args.Length > 0)
+        {
+            string requested = Path.GetFullPath(args[0]);
+            if (RecompOne.Runtime.Cdrom.LooseDiscImage.IsLooseDirectory(requested)) return requested;
+            if (File.Exists(requested)) return ImportImage(requested);
+        }
+
+        foreach (var dir in CandidateDirs())
+        {
+            foreach (var candidate in new[]
+            {
+                Path.Combine(dir, "spiderman", "extracted"),
+                Path.Combine(dir, "extracted"),
+                Path.Combine(dir, "game"),
+                dir,
+            })
+                if (RecompOne.Runtime.Cdrom.LooseDiscImage.IsLooseDirectory(candidate))
+                    return Path.GetFullPath(candidate);
+        }
 
         foreach (var dir in CandidateDirs())
         {
@@ -173,9 +198,23 @@ public static class Program
             // Two games share this repository; take the one this port is built for.
             var hit = Directory.GetFiles(dir, "*.cue")
                                .FirstOrDefault(f => Path.GetFileName(f).StartsWith("Spider-Man (", StringComparison.OrdinalIgnoreCase));
-            if (hit != null) return Path.GetFullPath(hit);
+            if (hit != null) return ImportImage(hit);
         }
         return null;
+    }
+
+    static string ImportImage(string image)
+    {
+        string output = Environment.GetEnvironmentVariable("SPIDEY_DATA");
+        if (string.IsNullOrWhiteSpace(output))
+        {
+            output = CandidateDirs()
+                .Select(dir => Path.Combine(dir, "spiderman", "extracted"))
+                .FirstOrDefault(Directory.Exists);
+        }
+        if (string.IsNullOrWhiteSpace(output))
+            output = Path.Combine(ExeDirectory() ?? AppContext.BaseDirectory, "game");
+        return RecompOne.Runtime.Cdrom.LooseDiscImporter.Import(image, output, BootFile);
     }
 
     static System.Collections.Generic.IEnumerable<string> CandidateDirs()
@@ -191,20 +230,23 @@ public static class Program
         yield return Directory.GetCurrentDirectory();
     }
 
-    // Written once so the runtime's "pick a disc" gate passes without user interaction.
-    static void SeedSettings(string cue)
+    // Store the loose directory, never the import image, as the persistent runtime path.
+    static void SeedSettings(string gameData)
     {
         try
         {
             const string path = "settings.json";
-            if (File.Exists(path))
+            var options = new System.Text.Json.JsonSerializerOptions
             {
-                var text = File.ReadAllText(path);
-                if (text.Contains("\"CdPath\"") && !text.Contains("\"CdPath\": \"\"")) return;
-            }
-            var json = System.Text.Json.JsonSerializer.Serialize(
-                new RecompOne.Runtime.Config.GameConfig { CdPath = cue },
-                new System.Text.Json.JsonSerializerOptions { WriteIndented = true });
+                WriteIndented = true,
+                PropertyNameCaseInsensitive = true,
+            };
+            var config = File.Exists(path)
+                ? System.Text.Json.JsonSerializer.Deserialize<RecompOne.Runtime.Config.GameConfig>(File.ReadAllText(path), options)
+                : null;
+            config ??= new RecompOne.Runtime.Config.GameConfig();
+            config.CdPath = gameData;
+            var json = System.Text.Json.JsonSerializer.Serialize(config, options);
             File.WriteAllText(path, json);
         }
         catch (Exception e)

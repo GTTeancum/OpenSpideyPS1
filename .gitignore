@@ -4,6 +4,8 @@
 *.sub
 *.ccd
 *.chd
+*.gdi
+*.raw
 
 # .NET build output
 bin/
@@ -25,6 +27,10 @@ logs/
 # Extracted disc data
 spiderman/extracted/
 spiderman2/extracted/
+dreamcast/extracted/
+dreamcast/decoded/
+dreamcast/converted/
+docs/texture-dumps/
 
 # Published single-file build
 spiderman/port/dist/
@@ -33,6 +39,8 @@ spiderman2/port/dist/
 spiderman/port/**/shots*/
 spiderman2/port/**/shots*/
 run*.txt
+/cursor_capture.png
+/screen_without_cursor.png
 
 # Disc cue sheets -- part of a disc dump; supply your own
 *.cue

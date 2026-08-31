@@ -31,6 +31,7 @@ public static class LevelSwitch
     const uint Scratch = 0x802B0000;
 
     static readonly Regex LevelName = new(@"^(l\d+a\d+[a-z]?)(.*)$", RegexOptions.IgnoreCase);
+    static readonly Regex AudioLevelName = new(@"^(l\d+a\d+)", RegexOptions.IgnoreCase);
 
     static string _target;
     static string _source;
@@ -67,8 +68,21 @@ public static class LevelSwitch
         _source ??= prefix.ToLowerInvariant();
         if (!string.Equals(prefix, _source, StringComparison.OrdinalIgnoreCase)) return name;
 
+        // Alternate acts such as L1A2A and L3A1A have their own trigger/geometry files
+        // but reuse the parent act's VAB/SFX pair.  Asking CD.WAD for L1A2A.VAB runs the
+        // retail lookup off the end because that entry does not exist.  Redirect only
+        // those audio requests to the numeric parent while keeping every other resource
+        // on the exact alternate-act prefix.
+        string target = _target;
+        if (rest.Equals(".VAB", StringComparison.OrdinalIgnoreCase) ||
+            rest.Equals(".SFX", StringComparison.OrdinalIgnoreCase))
+        {
+            var audio = AudioLevelName.Match(target);
+            if (audio.Success) target = audio.Groups[1].Value;
+        }
+
         // Follow the case the game used, in case the archive compare is case sensitive.
-        string swapped = char.IsUpper(prefix[0]) ? _target.ToUpperInvariant() : _target;
+        string swapped = char.IsUpper(prefix[0]) ? target.ToUpperInvariant() : target;
         return Rewrite(c, m, name, swapped + rest);
     }
 

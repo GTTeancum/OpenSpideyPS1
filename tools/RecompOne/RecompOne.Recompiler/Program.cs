@@ -40,14 +40,14 @@ foreach (var overlay in config.Overlays)
 
 string cuePath = Path.GetFullPath(Path.Combine(configDir, config.Cue));
 
-if (!File.Exists(cuePath))
+if (!File.Exists(cuePath) && !Directory.Exists(cuePath))
 {
-    Console.Error.WriteLine($"disc file not found: {cuePath}");
+    Console.Error.WriteLine($"game data not found: {cuePath}");
     return 1;
 }
 
 Console.WriteLine($"[RecompOne] Game: {config.Game.Name} ({config.Game.Id})");
-Console.WriteLine($"[RecompOne] Disc file: {cuePath}");
+Console.WriteLine($"[RecompOne] Game data: {cuePath}");
 
 var fs = DiscFs.Open(cuePath);
 string outDir = Path.GetFullPath(Path.Combine(configDir, config.Game.Output));
@@ -175,7 +175,7 @@ static int GenerateFromLinearSweep(string? discPath, string? discFile, string? l
     if (localPath == null)
     {
         discPath = Path.GetFullPath(discPath!);
-        if (!File.Exists(discPath))
+        if (!File.Exists(discPath) && !Directory.Exists(discPath))
         {
             Console.Error.WriteLine($"disc file not found: {discPath}");
             return 1;

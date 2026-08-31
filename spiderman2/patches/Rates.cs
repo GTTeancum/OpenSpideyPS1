@@ -21,16 +21,29 @@ public static class Rates
     /// against a real clock this is the game's speed -- which the draw rate and the
     /// vblank rate both fail to report on their own.
     ///
-    /// Spider-Man's is a known address; this game's has not been located, so it is a
-    /// switch rather than a constant. SPIDEY_TICK=800a4e2c names a candidate counter and
-    /// the column starts reporting; unset, the column reads zero and says nothing, which
-    /// is better than a plausible number read from the wrong word.
+    /// 0x800C1F94, found by differencing RAM snapshots during level 1 and then checked
+    /// against the draw rate: in steady gameplay it advances once per DrawOTag update.
+    /// SPIDEY_TICK overrides it, and SPIDEY_TICK=0 turns the column off.
+    ///
+    /// Do not point this at the block around 0x800B29D0, which advances at 2.00 per frame
+    /// and looks like a double-speed clock. That is the pad debounce array -- the input
+    /// code walks it twice per update -- and reading it as a tick is what made the
+    /// Spider-Man port's equivalent column print nonsense for so long.
     /// </summary>
     static readonly uint TickCounter = ParseAddr(Environment.GetEnvironmentVariable("SPIDEY_TICK"));
 
+    const uint DefaultTick = 0x800C1F94;
+
+    /// <summary>
+    /// Incremented by the function registered with VSyncCallback at 0x800690A8.
+    /// It measures delivered vblank IRQs from inside the retail game, independently
+    /// of the runtime's host event counter.
+    /// </summary>
+    const uint VBlankCallbackCounter = 0x800C2434;
+
     static uint ParseAddr(string s)
     {
-        if (string.IsNullOrWhiteSpace(s)) return 0;
+        if (string.IsNullOrWhiteSpace(s)) return DefaultTick;
         try { return Convert.ToUInt32(s.Trim().Replace("0x", ""), 16); }
         catch { return 0; }
     }
@@ -43,7 +56,7 @@ public static class Rates
 
     static readonly Stopwatch _clock = Stopwatch.StartNew();
     static double _lastAt;
-    static long _ot, _disp, _wait, _poll, _present, _service, _vcount, _tick;
+    static long _ot, _disp, _wait, _poll, _present, _service, _vcount, _tick, _vblankCallback;
 
     static string Top(System.Collections.Concurrent.ConcurrentDictionary<uint, long> d)
     {
@@ -67,6 +80,7 @@ public static class Rates
         long service = RecompOne.Runtime.Runtime.ServicePasses;
         long vcount  = System.Threading.Interlocked.Read(ref Diag.Frame);
         long tick    = (_mem != null && TickCounter != 0) ? (int)_mem.ReadU32(TickCounter) : 0;
+        long vblankCallback = _mem != null ? (int)_mem.ReadU32(VBlankCallbackCounter) : 0;
 
         string s =
             $"rates/s: PutDispEnv {(disp - _disp) / dt,6:F1} | " +
@@ -76,11 +90,13 @@ public static class Rates
             $"present {(present - _present) / dt,6:F1} | " +
             $"service {(service - _service) / dt,7:F0} | " +
             $"vblank {(vcount - _vcount) / dt,6:F1} | " +
-            $"GAME TICK {(tick - _tick) / dt,6:F1}" +
+            $"GAME TICK {(tick - _tick) / dt,6:F1} | " +
+            $"VBLANK IRQ {Math.Max(0, vblankCallback - _vblankCallback) / dt,6:F1}" +
             $" | wedge hits {RecompOne.Runtime.Gpu.WedgeHits} of {RecompOne.Runtime.Gpu.TotalVerts} verts";
 
         _ot = ot; _disp = disp; _wait = wait;
         _poll = poll; _present = present; _service = service; _vcount = vcount; _tick = tick;
+        _vblankCallback = vblankCallback;
         return s + "\n[diag] swap sites: " + Top(RecompOne.Runtime.Sdk.LibGpu.DispCallers)
                  + "\n[diag] draw sites: " + Top(RecompOne.Runtime.Sdk.LibGpu.OtCallers)
                  + "\n[diag] frame loop: " + Top(RecompOne.Runtime.Sdk.LibGpu.DispGrandparents);

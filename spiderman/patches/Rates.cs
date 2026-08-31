@@ -17,11 +17,29 @@ namespace Recompiled;
 public static class Rates
 {
     /// <summary>
-    /// The game's simulation tick, at 0x800A4E2C. Everything that moves advances with
-    /// it, so measured against a real clock this is the game's speed -- which the draw
-    /// rate and the vblank rate both fail to report on their own.
+    /// A counter the game advances once per gameplay update, so measured against a real
+    /// clock this is the game's speed -- which the host present rate and the vblank rate
+    /// both fail to report on their own.
+    ///
+    /// This used to read 0x800A4E2C, described as the simulation tick. It is not one.
+    /// That address is inside the pad debounce array the helper at 0x8006B208 maintains
+    /// -- +0 pressed, +1 edge, +4 frames held, +8 frames released, +12 the counter this
+    /// was reading -- and it resets whenever the button changes, which is why the column
+    /// used to print 8.4, then 3.2, then 136, and sometimes a negative rate. Those
+    /// numbers described a button, not the game.
+    ///
+    /// 0x800B4F38 was found by differencing RAM snapshots and then checked against the
+    /// draw rate. In steady gameplay it advances once per DrawOTag/PutDispEnv update:
+    /// 15 times while the runtime presents 30 times and delivers 60 vblanks.
     /// </summary>
-    const uint TickCounter = 0x800A4E2C;
+    const uint TickCounter = 0x800B4F38;
+
+    /// <summary>
+    /// Incremented by the function registered with VSyncCallback at 0x8005E510.
+    /// Unlike the host event counter, this proves how many vblank IRQs game code
+    /// actually received. It must stay near 60/s even though gameplay updates at 15/s.
+    /// </summary>
+    const uint VBlankCallbackCounter = 0x800B5468;
 
     static RecompOne.Runtime.Memory.IMemory _mem;
 
@@ -31,7 +49,7 @@ public static class Rates
 
     static readonly Stopwatch _clock = Stopwatch.StartNew();
     static double _lastAt;
-    static long _frames, _ot, _disp, _wait, _poll, _present, _service, _vcount, _tick;
+    static long _frames, _ot, _disp, _wait, _poll, _present, _service, _vcount, _tick, _vblankCallback;
 
     static string Top(System.Collections.Concurrent.ConcurrentDictionary<uint, long> d)
     {
@@ -56,6 +74,7 @@ public static class Rates
         long service = RecompOne.Runtime.Runtime.ServicePasses;
         long vcount  = System.Threading.Interlocked.Read(ref Diag.Frame);
         long tick    = _mem != null ? (int)_mem.ReadU32(TickCounter) : 0;
+        long vblankCallback = _mem != null ? (int)_mem.ReadU32(VBlankCallbackCounter) : 0;
 
         string s =
             $"rates/s: RunFrame {(frames - _frames) / dt,6:F1} | " +
@@ -66,11 +85,13 @@ public static class Rates
             $"present {(present - _present) / dt,6:F1} | " +
             $"service {(service - _service) / dt,7:F0} | " +
             $"vblank {(vcount - _vcount) / dt,6:F1} | " +
-            $"GAME TICK {(tick - _tick) / dt,6:F1}" +
+            $"GAME TICK {(tick - _tick) / dt,6:F1} | " +
+            $"VBLANK IRQ {Math.Max(0, vblankCallback - _vblankCallback) / dt,6:F1}" +
             $" | wedge hits {RecompOne.Runtime.Gpu.WedgeHits} of {RecompOne.Runtime.Gpu.TotalVerts} verts";
 
         _frames = frames; _ot = ot; _disp = disp; _wait = wait;
         _poll = poll; _present = present; _service = service; _vcount = vcount; _tick = tick;
+        _vblankCallback = vblankCallback;
         return s + "\n[diag] swap sites: " + Top(RecompOne.Runtime.Sdk.LibGpu.DispCallers)
                  + "\n[diag] draw sites: " + Top(RecompOne.Runtime.Sdk.LibGpu.OtCallers)
                  + "\n[diag] frame loop: " + Top(RecompOne.Runtime.Sdk.LibGpu.DispGrandparents);

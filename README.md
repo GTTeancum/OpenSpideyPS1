@@ -62,9 +62,9 @@ level and plays it.
 - **First level.** Episode 1 mission 0, reached through the real menu path in 3 of 3 runs,
   then 10,000+ frames of live gameplay with no frozen stretch: HUD, pickups, physics, camera,
   working controls.
-- **Frame pacing.** 28.5 draws a second against a 30 fps target. Like Spider-Man it never
-  waits on a vblank during gameplay — `VSync(0)` and `VSync(-1)` both measure zero — so the
-  GPU busy model is what paces it.
+- **Frame pacing.** In gameplay the engine updates and draws at 14.9/s, the runtime presents
+  at 29.6/s, and the game's own VSync callback receives 59.3 vblank IRQs/s. Like Spider-Man
+  it never calls `VSync` in gameplay, so the GPU busy model paces the loop.
 - **Audio.** SPU voices measured at full-scale peak, with XA and MDEC feeding the movies.
 - **Level select and cheats.** All ten of the game's own cheat handlers read off and
   reproduced; `SPIDEY_LEVEL` boots any of 44 level prefixes.
@@ -79,7 +79,7 @@ Boots, plays its logos and intro movie, reaches every menu and plays.
 - **Frame pacing.** The game never calls `VSync` during gameplay: it submits an ordering
   table and spins on `DrawSync` until the GPU has finished, and that spin *is* the frame. The
   runtime's `DrawSync` answered "idle" always, so the game ran at 131 fps. It is now paced by
-  a GPU busy model and draws at 30.
+  a GPU busy model: 14.8 gameplay updates/s, 29.6 presents/s and 59.2 vblank callbacks/s.
 - **Levels.** 21 level prefixes were booted directly and every one reached gameplay and held
   7000 frames — all eight story levels plus the bonus set.
 - **Memory card.** Saves and loads. A save written through the menus appears on the card and
@@ -97,8 +97,12 @@ simply be invoked. See [spiderman/TO_DO.md](spiderman/TO_DO.md).
 
 ## Building
 
-You need the retail disc. **No game data is included here, and none should ever be committed** —
-the executable, the archives, the overlays and the movies are all read from your own copy.
+You need the retail disc once. **No game data is included here, and none should ever be
+committed.** BIN/CUE is import media, not the runtime format: `tools/disc.py` extracts
+individual files plus `recompone-disc.json`, and every later tool and game launch reads
+that loose directory. XA and STR files retain their 2336-byte Mode 2 sectors so their
+stream metadata is not lost. After both games have been imported, the images are no
+longer needed for building, recompiling, or playing.
 
 Needs .NET 10 and Python 3 with `numpy` and `PIL`. Put the disc at the repository root, then:
 
@@ -113,6 +117,13 @@ python tools/genmaps.py
 python tools/build.py
 ```
 
+The generated config points RecompOne at `extracted/`, not at BIN/CUE. Passing an image
+to a built port also performs this import once and stores the loose directory in
+`settings.json`; subsequent launches prefer the loose manifest and do not reopen the
+image. `CD.WAD` entries are served from `extracted/wad/` in both games, so archive
+contents are loose and directly replaceable too. Set `SPIDEY_DATA` during that first
+import to choose another destination.
+
 `tools/build.py` runs the whole loop and stops when the unmapped-call count stops falling.
 Spider-Man converges at 3,314 functions across 31 modules; Spider-Man 2 at 3,262 across 29.
 
@@ -126,7 +137,7 @@ Spider-Man converges at 3,314 functions across 31 modules; Spider-Man 2 at 3,262
 Both ports share the `SPIDEY_*` prefix; the level names and the cheat lists differ.
 
 ```
-SPIDEY_HZ=30               the rate the game runs at
+SPIDEY_HZ=30               host presentation/GPU pacing budget (default 30 Hz)
 SPIDEY_LEVEL=l5a3          boot straight into a level (Spider-Man: 47 prefixes,
                            l1a1..l9a4; Spider-Man 2: 44, e1m0..e6m4 plus the
                            training, warm-up and demo sets)
@@ -145,6 +156,11 @@ several that turned out *not* to be the cause, recorded with their evidence.
 built on one engine, and [spiderman2/TO_DO.md](spiderman2/TO_DO.md) records the investigation
 of a "hang" that turned out to be the game waiting for the player — including the three
 plausible causes that measurement killed first.
+
+The added Dreamcast release is kept as a reference extraction rather than a third port.
+[`dreamcast/README.md`](dreamcast/README.md) records its complete filesystem extraction,
+decoded models/textures/audio/scripts, usable FMV conversion, and the measured comparison
+between its high-detail Spider-Man model and both PS1 games.
 
 ## Licence
 

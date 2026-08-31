@@ -345,7 +345,8 @@ public static class HostWindow
         while (true)
         {
             var path = ConfigManager.Game.CdPath;
-            if (!string.IsNullOrWhiteSpace(path) && File.Exists(path) && Runtime.ValidateDisc(path) == null)
+            if (!string.IsNullOrWhiteSpace(path) && (File.Exists(path) || Directory.Exists(path)) &&
+                Runtime.ValidateDisc(path) == null)
                 return;
 
             try { _window.DoEvents(); } catch { }
@@ -372,7 +373,11 @@ public static class HostWindow
         _vramTex= CreateTexture(_gl);
         _ramTex = CreateTexture(_gl);
 
-        Hle.GlVram.Scale = ConfigManager.View.RenderScale;
+        int renderScale = ConfigManager.View.RenderScale;
+        var renderScaleOverride = Environment.GetEnvironmentVariable("RECOMP_RENDER_SCALE");
+        if (int.TryParse(renderScaleOverride, out int requestedScale))
+            renderScale = Math.Clamp(requestedScale, 1, 8);
+        Hle.GlVram.Scale = renderScale;
         _glBackend = (Hle.GlCore)Hle.GpuBackendFactory.Create(_gl,
             Hle.GpuBackendFactory.Parse(ConfigManager.View.GpuBackend));
         _glBackend.InitGl();
@@ -410,7 +415,8 @@ public static class HostWindow
         ConfigManager.ApplyViewToPanels(PanelManager.Panels);
 
         var cdPath = ConfigManager.Game.CdPath;
-        if (string.IsNullOrWhiteSpace(cdPath) || !File.Exists(cdPath) || Runtime.ValidateDisc(cdPath) != null)
+        if (string.IsNullOrWhiteSpace(cdPath) || (!File.Exists(cdPath) && !Directory.Exists(cdPath)) ||
+            Runtime.ValidateDisc(cdPath) != null)
             PopupManager.Open<DiscPickerPopup>();
     }
 

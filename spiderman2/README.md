@@ -32,7 +32,8 @@ spiderman2/
 
 ## Building
 
-Needs .NET 10, Python 3 with `numpy`/`PIL`, and the disc at the repository root.
+Needs .NET 10, Python 3 with `numpy`/`PIL`, and the disc at the repository root for the
+first extraction only.
 
 ```bash
 cd spiderman2
@@ -42,6 +43,12 @@ python tools/overlays.py build config/overlays  # relocate the overlays
 python tools/genmaps.py                         # linear-sweep maps (slow, once)
 python tools/build.py                           # maps -> recompile -> closure -> build
 ```
+
+`tools/disc.py` writes normal loose files, a `recompone-disc.json` LBA manifest, and
+sector-preserving XA/STR files. `config/spiderman2.json`, the recompiler, and the built
+port all read `extracted/` afterward; BIN/CUE is not a runtime dependency and can be
+removed or archived after this first import. At runtime, CD.WAD lookups are served from
+the individual files under `extracted/wad/` as well.
 
 `tools/build.py` converges at **3,262 functions** across 29 modules with **9 residual
 targets**, which are jump-table analysis running off the end of a real table into the
@@ -196,7 +203,7 @@ for the player", which was the whole answer.
 emulated console drew, not what the desktop showed.
 
 ```
-SPIDEY_HZ=30               the rate the game runs at; 30 is correct for this title
+SPIDEY_HZ=30               host presentation/GPU pacing budget; default 30 Hz
 SPIDEY_LEVEL=e3m1          boot straight into a level (44 prefixes)
 SPIDEY_CHEATS=all          the game's own cheats: everything, levels, costumes,
                            gallery, training, debug, bigfeet, bighead, whatif
