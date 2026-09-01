@@ -39,15 +39,43 @@
     },
     "viewer": {
       "runtimeReport": "dreamcast/converted/all-characters-viewer-runtime-current/runtime-validation.json",
-      "runtimeReportSha256": "751620a68645d0af80307e2fc3ba076a8cb1d3ee9cf4862ccdc25df6401d75e8",
+      "runtimeReportSha256": "7e2429de1f52ef2e72fcdeb5bfe7dd1df559e547006a7d630e830788064ca356",
       "reviewedFrameCount": 26,
+      "frameNumbers": [
+        1776,
+        2330,
+        2630,
+        2930,
+        3230,
+        3530,
+        3830,
+        4130,
+        4430,
+        4730,
+        5030,
+        5330,
+        5630,
+        5930,
+        6230,
+        6530,
+        6830,
+        7130,
+        7430,
+        7730,
+        8030,
+        8330,
+        8630,
+        8930,
+        9230,
+        9530
+      ],
       "status": "manual-model-review-complete-with-user-holds",
       "userHeldModels": [
         "blackcat",
         "jjviewer",
         "scorpion"
       ],
-      "finding": "All 26 selectable models were inspected. The current Black Cat, neutral-grey Jameson, and articulated Scorpion captures are technically coherent but remain held for user acceptance. MYSTVIEW intentionally has no fishbowl mesh: both original Dreamcast MYSTVIEW.PSX and MYSTERIO.PSX decode without one, so the bowl is a separate retail effect rather than lost converted geometry."
+      "finding": "All 26 fresh schema-3 captures were opened and inspected individually in roster order after each was anchored to its exact model load and passed the native live-3D 16bpp plus CHARACTER VIEWER screen gate. The current Black Cat, neutral-grey Jameson, and articulated Scorpion captures are technically coherent but remain held for user acceptance. MYSTVIEW intentionally has no fishbowl mesh: both original Dreamcast MYSTVIEW.PSX and MYSTERIO.PSX decode without one, so the bowl is a separate retail effect rather than lost converted geometry."
     },
     "hostagef": {
       "runtimeReport": "dreamcast/converted/hostagef-viewer-probe/runtime-validation.json",
@@ -69,7 +97,7 @@
       "reviewedFrameCount": 11,
       "frameNumbers": [4200, 4225, 4250, 4275, 4300, 4325, 4350, 4375, 4400, 4425, 4450],
       "status": "manual-gameplay-review-complete-user-review-required",
-      "finding": "Scorpion's tail remains attached, continuously articulated, blue/green textured, and hook-aligned through all 11 frames. Jameson's body is not visible in this sequence, so these frames prove his resource/runtime presence but not his appearance; his current neutral-grey visual evidence is the Character Viewer frame_05850.png. Both actors remain held for user acceptance."
+      "finding": "Scorpion's tail remains attached, continuously articulated, blue/green textured, and hook-aligned through all 11 frames. Jameson's body is not visible in this sequence, so these frames prove his resource/runtime presence but not his appearance; his current neutral-grey visual evidence is the schema-3 Character Viewer frame_04130.png. Both actors remain held for user acceptance."
     }
   }
 }

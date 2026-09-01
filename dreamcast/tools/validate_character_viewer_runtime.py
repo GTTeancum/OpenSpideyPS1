@@ -8,6 +8,7 @@ Controller input is injected only through the recompilation's process-local
 from __future__ import annotations
 
 import argparse
+import hashlib
 import json
 import os
 from pathlib import Path
@@ -60,6 +61,7 @@ ROSTER = (
 )
 
 ROUTE = (
+    "120:start:12",                 # skip boot FMV; at-or-after input cannot be skipped
     "title.bmr+120:start:12",       # title -> main wheel
     "title.bmr+300:right:12",       # NEW GAME -> RECORDS
     "title.bmr+500:down:12",        # RECORDS -> SPECIAL
@@ -72,6 +74,15 @@ STEP_INTERVAL = 300
 CROSS_DELAY = 150
 FIRST_CAPTURE = 3600
 ADVANCE_CAPTURE = 4050
+MODEL_SHOT_DELAY = 180
+VIEWER_TITLE_CROP = (70, 60, 410, 175)
+VIEWER_TITLE_SAMPLE_SIZE = (48, 16)
+VIEWER_TITLE_REFERENCE = bytes.fromhex(
+    "00000000000000000000000000000000000000000000000000000000000000c9"
+    "19c633ce01e999e67bde03293b664918030f2bcec11e020f2bca411802493a4e"
+    "511001c14a4a701c008040002000000000000000000000000000000000000000"
+)
+VIEWER_TITLE_MAX_HAMMING = 80
 
 
 def parse_args() -> argparse.Namespace:
@@ -119,6 +130,13 @@ def capture_frames(roster: tuple[tuple[str, str], ...]) -> list[int]:
     ]
 
 
+def capture_specs(roster: tuple[tuple[str, str], ...]) -> list[str]:
+    return [
+        f"model.{model}{'#3' if model == 'spidey' else ''}+{MODEL_SHOT_DELAY}"
+        for _, model in roster
+    ]
+
+
 def ensure_no_game_process() -> None:
     result = subprocess.run(
         ["tasklist", "/FI", "IMAGENAME eq SpiderMan.exe", "/FO", "CSV", "/NH"],
@@ -133,7 +151,36 @@ def ensure_no_game_process() -> None:
         raise RuntimeError("refusing to launch while another SpiderMan.exe process exists")
 
 
-def verify_capture(path: Path, render_scale: int) -> dict[str, Any]:
+def viewer_title_signature(image: Image.Image) -> dict[str, Any]:
+    sampled = image.convert("L").crop(VIEWER_TITLE_CROP).resize(
+        VIEWER_TITLE_SAMPLE_SIZE,
+        Image.Resampling.BOX,
+    )
+    values = list(sampled.get_flattened_data())
+    packed = bytes(
+        sum((1 if values[index + bit] >= 128 else 0) << (7 - bit) for bit in range(8))
+        for index in range(0, len(values), 8)
+    )
+    distance = sum((actual ^ expected).bit_count() for actual, expected in zip(
+        packed,
+        VIEWER_TITLE_REFERENCE,
+    ))
+    if distance > VIEWER_TITLE_MAX_HAMMING:
+        raise ValueError(
+            f"CHARACTER VIEWER title signature distance {distance} exceeds "
+            f"{VIEWER_TITLE_MAX_HAMMING}"
+        )
+    return {
+        "crop": list(VIEWER_TITLE_CROP),
+        "sampleSize": list(VIEWER_TITLE_SAMPLE_SIZE),
+        "sha256": hashlib.sha256(packed).hexdigest(),
+        "hammingDistance": distance,
+        "maximumHammingDistance": VIEWER_TITLE_MAX_HAMMING,
+        "matches": True,
+    }
+
+
+def verify_capture(path: Path, render_scale: int, console: str) -> dict[str, Any]:
     with Image.open(path) as opened:
         opened.load()
         image = opened.convert("RGB")
@@ -150,10 +197,17 @@ def verify_capture(path: Path, render_scale: int) -> dict[str, Any]:
             f"capture is not a reviewable rendered frame "
             f"(range={dynamic_range}, colors={color_count}): {path}"
         )
+    if not re.search(
+        rf"\[capture\].*{re.escape(path.name)} .*"
+        r"\(live-3d 16bpp display aspect\)",
+        console,
+    ):
+        raise ValueError(f"capture lacks native live-3D 16bpp marker: {path}")
     return {
         "size": list(size),
         "dynamicRange": dynamic_range,
         "colorCount": color_count,
+        "viewerTitleSignature": viewer_title_signature(image),
     }
 
 
@@ -196,6 +250,7 @@ def main() -> None:
         old_capture.unlink()
     console_path = output / "console.log"
     frames = capture_frames(roster)
+    shot_specs = capture_specs(roster)
     exit_frame = frames[-1] + 150
 
     probe_source: Path | None = None
@@ -216,7 +271,7 @@ def main() -> None:
                 "SPIDEY_CHEATS": "viewers",
                 "SPIDEY_HZ": "60",
                 "SPIDEY_SCRIPT": build_script(roster),
-                "SPIDEY_SHOTS": ",".join(str(frame) for frame in frames),
+                "SPIDEY_SHOTS": ",".join(shot_specs),
                 "SPIDEY_SHOT_DIR": str(output),
                 "SPIDEY_EXIT": str(exit_frame),
                 "SPIDEY_LOG_DIR": str(output),
@@ -265,16 +320,34 @@ def main() -> None:
 
     captures: list[dict[str, Any]] = []
     capture_errors: list[str] = []
-    for (display_name, model), frame in zip(roster, frames):
+    resolved_frames: list[int] = []
+    for _, model in roster:
+        matches = re.findall(
+            rf"\[capture\] 'model\.{re.escape(model)}' at frame (\d+): "
+            r"model shot resolved to frame (\d+)",
+            text,
+            re.IGNORECASE,
+        )
+        if len(matches) != 1:
+            capture_errors.append(
+                f"{model}: expected one model-anchored shot resolution, found {matches}"
+            )
+            resolved_frames.append(-1)
+        else:
+            resolved_frames.append(int(matches[0][1]))
+    for (display_name, model), shot_spec, frame in zip(roster, shot_specs, resolved_frames):
         path = output / f"frame_{frame:05d}.png"
         try:
-            capture_metrics = verify_capture(path, args.render_scale)
+            if frame < 0:
+                raise ValueError("model-anchored shot did not resolve")
+            capture_metrics = verify_capture(path, args.render_scale, text)
             captures.append(
                 {
                     "index": len(captures),
                     "displayName": display_name,
                     "model": model,
                     "frame": frame,
+                    "shotAnchor": shot_spec,
                     "path": str(path),
                     **capture_metrics,
                     **(
@@ -306,7 +379,7 @@ def main() -> None:
         else "fail"
     )
     report = {
-        "schemaVersion": 2,
+        "schemaVersion": 3,
         "batch": str(batch),
         "probe": (
             {
@@ -333,6 +406,10 @@ def main() -> None:
         "returnCode": return_code,
         "timedOut": timed_out,
         "cleanExit": clean_exit,
+        "captureGate": (
+            "model-load-anchored native live-3D 16bpp readback plus normalized "
+            "CHARACTER VIEWER title signature"
+        ),
         "captures": captures,
         "consoleLog": str(console_path),
         "status": status,

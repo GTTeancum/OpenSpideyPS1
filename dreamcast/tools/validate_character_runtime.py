@@ -46,7 +46,7 @@ DEFAULT_LEVELS = (
     "l8a6",   # superock
 )
 INPUT_SCRIPT = (
-    "title.bmr+120:start:12;title.bmr+420:cross:12;"
+    "120:start:12;title.bmr+120:start:12;title.bmr+420:cross:12;"
     "title.bmr+720:cross:12;title.bmr+1100:cross:12;"
     "title.bmr+1500:cross:12;title.bmr+1900:cross:12"
 )
@@ -139,6 +139,7 @@ def summarize_level(
     exit_frame: int,
     reused: bool,
     render_scale: int,
+    shots: str,
 ) -> dict[str, Any]:
     overrides = sorted(
         {
@@ -166,6 +167,12 @@ def summarize_level(
                 raise ValueError(
                     f"not a reviewable rendered frame (range={dynamic_range}, colors={color_count})"
                 )
+            if not re.search(
+                rf"\[capture\].*{re.escape(path.name)} .*"
+                r"\(live-3d 16bpp display aspect\)",
+                text,
+            ):
+                raise ValueError("capture lacks native live-3D 16bpp marker")
             capture_sizes[path.name] = {
                 "size": list(size),
                 "dynamicRange": dynamic_range,
@@ -193,6 +200,22 @@ def summarize_level(
                 level_asset_proofs[suffix] = f"{stem}.psx"
                 break
     level_assets_loaded = len(level_asset_proofs) == 3
+    geometry_proof = level_asset_proofs.get("G")
+    geometry_log_position = (
+        text.lower().find(f"{geometry_proof.lower()}[wad]")
+        if geometry_proof
+        else -1
+    )
+    capture_log_positions = [
+        text.find(f"[capture] {path}")
+        for path in captures
+    ]
+    expected_capture_count = len([shot for shot in shots.split(",") if shot.strip()])
+    level_geometry_capture_gate = (
+        geometry_log_position >= 0
+        and len(captures) == expected_capture_count
+        and all(position > geometry_log_position for position in capture_log_positions)
+    )
     bad_markers = [
         marker
         for marker in ("Unhandled exception", "watchdog: STALLED", "MISSED -- overlay not resident")
@@ -204,6 +227,7 @@ def summarize_level(
         and return_code == 0
         and clean_exit
         and level_assets_loaded
+        and level_geometry_capture_gate
         and captures
         and not capture_errors
         and not bad_markers
@@ -217,6 +241,9 @@ def summarize_level(
         "cleanExit": clean_exit,
         "levelAssetsLoaded": level_assets_loaded,
         "levelAssetProofs": level_asset_proofs,
+        "levelGeometryCaptureGate": level_geometry_capture_gate,
+        "shotSpec": shots,
+        "expectedCaptureCount": expected_capture_count,
         "badMarkers": bad_markers,
         "captureErrors": capture_errors,
         "loadedOverrides": overrides,
@@ -252,6 +279,7 @@ def run_level(
             exit_frame,
             True,
             render_scale,
+            shots,
         )
         if existing["status"] == "pass":
             return existing
@@ -309,6 +337,7 @@ def run_level(
         exit_frame,
         False,
         render_scale,
+        shots,
     )
 
 
@@ -367,7 +396,7 @@ def main() -> None:
     }
     missing = sorted(runtime_target - covered)
     report = {
-        "schemaVersion": 2,
+        "schemaVersion": 3,
         "manifest": str(manifest_path),
         "batch": str(batch),
         "inputMethod": "process-local SPIDEY_SCRIPT controller state",
@@ -382,6 +411,10 @@ def main() -> None:
         "runtimeMissingActors": missing,
         "results": results,
         "coveragePolicy": "requested-levels" if args.allow_partial_coverage else "all-story-actors",
+        "captureGate": (
+            "boot FMV skip plus requested level-geometry load ordering and native "
+            "live-3D 16bpp readback"
+        ),
         "status": "pass"
         if all(result["status"] == "pass" for result in results)
         and (args.allow_partial_coverage or not missing)

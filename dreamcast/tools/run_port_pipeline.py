@@ -424,7 +424,7 @@ def audit_runtime_evidence(runtime_executed: bool) -> dict[str, Any]:
             "SM1 story actor matrix",
             story_path,
             "pass",
-            2,
+            3,
             actor_manifest,
             (
                 ("renderScale is not 4", story.get("renderScale") == 4),
@@ -437,6 +437,14 @@ def audit_runtime_evidence(runtime_executed: bool) -> dict[str, Any]:
                     "one-process policy is missing",
                     story.get("processPolicy")
                     == "strictly sequential; never more than one SpiderMan process",
+                ),
+                (
+                    "one or more story captures lacks the live level-geometry gate",
+                    all(
+                        result.get("levelGeometryCaptureGate") is True
+                        for result in story.get("results", [])
+                    )
+                    and len(story.get("results", [])) == SM1_STORY_LEVEL_COUNT,
                 ),
             ),
         ),
@@ -465,7 +473,7 @@ def audit_runtime_evidence(runtime_executed: bool) -> dict[str, Any]:
             "SM1 Character Viewer roster",
             viewer_path,
             "pass",
-            2,
+            3,
             actor_manifest,
             (
                 ("renderScale is not 4", viewer.get("renderScale") == 4),
@@ -474,39 +482,71 @@ def audit_runtime_evidence(runtime_executed: bool) -> dict[str, Any]:
                     "viewer captures are incomplete",
                     viewer.get("captureCount") == viewer.get("rosterCount"),
                 ),
+                (
+                    "one or more captures lacks the Character Viewer screen gate",
+                    all(
+                        capture.get("viewerTitleSignature", {}).get("matches") is True
+                        for capture in viewer.get("captures", [])
+                    )
+                    and len(viewer.get("captures", [])) == 26,
+                ),
             ),
         ),
         audit_runtime_report(
             "SM1 HOSTAGEF viewer probe",
             hostagef_path,
             "pass",
-            2,
+            3,
             actor_manifest,
             (
                 ("renderScale is not 4", hostagef.get("renderScale") == 4),
                 ("HOSTAGEF probe alias is missing", bool(hostagef.get("probe"))),
+                (
+                    "HOSTAGEF captures lack the Character Viewer screen gate",
+                    all(
+                        capture.get("viewerTitleSignature", {}).get("matches") is True
+                        for capture in hostagef.get("captures", [])
+                    )
+                    and bool(hostagef.get("captures")),
+                ),
             ),
         ),
         audit_runtime_report(
             "SM1 SYMBIOTE viewer probe",
             symbiote_path,
             "pass",
-            2,
+            3,
             actor_manifest,
             (
                 ("renderScale is not 4", symbiote.get("renderScale") == 4),
                 ("SYMBIOTE probe alias is missing", bool(symbiote.get("probe"))),
+                (
+                    "SYMBIOTE captures lack the Character Viewer screen gate",
+                    all(
+                        capture.get("viewerTitleSignature", {}).get("matches") is True
+                        for capture in symbiote.get("captures", [])
+                    )
+                    and bool(symbiote.get("captures")),
+                ),
             ),
         ),
         audit_runtime_report(
             "SM1 Jameson/Scorpion gameplay",
             jameson_scorpion_path,
             "pass",
-            2,
+            3,
             actor_manifest,
             (
                 ("renderScale is not 4", jameson_scorpion.get("renderScale") == 4),
                 ("focused gameplay level is not L2A2", jameson_scorpion.get("levels") == ["l2a2"]),
+                (
+                    "focused gameplay lacks the live level-geometry gate",
+                    all(
+                        result.get("levelGeometryCaptureGate") is True
+                        for result in jameson_scorpion.get("results", [])
+                    )
+                    and len(jameson_scorpion.get("results", [])) == 1,
+                ),
             ),
         ),
         audit_runtime_report(

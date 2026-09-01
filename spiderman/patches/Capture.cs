@@ -47,6 +47,8 @@ public static class Capture
         public long Frame;          // -1 until an anchor resolves it
         public string Anchor;
         public long Offset;
+        public int Occurrence = 1;
+        public int Seen;
         public bool Fired;
     }
 
@@ -244,9 +246,22 @@ public static class Capture
             anchor = raw.Substring(0, plus);
             offset = off;
         }
+        int occurrence = 1;
+        int hash = anchor.LastIndexOf('#');
+        if (hash > 0 && int.TryParse(anchor.Substring(hash + 1), out var parsed) && parsed > 0)
+        {
+            occurrence = parsed;
+            anchor = anchor.Substring(0, hash);
+        }
         if (string.IsNullOrWhiteSpace(anchor))
             throw new ArgumentException($"invalid SPIDEY_SHOTS entry: {raw}");
-        return new Shot { Frame = -1, Anchor = anchor, Offset = offset };
+        return new Shot
+        {
+            Frame = -1,
+            Anchor = anchor,
+            Offset = offset,
+            Occurrence = occurrence,
+        };
     }
 
     static void ResolveAnchor(string anchor, long frame, string source)
@@ -255,6 +270,7 @@ public static class Capture
             if (shot.Frame < 0 && shot.Anchor != null &&
                 string.Equals(shot.Anchor, anchor, StringComparison.OrdinalIgnoreCase))
             {
+                if (++shot.Seen < shot.Occurrence) continue;
                 shot.Frame = frame + shot.Offset;
                 Console.WriteLine(
                     $"[capture] '{anchor}' at frame {frame}: {source} shot resolved to frame {shot.Frame}");
@@ -282,6 +298,7 @@ public static class Capture
     /// </summary>
     public static void NoteModelLoad(string name, long frame)
     {
+        ResolveAnchor($"model.{name}", frame, "model");
         if (_titleShellLoaded && string.Equals(name, "spidey", StringComparison.OrdinalIgnoreCase))
             ResolveAnchor("menu.spidey", frame, "title-shell model");
     }

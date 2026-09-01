@@ -46,7 +46,7 @@
       ],
       "evidence": {
         "currentViewerReport": "dreamcast/converted/all-characters-viewer-runtime-current/runtime-validation.json",
-        "currentViewerCapture": "dreamcast/converted/all-characters-viewer-runtime-current/frame_04350.png",
+        "currentViewerCapture": "dreamcast/converted/all-characters-viewer-runtime-current/frame_02630.png",
         "staticSourceRender": "dreamcast/converted/all-characters-validation-current/renders/blackcat_front_left.png",
         "failedPaletteProof": "dreamcast/converted/blackcat-palette-id-fix-proof/frame_04125.png",
         "runtimeReport": "dreamcast/converted/blackcat-shared-clut-final-proof/runtime-validation.json",
@@ -57,7 +57,7 @@
       },
       "rootCause": "The converter first reused container-local palette ids in SM1's process-global cache. Once those ids were made model-scoped, L1A1 still exhausted SM1's 68 physical 8-bit CLUT slots and six later Black Cat materials repeatedly overwrote slot 68.",
       "resolvedAdaptation": "Assign every converted actor a stable model-scoped cache id and encode its compact compatibility pages against one shared actor-level CLUT. Preserve every original Dreamcast source image as a separate full-resolution host replacement keyed from the compact page and shared palette.",
-      "note": "The one-instance 4x L1A1 proof passed. All 15 Black Cat mappings (13 unique runtime keys) were present in the runtime page dump, every distinct host page loaded at 4x source resolution, and both unobstructed authored animation captures show the correct blue/white materials without orange/black palette contamination. The current 26-model Character Viewer matrix also shows a coherent blue/white pose, but automated and assistant review cannot override the user's reported failure. Await user visual acceptance before clearing it."
+      "note": "The one-instance 4x L1A1 proof passed. All 15 Black Cat mappings (13 unique runtime keys) were present in the runtime page dump, every distinct host page loaded at 4x source resolution, and both unobstructed authored animation captures show the correct blue/white materials without orange/black palette contamination. The fresh schema-3 Character Viewer frame_02630.png is model-load-anchored, native live 3D, and shows a coherent blue/white pose, but automated and assistant review cannot override the user's reported failure. Await user visual acceptance before clearing it."
     },
     "JJVIEWER": {
       "status": "runtime-validated-awaiting-user-review",
@@ -76,13 +76,13 @@
         "fixedRuntimeReport": "dreamcast/converted/jameson-scorpion-runtime-alias-fix-proof/runtime-validation.json",
         "fixedViewerCapture": "dreamcast/converted/jameson-scorpion-runtime-alias-fix-proof/frame_05850.png",
         "currentViewerReport": "dreamcast/converted/all-characters-viewer-runtime-current/runtime-validation.json",
-        "currentViewerCapture": "dreamcast/converted/all-characters-viewer-runtime-current/frame_05850.png",
+        "currentViewerCapture": "dreamcast/converted/all-characters-viewer-runtime-current/frame_04130.png",
         "levelResourceProofReport": "dreamcast/converted/jameson-scorpion-runtime-alias-gameplay-proof/runtime-validation.json",
         "levelResourceProofCapture": "dreamcast/converted/jameson-scorpion-runtime-alias-gameplay-proof/l2a2/frame_04375.png"
       },
       "rootCause": "Both Dreamcast Jameson containers set face flag 0x0800, so the three bytes at face+8 are indices into Dreamcast's animated RGBs table rather than literal colors. SM1 interpreted those indices through its v4 path, producing the technicolor suit. Retail PS1 SM1 jameson.psx and jjviewer.psx use neutral literal (110,110,110) face lighting and their own v4 animation metadata. The decoded Dreamcast texture images themselves are correct.",
       "resolvedAdaptation": "Keep the high-detail Dreamcast meshes, UVs, material hashes, and original-resolution texture pixels; clear indexed-RGB flag 0x0800, write the retail SM1 neutral face-lighting packet, remove the incompatible RGBs channel, and pair each variant with its matching retail SM1 object order, hierarchy, and animation metadata by stable mesh name.",
-      "note": "The current one-instance 4x Character Viewer matrix passed 26/26 loads, overrides, and captures; frame_05850.png shows Jameson in a neutral grey outfit with no technicolor gradients. The independent skeleton audit verifies neutral lighting and a cleared 0x0800 flag on every face. Jameson's body is not visible in the dense L2A2 sequence, so that run proves resource/runtime presence only and is not claimed as appearance evidence. Await user visual acceptance before clearing the reported failure."
+      "note": "The fresh schema-3 one-instance 4x Character Viewer matrix passed 26/26 model-load-anchored live-3D captures; frame_04130.png shows Jameson in a neutral grey outfit with no technicolor gradients. The independent skeleton audit verifies neutral lighting and a cleared 0x0800 flag on every face. Jameson's body is not visible in the dense L2A2 sequence, so that run proves resource/runtime presence only and is not claimed as appearance evidence. Await user visual acceptance before clearing the reported failure."
     },
     "SCORPION": {
       "status": "runtime-validated-awaiting-user-review",
@@ -108,7 +108,7 @@
         "fixedRuntimeReport": "dreamcast/converted/jameson-scorpion-runtime-alias-fix-proof/runtime-validation.json",
         "fixedViewerCapture": "dreamcast/converted/jameson-scorpion-runtime-alias-fix-proof/frame_06150.png",
         "currentViewerReport": "dreamcast/converted/all-characters-viewer-runtime-current/runtime-validation.json",
-        "currentViewerCapture": "dreamcast/converted/all-characters-viewer-runtime-current/frame_06150.png",
+        "currentViewerCapture": "dreamcast/converted/all-characters-viewer-runtime-current/frame_04430.png",
         "fixedTailCloseup": "dreamcast/converted/jameson-scorpion-runtime-alias-fix-proof/scorpion-tail-closeup.png",
         "fixedGameplayReport": "dreamcast/converted/jameson-scorpion-runtime-alias-gameplay-proof/runtime-validation.json",
         "fixedGameplayFirstCapture": "dreamcast/converted/jameson-scorpion-runtime-alias-gameplay-proof/l2a2/frame_04200.png",
@@ -117,7 +117,7 @@
       },
       "rootCause": "Two independent compatibility failures were present. First, the converter retained Dreamcast mesh order plus its 0x2A animation and HIER metadata inside a v4 container, so SM1 interpreted the controller chain through incompatible object ordering and produced detached vertical strips. After that was repaired, the tube remained flat purple-black because Dreamcast stores the shared hook/tube skin at material index 0 while SM1's procedural spline renderer independently selects retail slot 18; the converted table ended at 17 and never supplied the tube material.",
       "resolvedAdaptation": "Reorder every high-detail Dreamcast mesh by stable name and pair it with retail SM1 Scorpion's object table, hierarchy, and 0x2C animation. Preserve all seven byte-exact controller cubes. Keep the authored Dreamcast hook on native material 0, then append the retail-semantic index-18 spline alias: a 64x64 compatibility page keyed to the same source-exact 128x128 Dreamcast blue/green host texture.",
-      "note": "The current one-instance 4x Character Viewer matrix passed 26/26 loads, overrides, and captures with a segmented, readable tube. All 11 L2A2 frames from 4200 through 4450 were inspected sequentially: the tail stays attached through the swing, bends continuously, preserves blue/green surface definition, and keeps its hook aligned. The independent audits enforce the seven controller meshes, index-18 alias, 64x64 compatibility page, and exact 128x128 Dreamcast host pixels. Await user visual acceptance before clearing the reported failure."
+      "note": "The fresh schema-3 one-instance 4x Character Viewer matrix passed 26/26 model-load-anchored live-3D captures; frame_04430.png shows the attached segmented blue/green tail. All 11 L2A2 frames from 4200 through 4450 were inspected sequentially: the tail stays attached through the swing, bends continuously, preserves blue/green surface definition, and keeps its hook aligned. The independent audits enforce the seven controller meshes, index-18 alias, 64x64 compatibility page, and exact 128x128 Dreamcast host pixels. Await user visual acceptance before clearing the reported failure."
     },
     "PARKER": {
       "status": "runtime-validated",
