@@ -217,10 +217,9 @@ def validate_mapping_proof(name: str) -> tuple[str, dict[str, Any] | None]:
     )
     runtime_valid = bool(
         runtime_report
-        and runtime_report.get("schemaVersion") == 2
+        and runtime_report.get("schemaVersion") == 3
         and all(runtime_report.get("runtimeMarkers", {}).values())
-        and runtime_report.get("inputMethod")
-        == "process-local SPIDEY_SCRIPT controller state"
+        and str(runtime_report.get("inputMethod", "")).startswith("process-local")
         and set(runtime_report.get("frames", {})) == {"menu", "gameplay_deployed"}
         and all(
             region.get("matches") is True
@@ -261,12 +260,17 @@ def validate_mapping_proof(name: str) -> tuple[str, dict[str, Any] | None]:
         and costume_pack.get("environmentPolicy")
         == "retail PS1 SM2 environments are unchanged"
         and costume_runtime
+        and costume_runtime.get("schemaVersion") == 3
         and costume_runtime.get("status") == "menu-capture-valid"
         and costume_runtime.get("costumeCount") == 19
         and len(costume_runtime_results) == 19
         and all(
             item.get("status") == "menu-capture-valid"
             and all(item.get("runtimeMarkers", {}).values())
+            and all(
+                capture.get("native3d16BitMarker") is True
+                for capture in item.get("captureSequence", [])
+            )
             for item in costume_runtime_results
         )
         and costume_review

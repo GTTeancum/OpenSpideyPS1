@@ -48,10 +48,11 @@ DEFAULT_LEVELS = (
     "l8a6",   # superock
 )
 INPUT_SCRIPT = (
-    "120:start:12;title.bmr+120:start:12;title.bmr+420:cross:12;"
+    "title.bmr+120:start:12;title.bmr+420:cross:12;"
     "title.bmr+720:cross:12;title.bmr+1100:cross:12;"
     "title.bmr+1500:cross:12;title.bmr+1900:cross:12"
 )
+BOOT_SKIP_ANCHOR = "title.bmr"
 RUNTIME_EQUIVALENTS = {
     # Trigger/overlay names are not always model names.  These pairs are the retail
     # game's own resource choices, while every exact file still receives the separate
@@ -476,6 +477,7 @@ def run_level(
         {
             "RECOMP_RENDER_SCALE": str(render_scale),
             "SPIDEY_ASSET_DIR": str(batch),
+            "SPIDEY_BOOT_SKIP_UNTIL": BOOT_SKIP_ANCHOR,
             "SPIDEY_LEVEL": level,
             "SPIDEY_HZ": "60",
             "SPIDEY_SCRIPT": INPUT_SCRIPT,

@@ -68,6 +68,8 @@ public static class Capture
     static long _every;
     static long _exit = -1;
     static bool _active;
+    static string _bootSkipAnchor;
+    static bool _bootSkipActive;
 
     static readonly Dictionary<string, ushort> Buttons = new(StringComparer.OrdinalIgnoreCase)
     {
@@ -91,6 +93,18 @@ public static class Capture
 
     public static void Install()
     {
+        var runToken = Environment.GetEnvironmentVariable("SPIDEY_RUN_TOKEN");
+        if (!string.IsNullOrWhiteSpace(runToken))
+            Console.WriteLine($"[capture] run-token {runToken}");
+
+        _bootSkipAnchor = Environment.GetEnvironmentVariable("SPIDEY_BOOT_SKIP_UNTIL");
+        if (!string.IsNullOrWhiteSpace(_bootSkipAnchor))
+        {
+            _bootSkipActive = true;
+            _active = true;
+            Console.WriteLine($"[capture] boot-skip armed until '{_bootSkipAnchor}'");
+        }
+
         foreach (var f in Split("SPIDEY_SHOTS"))
         {
             _shots.Add(MakeShot(f));
@@ -215,9 +229,16 @@ public static class Capture
     // once the service tick started running between frames, was almost immediately.
     static void DriveInput(VSyncEvent e)
     {
-        if (_script.Count == 0) return;
+        if (_script.Count == 0 && !_bootSkipActive) return;
 
         ushort held = 0;
+        // Movies do not all sample the pad on the same delivered VSync. Pulse START
+        // inside the emulated process until the first archive belonging to the target
+        // screen loads, then release it immediately. This cannot leak host input and
+        // cannot keep advancing menus after the named boundary.
+        if (_bootSkipActive && (e.Frame % 24) < 12)
+            held |= Controller.Start;
+
         foreach (var p in _script)
         {
             // An anchored step sits at -1 until its archive loads. Without this guard
@@ -310,6 +331,14 @@ public static class Capture
     /// <summary>Called for every archive lookup; resolves any step anchored to it.</summary>
     public static void NoteWadLoad(string name, long frame)
     {
+        if (_bootSkipActive &&
+            string.Equals(_bootSkipAnchor, name, StringComparison.OrdinalIgnoreCase))
+        {
+            _bootSkipActive = false;
+            Controller.ScriptHeld = 0;
+            Console.WriteLine(
+                $"[capture] boot-skip completed at '{name}' load frame {frame}");
+        }
         foreach (var p in _script)
             if (p.Frame < 0 && p.Anchor != null &&
                 string.Equals(p.Anchor, name, StringComparison.OrdinalIgnoreCase))
@@ -338,7 +367,7 @@ public static class Capture
 
         string path = Path.Combine(_dir, $"frame_{frame:D5}.png");
         PngWriter.WriteRgba(path, rgba, w, h);
-        Console.WriteLine($"[capture] {path} {w}x{h} (display aspect)");
+        Console.WriteLine($"[capture] {path} {w}x{h} (live-3d 16bpp display aspect)");
     }
 
     /// <summary>

@@ -60,6 +60,8 @@ public static class Capture
     static bool _active;
     static bool _titleShellLoaded;
     static int _cropX = -1, _cropY, _cropW, _cropH;
+    static string _bootSkipAnchor;
+    static bool _bootSkipActive;
 
     static readonly Dictionary<string, ushort> Buttons = new(StringComparer.OrdinalIgnoreCase)
     {
@@ -83,6 +85,18 @@ public static class Capture
 
     public static void Install()
     {
+        var runToken = Environment.GetEnvironmentVariable("SPIDEY_RUN_TOKEN");
+        if (!string.IsNullOrWhiteSpace(runToken))
+            Console.WriteLine($"[capture] run-token {runToken}");
+
+        _bootSkipAnchor = Environment.GetEnvironmentVariable("SPIDEY_BOOT_SKIP_UNTIL");
+        if (!string.IsNullOrWhiteSpace(_bootSkipAnchor))
+        {
+            _bootSkipActive = true;
+            _active = true;
+            Console.WriteLine($"[capture] boot-skip armed until '{_bootSkipAnchor}'");
+        }
+
         foreach (var f in Split("SPIDEY_SHOTS"))
         {
             _shots.Add(MakeShot(f));
@@ -180,9 +194,12 @@ public static class Capture
     // once the service tick started running between frames, was almost immediately.
     static void DriveInput(VSyncEvent e)
     {
-        if (_script.Count == 0) return;
+        if (_script.Count == 0 && !_bootSkipActive) return;
 
         ushort held = 0;
+        if (_bootSkipActive && (e.Frame % 24) < 12)
+            held |= Controller.Start;
+
         foreach (var p in _script)
         {
             // Anchored steps sit at -1 until their archive loads. Without this guard,
@@ -280,6 +297,14 @@ public static class Capture
     /// <summary>Called for every archive lookup; resolves any step anchored to it.</summary>
     public static void NoteWadLoad(string name, long frame)
     {
+        if (_bootSkipActive &&
+            string.Equals(_bootSkipAnchor, name, StringComparison.OrdinalIgnoreCase))
+        {
+            _bootSkipActive = false;
+            Controller.ScriptHeld = 0;
+            Console.WriteLine(
+                $"[capture] boot-skip completed at '{name}' load frame {frame}");
+        }
         if (string.Equals(name, "title.bmr", StringComparison.OrdinalIgnoreCase))
             _titleShellLoaded = true;
         foreach (var p in _script)

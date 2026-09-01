@@ -214,8 +214,16 @@ SPIDEY_SHOT_DIR=shots      where they go
 SPIDEY_EXIT=13000          quit after frame N
 SPIDEY_SCRIPT=title.bmr+80:start:10
                            press a button N frames after an archive file loads
+SPIDEY_BOOT_SKIP_UNTIL=title.bmr
+                           pulse START in-process until this archive loads, then release
+SPIDEY_RUN_TOKEN=<32 hex>  bind a validator report to one fresh process invocation
 SPIDEY_ANALOG=0            present a digital pad instead of a DualShock
 ```
+
+`SpiderMan.exe` and `SpiderMan2.exe` also share the
+`Local\OpenSpideyPS1.GameRuntime` named mutex. A second OpenSpidey game process exits
+before loading game data, closing the pre-check/launch race that previously allowed
+multiple validators to run at once.
 
 **This reaches level 1 from a cold boot** and is the run every screenshot here came
 from:

@@ -68,10 +68,10 @@ def verify_default_proof(errors: list[str]) -> dict[str, Any]:
         "SM2 Default texture library",
     )
     require(errors, runtime.get("status") == "pass", "SM2 Default runtime proof does not pass")
-    require(errors, runtime.get("schemaVersion") == 2, "SM2 Default runtime proof lacks hardened schema 2 gates")
+    require(errors, runtime.get("schemaVersion") == 3, "SM2 Default runtime proof lacks exclusive fresh-run schema 3 gates")
     require(
         errors,
-        runtime.get("inputMethod") == "process-local SPIDEY_SCRIPT controller state",
+        str(runtime.get("inputMethod", "")).startswith("process-local"),
         "SM2 Default runtime proof did not use process-local input",
     )
     require(
@@ -110,6 +110,11 @@ def verify_default_proof(errors: list[str]) -> dict[str, Any]:
         "SM2 Default gameplay frame lacks all four exact HUD regions",
     )
     for name, record in frames.items():
+        require(
+            errors,
+            record.get("native3d16BitMarker") is True,
+            f"Default frame {name} lacks the native 16-bit 3D capture marker",
+        )
         verify_file_hash(errors, Path(record["path"]), record["sha256"], f"Default frame {name}")
     for name, record in runtime.get("authoredProofs", {}).items():
         verify_file_hash(errors, Path(record["path"]), record["sha256"], f"Default authored proof {name}")
@@ -247,6 +252,11 @@ def verify_menu_runtime(errors: list[str]) -> dict[str, Any]:
         "SM2 runtime report no longer matches the manual-review lock",
     )
     require(errors, runtime.get("status") == "menu-capture-valid", "SM2 menu runtime status is not valid")
+    require(
+        errors,
+        runtime.get("schemaVersion") == 3,
+        "SM2 menu runtime proof lacks exclusive fresh-run schema 3 gates",
+    )
     require(errors, runtime.get("costumeCount") == 19, "SM2 menu runtime does not contain 19 slots")
     require(
         errors,
@@ -259,12 +269,22 @@ def verify_menu_runtime(errors: list[str]) -> dict[str, Any]:
     for result in results:
         slot = result["slot"]
         require(errors, result.get("status") == "menu-capture-valid", f"SM2 runtime slot {slot:02d} is invalid")
+        require(
+            errors,
+            bool(re.fullmatch(r"[0-9a-f]{32}", result.get("runToken", ""))),
+            f"SM2 runtime slot {slot:02d} lacks a unique fresh-run token",
+        )
         require(errors, all(result.get("runtimeMarkers", {}).values()), f"SM2 runtime slot {slot:02d} has a false marker")
         require(errors, not result.get("badMarkers"), f"SM2 runtime slot {slot:02d} has bad markers")
         captures = result.get("captureSequence", [])
         require(errors, len(captures) == 5, f"SM2 runtime slot {slot:02d} does not have five captures")
         capture_count += len(captures)
         for capture in captures:
+            require(
+                errors,
+                capture.get("native3d16BitMarker") is True,
+                f"SM2 slot {slot:02d} capture lacks the native 16-bit 3D marker",
+            )
             verify_file_hash(errors, Path(capture["path"]), capture["sha256"], f"SM2 slot {slot:02d} capture")
             signatures = capture.get("mainMenuSignature", [])
             require(

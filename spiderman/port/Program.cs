@@ -18,9 +18,12 @@ public static class Program
     /// static recompile can emit them at fixed addresses. See patches/OverlayPatches.cs.
     /// </summary>
     const uint RamSize = 0x00800000;
+    static System.Threading.Mutex RuntimeMutex;
 
     public static int Main(string[] args)
     {
+        if (!AcquireRuntimeLease()) return 4;
+
         // Everything the game writes -- logs, saves, shots -- is resolved against the
         // working directory, so anchor that to the executable. Otherwise a launch from
         // elsewhere scatters them wherever the shell happened to be. Environment
@@ -146,6 +149,26 @@ public static class Program
 
         RecompOne.Runtime.Runtime.Shutdown();
         return 0;
+    }
+
+    static bool AcquireRuntimeLease()
+    {
+        RuntimeMutex = new System.Threading.Mutex(
+            false, @"Local\OpenSpideyPS1.GameRuntime");
+        try
+        {
+            if (RuntimeMutex.WaitOne(0)) return true;
+        }
+        catch (System.Threading.AbandonedMutexException)
+        {
+            return true;
+        }
+
+        Console.Error.WriteLine(
+            "[SpiderMan] another OpenSpidey game process is already running; refusing a second instance");
+        RuntimeMutex.Dispose();
+        RuntimeMutex = null;
+        return false;
     }
 
     /// <summary>

@@ -589,7 +589,7 @@ def audit_runtime_evidence(runtime_executed: bool) -> dict[str, Any]:
             "SM2 default Spider-Man wings",
             sm2_default_path,
             "pass",
-            2,
+            3,
             sm2_default_pack,
             (
                 ("renderScale is not the authored 8x proof", sm2_default.get("renderScale") == 8),
@@ -630,13 +630,21 @@ def audit_runtime_evidence(runtime_executed: bool) -> dict[str, Any]:
                     set(sm2_default.get("frames", {}))
                     == {"menu", "gameplay_deployed"},
                 ),
+                (
+                    "SM2 Default proof lacks fresh native 16-bit 3D captures",
+                    all(
+                        frame.get("native3d16BitMarker") is True
+                        for frame in sm2_default.get("frames", {}).values()
+                    )
+                    and bool(sm2_default.get("frames")),
+                ),
             ),
         ),
         audit_runtime_report(
             "SM2 Spider-Man costume menu",
             sm2_costumes_path,
             "menu-capture-valid",
-            2,
+            3,
             sm2_costume_pack,
             (
                 ("renderScaleRequested is not 4", sm2_costumes.get("renderScaleRequested") == 4),
@@ -646,6 +654,12 @@ def audit_runtime_evidence(runtime_executed: bool) -> dict[str, Any]:
                     all(
                         result.get("status") == "menu-capture-valid"
                         and result.get("runtimeMarkers", {}).get("mainMenuVisualSignature") is True
+                        and result.get("runtimeMarkers", {}).get("freshRunToken") is True
+                        and result.get("runtimeMarkers", {}).get("bootSkipBoundary") is True
+                        and all(
+                            capture.get("native3d16BitMarker") is True
+                            for capture in result.get("captureSequence", [])
+                        )
                         for result in sm2_costumes.get("results", [])
                     )
                     and len(sm2_costumes.get("results", [])) == 19,

@@ -28,6 +28,7 @@ INPUT_SCRIPT = (
     "title.bmr+720:cross:12;title.bmr+1100:cross:12;"
     "title.bmr+1500:cross:12;title.bmr+1900:cross:12"
 )
+BOOT_SKIP_ANCHOR = "title.bmr"
 PROOFS = {
     "proof_front_wings.png": (4100, (350, 1050, 1450, 1700)),
     "proof_rear_wings.png": (4150, (900, 700, 1900, 1530)),
@@ -66,6 +67,7 @@ def capture(exe: Path, assets: Path, output: Path, scale: int, timeout: int) -> 
         {
             "RECOMP_RENDER_SCALE": str(scale),
             "SPIDEY_ASSET_DIR": str(assets),
+            "SPIDEY_BOOT_SKIP_UNTIL": BOOT_SKIP_ANCHOR,
             "SPIDEY_LEVEL": "l1a1",
             "SPIDEY_HZ": "60",
             "SPIDEY_SCRIPT": INPUT_SCRIPT,

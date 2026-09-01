@@ -16,6 +16,7 @@ from pathlib import Path
 import re
 import subprocess
 from typing import Any
+import uuid
 
 from PIL import Image
 
@@ -32,6 +33,7 @@ INPUT_SCRIPT = (
     "e1m0_t.trg+1200:cross:8;e1m0_t.trg+1500:cross:8;"
     "e1m0_t.trg+1800:cross:8"
 )
+BOOT_SKIP_ANCHOR = "title.bmr"
 SHOT_SPECS = (
     ("menu", "title.bmr", 450),
     ("gameplay_deployed", "e1m0_t.trg", 1968),
@@ -127,10 +129,19 @@ def ensure_no_game_process() -> None:
         raise RuntimeError("refusing to launch while another SpiderMan2.exe process exists")
 
 
-def run_game(exe: Path, assets: Path, output: Path, scale: int, timeout: int) -> str:
+def run_game(
+    exe: Path, assets: Path, output: Path, scale: int, timeout: int
+) -> tuple[str, str]:
     ensure_no_game_process()
-    for capture in output.glob("frame_*.png"):
-        capture.unlink()
+    for pattern in (
+        "frame_*.png",
+        "sm2_default_*_wings_close.png",
+        "console.log",
+        "spidey.log",
+    ):
+        for generated in output.glob(pattern):
+            generated.unlink()
+    run_token = uuid.uuid4().hex
     env = {key: value for key, value in os.environ.items() if not key.startswith("SPIDEY_")}
     env.pop("RECOMP_RENDER_SCALE", None)
     env.update(
@@ -138,7 +149,9 @@ def run_game(exe: Path, assets: Path, output: Path, scale: int, timeout: int) ->
             "RECOMP_RENDER_SCALE": str(scale),
             "RECOMP_VALIDATE_MODEL_GEOMETRY": "1",
             "SPIDEY_ASSET_DIR": str(assets),
+            "SPIDEY_BOOT_SKIP_UNTIL": BOOT_SKIP_ANCHOR,
             "SPIDEY_HZ": "60",
+            "SPIDEY_RUN_TOKEN": run_token,
             "SPIDEY_SCRIPT": INPUT_SCRIPT,
             "SPIDEY_SHOTS": ",".join(
                 f"{anchor}+{offset}" for _, anchor, offset in SHOT_SPECS
@@ -165,7 +178,16 @@ def run_game(exe: Path, assets: Path, output: Path, scale: int, timeout: int) ->
     (output / "console.log").write_text(console, encoding="utf-8")
     if result.returncode != 0:
         raise RuntimeError(f"game exited {result.returncode}; see {output / 'console.log'}")
-    return console
+    return console, run_token
+
+
+def run_token_from_console(console: str) -> str:
+    matches = re.findall(r"\[capture\] run-token ([0-9a-f]{32})", console)
+    if len(matches) != 1:
+        raise RuntimeError(
+            "runtime evidence predates the exclusive fresh-run gate; capture it again"
+        )
+    return matches[0]
 
 
 def resolved_frames(console: str) -> dict[str, int]:
@@ -247,8 +269,11 @@ def main() -> None:
     output.mkdir(parents=True, exist_ok=True)
     if args.reuse_captures:
         console = (output / "console.log").read_text(encoding="utf-8")
+        run_token = run_token_from_console(console)
     else:
-        console = run_game(exe, assets, output, args.render_scale, args.timeout)
+        console, run_token = run_game(
+            exe, assets, output, args.render_scale, args.timeout
+        )
 
     model_bytes = (assets / "spidey.psx").stat().st_size
     texture_bytes = (assets / "sp_tex00.psx").stat().st_size
@@ -268,6 +293,13 @@ def main() -> None:
             )
         ),
         "cleanExit": f"[capture] exit at frame {EXIT_FRAME}" in console,
+        "freshRunToken": (
+            f"[capture] run-token {run_token}" in console
+            and console.count("[capture] run-token ") == 1
+        ),
+        "bootSkipBoundary": (
+            f"[capture] boot-skip completed at '{BOOT_SKIP_ANCHOR}' load" in console
+        ),
     }
     if not all(required_markers.values()):
         raise RuntimeError(f"runtime markers failed: {required_markers}")
@@ -278,6 +310,19 @@ def main() -> None:
         label: validate_frame(output / f"frame_{frame:05d}.png", expected_size)
         for label, frame in frames.items()
     }
+    for label, frame in frames.items():
+        frame_records[label]["native3d16BitMarker"] = bool(
+            re.search(
+                rf"\[capture\].*frame_{frame:05d}\.png \d+x\d+ "
+                r"\(live-3d 16bpp display aspect\)",
+                console,
+            )
+        )
+        if not frame_records[label]["native3d16BitMarker"]:
+            raise RuntimeError(
+                f"{label} frame {frame} was not freshly captured from the native "
+                "16-bit 3D path"
+            )
     frame_records["menu"]["mainMenuSignature"] = validate_exact_regions(
         Path(frame_records["menu"]["path"]),
         MENU_REGION_SIGNATURES,
@@ -309,16 +354,18 @@ def main() -> None:
         }
 
     report = {
-        "schemaVersion": 2,
+        "schemaVersion": 3,
         "status": "pass",
         "inputMethod": "process-local SPIDEY_SCRIPT controller state",
         "shotTiming": "archive-anchored SPIDEY_SHOTS",
         "assets": str(assets),
+        "runToken": run_token,
         "renderScale": args.render_scale,
         "runtimeMarkers": required_markers,
         "captureGate": (
-            "exact actor-free 8x main-menu chrome plus exact 8x active-gameplay HUD; "
-            "FMV/title/archive timing and image heuristics cannot satisfy the proof"
+            "fresh per-process token, boot-skip boundary, native live-3D 16bpp "
+            "readback, exact actor-free 8x main-menu chrome, and exact 8x active-"
+            "gameplay HUD"
         ),
         "frames": frame_records,
         "authoredProofs": proofs,

@@ -33,11 +33,12 @@ DEFAULT_EXE = ROOT / "spiderman" / "port" / "bin" / "Release" / "net10.0" / "Spi
 DEFAULT_BATCH = ROOT / "dreamcast" / "converted" / "all-characters"
 DEFAULT_OUTPUT = ROOT / "dreamcast" / "converted" / "all-characters-costumes-runtime-current"
 GAMEPLAY_INPUT_SCRIPT = (
-    "120:start:12;title.bmr+120:start:12;title.bmr+420:cross:12;"
+    "title.bmr+120:start:12;title.bmr+420:cross:12;"
     "title.bmr+720:cross:12;title.bmr+1100:cross:12;"
     "title.bmr+1500:cross:12;title.bmr+1900:cross:12"
 )
-MENU_INPUT_SCRIPT = "120:start:12;title.bmr+120:start:12"
+MENU_INPUT_SCRIPT = "title.bmr+120:start:12"
+BOOT_SKIP_ANCHOR = "title.bmr"
 PROOF_DEFAULTS = {
     "menu": {
         "shots": (
@@ -215,6 +216,7 @@ def run_costume(
         {
             "RECOMP_RENDER_SCALE": str(render_scale),
             "SPIDEY_ASSET_DIR": str(batch),
+            "SPIDEY_BOOT_SKIP_UNTIL": BOOT_SKIP_ANCHOR,
             "SPIDEY_COSTUME": str(slot),
             "SPIDEY_HZ": "60",
             "SPIDEY_SCRIPT": input_script,

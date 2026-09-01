@@ -16,6 +16,7 @@ from pathlib import Path
 import re
 import subprocess
 from typing import Any
+import uuid
 
 from PIL import Image
 
@@ -29,11 +30,12 @@ DEFAULT_OUTPUT = DEFAULT_ASSETS / "runtime-menu-proof"
 COSTUME_COUNT = 19
 SPECIAL_ACTORS = {13: "spidey-slot13.psx", 17: "spidey-slot17.psx"}
 SPECIAL_TEXTURES = {13: "sp_tex13-dc.psx", 17: "sp_tex17-dc.psx"}
-# An explicit boot-frame START skips the intro movie.  The archive-anchored START
-# leaves the title screen, and CROSS then enters the actual main menu, which
+# A process-local START pulse repeats only until title.bmr loads. The
+# archive-anchored START leaves the title screen, and CROSS then enters the actual main menu, which
 # loads charlite.dat and renders CONTINUE / NEW GAME / OPTIONS with live 3D Spidey.
 # Deliberately omit the later CROSS used by gameplay routes so the test stays there.
-INPUT_SCRIPT = "0:start:10;title.bmr+80:start:10;title.bmr+200:cross:10"
+INPUT_SCRIPT = "title.bmr+80:start:10;title.bmr+200:cross:10"
+BOOT_SKIP_ANCHOR = "title.bmr"
 SHOT_ANCHOR = "charlite.dat"
 SHOT_OFFSETS = (300, 400, 500, 600, 700)
 SHOT_SPECS = tuple(f"{SHOT_ANCHOR}+{offset}" for offset in SHOT_OFFSETS)
@@ -112,10 +114,18 @@ def run_game(
     render_scale: int,
     exit_frame: int,
     timeout: int,
-) -> str:
+) -> tuple[str, str]:
     ensure_no_game_process()
-    for old_capture in slot_root.glob("frame_*.png"):
-        old_capture.unlink()
+    for pattern in (
+        "frame_*.png",
+        "sm2_spider_man_slot*_menu_close*.png",
+        "menu_sequence_contact.png",
+        "console.log",
+        "spidey.log",
+    ):
+        for generated in slot_root.glob(pattern):
+            generated.unlink()
+    run_token = uuid.uuid4().hex
     env = {key: value for key, value in os.environ.items() if not key.startswith("SPIDEY_")}
     env.pop("RECOMP_RENDER_SCALE", None)
     env.pop("RECOMP_ASSET_PACK_DIR", None)
@@ -126,7 +136,9 @@ def run_game(
             "RECOMP_TRACE_MODEL_STITCHES": "1",
             "SPIDEY_ASSET_DIR": str(assets),
             "SPIDEY_COSTUME": str(slot),
+            "SPIDEY_BOOT_SKIP_UNTIL": BOOT_SKIP_ANCHOR,
             "SPIDEY_HZ": "60",
+            "SPIDEY_RUN_TOKEN": run_token,
             "SPIDEY_SCRIPT": INPUT_SCRIPT,
             "SPIDEY_SHOTS": SHOT_SPEC,
             "SPIDEY_SHOT_DIR": str(slot_root),
@@ -160,7 +172,16 @@ def run_game(
     (slot_root / "console.log").write_text(console, encoding="utf-8")
     if result.returncode != 0:
         raise RuntimeError(f"slot {slot:02d} exited {result.returncode}")
-    return console
+    return console, run_token
+
+
+def run_token_from_console(console: str) -> str:
+    matches = re.findall(r"\[capture\] run-token ([0-9a-f]{32})", console)
+    if len(matches) != 1:
+        raise RuntimeError(
+            "runtime evidence predates the exclusive fresh-run gate; capture it again"
+        )
+    return matches[0]
 
 
 def resolved_shot_frames(console: str) -> list[int]:
@@ -247,6 +268,7 @@ def validate_slot(
     console: str,
     render_scale: int,
     exit_frame: int,
+    run_token: str,
 ) -> dict[str, Any]:
     actor_name = SPECIAL_ACTORS.get(slot, "spidey.psx")
     actor_size = (assets / actor_name).stat().st_size
@@ -284,6 +306,13 @@ def validate_slot(
         ),
         "mainMenuAssets": "charlite.dat" in console,
         "cleanExit": f"[capture] exit at frame {exit_frame}" in console,
+        "freshRunToken": (
+            f"[capture] run-token {run_token}" in console
+            and console.count("[capture] run-token ") == 1
+        ),
+        "bootSkipBoundary": (
+            f"[capture] boot-skip completed at '{BOOT_SKIP_ANCHOR}' load" in console
+        ),
     }
     title_load = re.search(
         r"\[capture\] 'title\.bmr' load #1 at frame (\d+): step resolved",
@@ -322,6 +351,19 @@ def validate_slot(
         validate_image(slot_root / f"frame_{frame:05d}.png", render_scale)
         for frame in frames
     ]
+    for frame, capture in zip(frames, captures, strict=True):
+        capture["native3d16BitMarker"] = bool(
+            re.search(
+                rf"\[capture\].*frame_{frame:05d}\.png \d+x\d+ "
+                r"\(live-3d 16bpp display aspect\)",
+                console,
+            )
+        )
+        if not capture["native3d16BitMarker"]:
+            raise RuntimeError(
+                f"slot {slot:02d} frame {frame} was not freshly captured from the "
+                "native 16-bit 3D menu path"
+            )
     for capture in captures:
         capture["mainMenuSignature"] = validate_main_menu_signature(Path(capture["path"]))
     markers["mainMenuVisualSignature"] = all(
@@ -376,6 +418,7 @@ def validate_slot(
     )
     return {
         "slot": slot,
+        "runToken": run_token,
         "actor": actor_name,
         "textureLibrary": texture_name,
         "textureSource": texture_source,
@@ -415,8 +458,9 @@ def main() -> None:
         slot_root.mkdir(parents=True, exist_ok=True)
         if args.reuse_captures:
             console = (slot_root / "console.log").read_text(encoding="utf-8")
+            run_token = run_token_from_console(console)
         else:
-            console = run_game(
+            console, run_token = run_game(
                 exe,
                 assets,
                 slot_root,
@@ -426,7 +470,13 @@ def main() -> None:
                 args.timeout,
             )
         result = validate_slot(
-            assets, slot_root, slot, console, args.render_scale, args.exit_frame
+            assets,
+            slot_root,
+            slot,
+            console,
+            args.render_scale,
+            args.exit_frame,
+            run_token,
         )
         results.append(result)
         print(
@@ -438,13 +488,20 @@ def main() -> None:
             raise RuntimeError(f"slot {slot:02d} failed runtime validation")
 
     report = {
-        "schemaVersion": 2,
+        "schemaVersion": 3,
         "status": "menu-capture-valid",
         "visualReview": "pending; every menu frame must be inspected before a costume passes",
         "scope": "SM2 Spider-Man costumes only; no NPC or enemy replacements",
         "assets": str(assets),
         "processPolicy": "strictly sequential; never more than one SpiderMan2 process",
-        "inputMethod": "process-local costume pre-hook plus SPIDEY_SCRIPT controller state",
+        "inputMethod": (
+            "process-local costume pre-hook, boot-skip boundary, and SPIDEY_SCRIPT "
+            "controller state"
+        ),
+        "freshEvidencePolicy": (
+            "unique per-process run token plus native live-3D 16bpp marker; stale or "
+            "FMV captures fail closed"
+        ),
         "shotTiming": SHOT_SPEC,
         "environmentPolicy": "retail PS1 SM2 environments are unchanged",
         "renderScaleRequested": args.render_scale,

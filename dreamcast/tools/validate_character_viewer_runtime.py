@@ -61,7 +61,6 @@ ROSTER = (
 )
 
 ROUTE = (
-    "120:start:12",                 # skip boot FMV; at-or-after input cannot be skipped
     "title.bmr+120:start:12",       # title -> main wheel
     "title.bmr+300:right:12",       # NEW GAME -> RECORDS
     "title.bmr+500:down:12",        # RECORDS -> SPECIAL
@@ -69,6 +68,7 @@ ROUTE = (
     "title.bmr+900:cross:12",       # enter GALLERY
     "title.bmr+1200:cross:12",      # enter selected CHARACTER VIEWER
 )
+BOOT_SKIP_ANCHOR = "title.bmr"
 FIRST_ADVANCE = 1600
 STEP_INTERVAL = 300
 CROSS_DELAY = 150
@@ -268,6 +268,7 @@ def main() -> None:
             {
                 "RECOMP_RENDER_SCALE": str(args.render_scale),
                 "SPIDEY_ASSET_DIR": str(runtime_batch),
+                "SPIDEY_BOOT_SKIP_UNTIL": BOOT_SKIP_ANCHOR,
                 "SPIDEY_CHEATS": "viewers",
                 "SPIDEY_HZ": "60",
                 "SPIDEY_SCRIPT": build_script(roster),

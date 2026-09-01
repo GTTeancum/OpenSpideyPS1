@@ -113,10 +113,15 @@ all alternate hand meshes, authored wing seams, and byte-exact retail costume
 libraries. Bag-Man and Peter Parker use their dedicated Dreamcast actors and
 original-resolution host texture packs; ordinary interactive selection swaps the
 complete processed actor binding for those topology-changing slots and restores
-the shared actor for every other slot. The live-menu validator rejects FMV frames,
-captures five 1280x960 `charlite.dat`-anchored frames per slot with only one game
-process at a time, and has 19/19 evidence sets plus 95/95 manually reviewed frames.
-Default retains a separate 8x menu/gameplay proof with exact-pixel wing close-ups.
+the shared actor for every other slot. The former 19-slot runtime result is
+invalidated: concurrent validators could race between their process check and launch,
+so a visible FMV instance could diverge from the instance writing evidence. Both game
+executables now share a named one-process mutex. The live-menu validator additionally
+requires a unique per-process token, a process-local FMV-skip boundary at `title.bmr`,
+a native live-3D 16bpp readback marker, and four exact menu regions. A one-slot schema-3
+canary reached and remained on the actual menu for all five sequential frames; the full
+19-slot capture and individual visual review remain pending. Default's old 8x runtime
+proof is likewise rejected until recaptured under schema 3.
 A separate 30-actor SM2 structural audit identifies ten same-name DC actors and
 the structural `HOSTAGE2` to `HOSTAGE` alias, but the current SM2 upgrade policy
 selects Spider-Man only. All 29 NPC/enemy actors are explicit original-SM2
