@@ -73,12 +73,12 @@
     {
       "slot": 8,
       "costume": "quickchange",
-      "status": "user-review-required",
-      "blocksClearance": true,
+      "status": "user-accepted-and-manual-visual-pass",
+      "blocksClearance": false,
       "evidenceDirectory": "dreamcast/converted/all-characters-costumes-runtime-current/08-quickchange",
       "gameplayEvidence": "dreamcast/converted/quickchange-gameplay-current/runtime-validation.json",
       "hardenedPlayerGateEvidence": "dreamcast/converted/quickchange-player-head-gate-current/runtime-validation.json",
-      "note": "The seven menu frames reach and remain on the live main menu. All 21 L1A1 gameplay frames and 32 consecutive native Dreamcast Character Viewer reference frames were inspected individually. The native model has the same triangular upper-thigh silhouette in the deep crouch and the same segmented jacket/shoulder joins, so this evidence does not establish a port-specific deformation. Quick Change remains blocked for the user's requested feet/jacket review. The focused hardened proof requires the retail L1A1 asset set, live gameplay, and a fresh slot-2 player-head audit before every capture; later NPC loads cannot satisfy that player audit."
+      "note": "The seven menu frames reach and remain on the live main menu. All 21 L1A1 gameplay frames and 32 consecutive native Dreamcast Character Viewer reference frames were inspected individually. The native model has the same triangular upper-thigh silhouette in the deep crouch and the same segmented jacket/shoulder joins, so this evidence does not establish a port-specific deformation. The focused hardened proof requires the retail L1A1 asset set, live gameplay, and a fresh slot-2 player-head audit before every capture; later NPC loads cannot satisfy that player audit. The user accepted the current menu and gameplay proof on 2026-09-01."
     },
     {
       "slot": 9,
@@ -88,6 +88,6 @@
       "note": "The corrected head remains attached and undistorted through all seven poses."
     }
   ],
-  "completionBlockers": ["SPQUICK"],
-  "status": "manual-review-complete-user-review-required"
+  "completionBlockers": [],
+  "status": "manual-review-complete"
 }

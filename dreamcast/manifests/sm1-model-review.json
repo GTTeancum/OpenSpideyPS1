@@ -5,8 +5,8 @@
   "actors": {
     "SPQUICK": {
       "costume": "quickchange",
-      "status": "user-review-required",
-      "blocksClearance": true,
+      "status": "user-accepted-and-runtime-validated",
+      "blocksClearance": false,
       "concerns": [
         {
           "area": "feet",
@@ -59,11 +59,11 @@
         "nativeDreamcastAnimationComparison": "dreamcast/converted/quickchange-dc-animation-diagnostic/08-quickchange/frame_04450.png",
         "dreamcastVideoReference": "https://www.youtube.com/watch?v=QDu_hYTLFHM"
       },
-      "note": "All seven current 4x main-menu frames and all 21 L1A1 gameplay frames from 4100 through 4600 were inspected individually and sequentially. Thirty-two consecutive native Dreamcast Character Viewer frames from 109.5 through 117.5 seconds of the cited reference were then inspected individually. The native model shows the same light-blue triangular upper-thigh silhouettes in the deep crouch and the same bulky segmented jacket/shoulder joins; its running and wide-stance poses remain coherent. The port therefore does not have a confirmed port-specific deformation on this evidence. Neutral source renders are clean, the native stitch parser reports all 127 sources and 143 references as valid, the embedded Dreamcast animation comparison preserves the same authored pose shapes, and the hardened L1A1 proof passes a fresh slot-2 player-head audit after level geometry loads. Keep the user's feet/jacket concern blocked for their more thorough review, but do not classify the authored Dreamcast silhouette as a technical failure."
+      "note": "All seven current 4x main-menu frames and all 21 L1A1 gameplay frames from 4100 through 4600 were inspected individually and sequentially. Thirty-two consecutive native Dreamcast Character Viewer frames from 109.5 through 117.5 seconds of the cited reference were then inspected individually. The native model shows the same light-blue triangular upper-thigh silhouettes in the deep crouch and the same bulky segmented jacket/shoulder joins; its running and wide-stance poses remain coherent. The port therefore does not have a confirmed port-specific deformation on this evidence. Neutral source renders are clean, the native stitch parser reports all 127 sources and 143 references as valid, the embedded Dreamcast animation comparison preserves the same authored pose shapes, and the hardened L1A1 proof passes a fresh slot-2 player-head audit after level geometry loads. The user accepted the current menu and gameplay proof on 2026-09-01."
     },
     "BLACKCAT": {
-      "status": "runtime-validated-awaiting-user-review",
-      "blocksClearance": true,
+      "status": "user-accepted-and-runtime-validated",
+      "blocksClearance": false,
       "concerns": [
         {
           "area": "animated-model",
@@ -84,11 +84,11 @@
       },
       "rootCause": "The converter first reused container-local palette ids in SM1's process-global cache. Once those ids were made model-scoped, L1A1 still exhausted SM1's 68 physical 8-bit CLUT slots and six later Black Cat materials repeatedly overwrote slot 68.",
       "resolvedAdaptation": "Assign every converted actor a stable model-scoped cache id and encode its compact compatibility pages against one shared actor-level CLUT. Preserve every original Dreamcast source image as a separate full-resolution host replacement keyed from the compact page and shared palette.",
-      "note": "The one-instance 4x L1A1 proof passed. All 15 Black Cat mappings (13 unique runtime keys) were present in the runtime page dump, every distinct host page loaded at 4x source resolution, and both unobstructed authored animation captures show the correct blue/white materials without orange/black palette contamination. The fresh schema-3 Character Viewer frame_02630.png is model-load-anchored, native live 3D, and shows a coherent blue/white pose, but automated and assistant review cannot override the user's reported failure. Await user visual acceptance before clearing it."
+      "note": "The one-instance 4x L1A1 proof passed. All 15 Black Cat mappings (13 unique runtime keys) were present in the runtime page dump, every distinct host page loaded at 4x source resolution, and both unobstructed authored animation captures show the correct blue/white materials without orange/black palette contamination. The fresh schema-3 Character Viewer frame_02630.png is model-load-anchored, native live 3D, and shows a coherent blue/white pose. The user accepted the current proof on 2026-09-01."
     },
     "JJVIEWER": {
-      "status": "runtime-validated-awaiting-user-review",
-      "blocksClearance": true,
+      "status": "user-accepted-and-runtime-validated",
+      "blocksClearance": false,
       "concerns": [
         {
           "area": "outfit-and-skin",
@@ -114,11 +114,11 @@
       },
       "rootCause": "Both Dreamcast Jameson containers set face flag 0x0800, so the three bytes at face+8 are indices into Dreamcast's animated RGBs table rather than literal colors. SM1 interpreted those indices through its v4 path, producing the technicolor suit. Retail PS1 SM1 jameson.psx and jjviewer.psx use neutral literal (110,110,110) face lighting and their own v4 animation metadata. The decoded Dreamcast texture images themselves are correct.",
       "resolvedAdaptation": "Keep the high-detail Dreamcast meshes, UVs, material hashes, and original-resolution texture pixels; clear indexed-RGB flag 0x0800, write the retail SM1 neutral face-lighting packet, remove the incompatible RGBs channel, and pair each variant with its matching retail SM1 object order, hierarchy, and animation metadata by stable mesh name.",
-      "note": "The fresh schema-3 one-instance 4x Character Viewer matrix passed 26/26 model-load-anchored live-3D captures; frame_04130.png shows Jameson in a neutral grey outfit with no technicolor gradients. The independent skeleton audit verifies neutral lighting and a cleared 0x0800 flag on every face. All 11 genuine L2A2 gameplay frames were inspected individually and sequentially: Jameson is partially visible at the far right in frames 4275-4325 with a grey/blue shirt, red tie, and beige trousers and no technicolor contamination. The partial gameplay view supplements but does not replace the unobstructed viewer evidence. Await user visual acceptance before clearing the reported failure."
+      "note": "The fresh schema-3 one-instance 4x Character Viewer matrix passed 26/26 model-load-anchored live-3D captures; frame_04130.png shows Jameson in a neutral grey outfit with no technicolor gradients. The independent skeleton audit verifies neutral lighting and a cleared 0x0800 flag on every face. All 11 genuine L2A2 gameplay frames were inspected individually and sequentially: Jameson is partially visible at the far right in frames 4275-4325 with a grey/blue shirt, red tie, and beige trousers and no technicolor contamination. The partial gameplay view supplements but does not replace the unobstructed viewer evidence. The user accepted the current proof on 2026-09-01."
     },
     "SCORPION": {
-      "status": "runtime-validated-awaiting-user-review",
-      "blocksClearance": true,
+      "status": "user-accepted-and-runtime-validated",
+      "blocksClearance": false,
       "concerns": [
         {
           "area": "tail-chain",
@@ -149,7 +149,7 @@
       },
       "rootCause": "Two independent compatibility failures were present. First, the converter retained Dreamcast mesh order plus its 0x2A animation and HIER metadata inside a v4 container, so SM1 interpreted the controller chain through incompatible object ordering and produced detached vertical strips. After that was repaired, the tube remained flat purple-black because Dreamcast stores the shared hook/tube skin at material index 0 while SM1's procedural spline renderer independently selects retail slot 18; the converted table ended at 17 and never supplied the tube material.",
       "resolvedAdaptation": "Reorder every high-detail Dreamcast mesh by stable name and pair it with retail SM1 Scorpion's object table, hierarchy, and 0x2C animation. Preserve all seven byte-exact controller cubes. Keep the authored Dreamcast hook on native material 0, then append the retail-semantic index-18 spline alias: a 64x64 compatibility page keyed to the same source-exact 128x128 Dreamcast blue/green host texture.",
-      "note": "The fresh schema-3 one-instance 4x Character Viewer matrix passed 26/26 model-load-anchored live-3D captures; frame_04430.png shows the attached segmented blue/green tail. All 11 L2A2 frames from 4200 through 4450 were inspected sequentially: the tail stays attached through the swing, bends continuously, preserves blue/green surface definition, and keeps its hook aligned. The independent audits enforce the seven controller meshes, index-18 alias, 64x64 compatibility page, and exact 128x128 Dreamcast host pixels. Await user visual acceptance before clearing the reported failure."
+      "note": "The fresh schema-3 one-instance 4x Character Viewer matrix passed 26/26 model-load-anchored live-3D captures; frame_04430.png shows the attached segmented blue/green tail. All 11 L2A2 frames from 4200 through 4450 were inspected sequentially: the tail stays attached through the swing, bends continuously, preserves blue/green surface definition, and keeps its hook aligned. The independent audits enforce the seven controller meshes, index-18 alias, 64x64 compatibility page, and exact 128x128 Dreamcast host pixels. The user accepted the current proof on 2026-09-01."
     },
     "PARKER": {
       "status": "runtime-validated",

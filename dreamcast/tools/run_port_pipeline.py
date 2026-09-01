@@ -307,7 +307,12 @@ def audit_sm1_runtime_visual_review() -> dict[str, Any]:
         )
 
     preserved_holds = set(payload.get("preservedUserHolds", []))
-    expected_holds = {"BLACKCAT", "JJVIEWER", "SCORPION"}
+    review_queue = json.loads(SM1_REVIEW_QUEUE.read_text(encoding="utf-8"))
+    expected_holds = {
+        actor
+        for actor, review in review_queue.get("actors", {}).items()
+        if review.get("blocksClearance") is True and "costume" not in review
+    }
     if preserved_holds != expected_holds:
         errors.append(
             "preserved user holds do not match the runtime review queue: "
