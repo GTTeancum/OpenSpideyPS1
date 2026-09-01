@@ -25,6 +25,8 @@ DEFAULT_EXE = ROOT / "spiderman" / "port" / "bin" / "Release" / "net10.0" / "Spi
 DEFAULT_BATCH = ROOT / "dreamcast" / "converted" / "all-characters"
 DEFAULT_OUTPUT = ROOT / "dreamcast" / "converted" / "all-characters-runtime-current"
 DEFAULT_TRIGGERS = ROOT / "dreamcast" / "decoded" / "triggers"
+DEFAULT_SHOTS = "4300,4400"
+DEFAULT_EXIT_FRAME = 4450
 DEFAULT_LEVELS = (
     "l1a1",   # blackcat, henchman, spidey, thug
     "l5a3",   # lizman, lizman2, venom, venom2
@@ -63,6 +65,12 @@ LEVEL_ASSET_ALIASES = {
     # the L1A2 object archive.
     ("l1a2a", "O"): ("L1A2_O",),
 }
+LEVEL_SHOT_OVERRIDES = {
+    # The final scripted chase reaches the save prompt before frame 2800. These
+    # two frames are inside the live Super Ock sequence and show both actors.
+    "l8a6": "2400,2450",
+}
+LEVEL_EXIT_OVERRIDES = {"l8a6": 2500}
 
 # Fixed red-letter mask for the retail GAME OVER heading at the required 4x
 # capture size. The background is deliberately ignored: this signature detects
@@ -80,6 +88,18 @@ GAME_OVER_REFERENCE = bytes.fromhex(
     "0000000000000000000000000000000000000000000000000000000000000000"
 )
 GAME_OVER_MAX_HAMMING = 32
+
+SAVE_PROGRESS_CROP = (300, 170, 980, 280)
+SAVE_PROGRESS_SAMPLE_SIZE = (96, 16)
+SAVE_PROGRESS_REFERENCE = bytes.fromhex(
+    "0000000000000000000000000000000000000000000000000000000000000000"
+    "0000000000000000000000000000000000000000000000000000000000a5240e"
+    "c92073399c8ca080008d0000cb40548a0508808000484e104170674a99cc4100"
+    "000cc811d440054a8900000000d08e0d14708533a1ccc0000000000000000000"
+    "0000000000000000000000000000000000000000000000000000000000000000"
+    "0000000000000000000000000000000000000000000000000000000000000000"
+)
+SAVE_PROGRESS_MAX_HAMMING = 24
 
 # Static blue HUD-chrome mask from a verified live gameplay frame. Only reference
 # pixels that belong to the opaque health/web UI are counted, so level scenery in
@@ -137,6 +157,30 @@ def game_over_signature(image: Image.Image) -> dict[str, Any]:
     }
 
 
+def save_progress_signature(image: Image.Image) -> dict[str, Any]:
+    sampled = image.convert("L").crop(SAVE_PROGRESS_CROP).resize(
+        SAVE_PROGRESS_SAMPLE_SIZE,
+        Image.Resampling.BOX,
+    )
+    bits = [value >= 128 for value in sampled.get_flattened_data()]
+    packed = bytes(
+        sum((1 if bits[index + bit] else 0) << (7 - bit) for bit in range(8))
+        for index in range(0, len(bits), 8)
+    )
+    distance = sum(
+        (actual ^ expected).bit_count()
+        for actual, expected in zip(packed, SAVE_PROGRESS_REFERENCE)
+    )
+    matches = distance <= SAVE_PROGRESS_MAX_HAMMING
+    return {
+        "crop": list(SAVE_PROGRESS_CROP),
+        "sampleSize": list(SAVE_PROGRESS_SAMPLE_SIZE),
+        "hammingDistance": distance,
+        "maximumHammingDistance": SAVE_PROGRESS_MAX_HAMMING,
+        "matches": matches,
+    }
+
+
 def gameplay_hud_signature(image: Image.Image) -> dict[str, Any]:
     sampled = image.convert("RGB").crop(GAMEPLAY_HUD_CROP).resize(
         GAMEPLAY_HUD_SAMPLE_SIZE,
@@ -184,8 +228,8 @@ def parse_args() -> argparse.Namespace:
         help="runtime validation is deliberately restricted to one game process",
     )
     parser.add_argument("--render-scale", type=int, default=4)
-    parser.add_argument("--shots", default="4300,4400")
-    parser.add_argument("--exit-frame", type=int, default=4450)
+    parser.add_argument("--shots", default=DEFAULT_SHOTS)
+    parser.add_argument("--exit-frame", type=int, default=DEFAULT_EXIT_FRAME)
     parser.add_argument("--timeout", type=int, default=180)
     parser.add_argument(
         "--dump-textures",
@@ -201,6 +245,11 @@ def parse_args() -> argparse.Namespace:
         "--allow-partial-coverage",
         action="store_true",
         help="pass a focused --levels run when every requested level passes",
+    )
+    parser.add_argument(
+        "--continue-on-failure",
+        action="store_true",
+        help="continue later levels after a failed screen/resource gate (default: stop immediately)",
     )
     return parser.parse_args()
 
@@ -284,10 +333,16 @@ def summarize_level(
             active_level_runframe = int(state_match.group(1)) if state_match else 0
             gameplay_hud = gameplay_hud_signature(image)
             game_over = game_over_signature(image)
+            save_progress = save_progress_signature(image)
             if game_over["matches"]:
                 raise ValueError(
                     "capture is the retail GAME OVER screen "
                     f"(signature distance={game_over['hammingDistance']})"
+                )
+            if save_progress["matches"]:
+                raise ValueError(
+                    "capture is the retail SAVE GAME PROGRESS screen "
+                    f"(signature distance={save_progress['hammingDistance']})"
                 )
             live_gameplay_gate = active_level_runframe > 0 or gameplay_hud["matches"]
             if not live_gameplay_gate:
@@ -303,6 +358,7 @@ def summarize_level(
                 "activeLevelRunFrame": active_level_runframe,
                 "gameplayHudSignature": gameplay_hud,
                 "gameOverSignature": game_over,
+                "saveProgressSignature": save_progress,
                 "liveGameplayGate": live_gameplay_gate,
             }
         except Exception as error:
@@ -495,14 +551,24 @@ def main() -> None:
 
     results: list[dict[str, Any]] = []
     for level in levels:
+        level_shots = (
+            LEVEL_SHOT_OVERRIDES.get(level, args.shots)
+            if args.shots == DEFAULT_SHOTS
+            else args.shots
+        )
+        level_exit_frame = (
+            LEVEL_EXIT_OVERRIDES.get(level, args.exit_frame)
+            if args.exit_frame == DEFAULT_EXIT_FRAME
+            else args.exit_frame
+        )
         result = run_level(
             level,
             exe,
             batch,
             output,
             args.render_scale,
-            args.shots,
-            args.exit_frame,
+            level_shots,
+            level_exit_frame,
             args.timeout,
             args.resume,
             args.dump_textures,
@@ -514,6 +580,9 @@ def main() -> None:
             f"captures={len(result['captures']):2d}",
             flush=True,
         )
+        if result["status"] != "pass" and not args.continue_on_failure:
+            print("stopping matrix at the first failed level", file=sys.stderr, flush=True)
+            break
 
     results.sort(key=lambda item: levels.index(item["level"]))
     loaded = {name for result in results for name in result["loadedOverrides"]}
@@ -542,8 +611,8 @@ def main() -> None:
         "captureGate": (
             "boot FMV skip plus requested level-geometry load ordering, native "
             "live-3D 16bpp readback, non-zero level RunFrame or exact gameplay-HUD "
-            "signature, and explicit GAME OVER rejection; the retail invulnerability "
-            "flag prevents idle "
+            "signature, and explicit GAME OVER and SAVE GAME PROGRESS rejection; "
+            "the retail invulnerability flag prevents idle "
             "validation runs from dying before capture"
         ),
         "status": "pass"

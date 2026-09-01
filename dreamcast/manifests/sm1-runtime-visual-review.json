@@ -11,9 +11,12 @@
   "reports": {
     "story": {
       "runtimeReport": "dreamcast/converted/all-characters-runtime-current/runtime-validation.json",
-      "runtimeReportSha256": "11ae3377d86afa1245c6a0fd1aef2378c4817c0dd6b5c96d7a4cc98d2b1a3ac6",
+      "runtimeReportSha256": "b35e75df1b2f885a6cb9658c71f16eb441a1ec231ec91b6631ea1ab5dac7eaa8",
       "reviewedFrameCount": 36,
-      "frameNumbersPerLevel": [4300, 4400],
+      "frameNumbersPerLevel": {
+        "default": [4300, 4400],
+        "l8a6": [2400, 2450]
+      },
       "levels": [
         "l1a1",
         "l5a3",
@@ -35,7 +38,7 @@
         "l8a6"
       ],
       "status": "manual-scene-review-complete",
-      "finding": "All captures are native real-time level renders rather than FMV/title footage. They preserve the PS1 environments and exercise all 34 story-loaded Dreamcast actor overrides. Scene validity and resource coverage are not treated as automatic visual acceptance for user-held actors. L8A6 is a scripted real-time sequence and its second frame is mostly camera-occluded."
+      "finding": "All 36 schema-4 captures were opened individually in level order after passing requested-geometry ordering, native live-3D readback, a positive level-loop or gameplay-HUD gate, and explicit GAME OVER plus SAVE GAME PROGRESS exclusions. They preserve the PS1 environments and exercise all 34 story-loaded Dreamcast actor overrides. L8A6 uses its verified earlier real-time chase window at frames 2400 and 2450 because its old 4300/4400 window had already reached the save menu. L7A5 frame 4300 is partly boss-occluded, so story-route validity and resource coverage are not treated as substitute visual acceptance for any model or user-held actor."
     },
     "viewer": {
       "runtimeReport": "dreamcast/converted/all-characters-viewer-runtime-current/runtime-validation.json",

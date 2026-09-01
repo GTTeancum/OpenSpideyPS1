@@ -451,6 +451,7 @@ def audit_runtime_evidence(runtime_executed: bool) -> dict[str, Any]:
                     all(
                         capture.get("liveGameplayGate") is True
                         and capture.get("gameOverSignature", {}).get("matches") is False
+                        and capture.get("saveProgressSignature", {}).get("matches") is False
                         for result in story.get("results", [])
                         for capture in result.get("captures", {}).values()
                     )
@@ -565,6 +566,7 @@ def audit_runtime_evidence(runtime_executed: bool) -> dict[str, Any]:
                     all(
                         capture.get("liveGameplayGate") is True
                         and capture.get("gameOverSignature", {}).get("matches") is False
+                        and capture.get("saveProgressSignature", {}).get("matches") is False
                         for result in jameson_scorpion.get("results", [])
                         for capture in result.get("captures", {}).values()
                     )
