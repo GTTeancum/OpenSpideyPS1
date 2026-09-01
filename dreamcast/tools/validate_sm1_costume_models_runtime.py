@@ -34,7 +34,11 @@ GAMEPLAY_INPUT_SCRIPT = (
 MENU_INPUT_SCRIPT = "120:start:12;title.bmr+120:start:12"
 PROOF_DEFAULTS = {
     "menu": {
-        "shots": "600,750,900,1050,1200,1350,1500",
+        "shots": (
+            "menu.spidey+180,menu.spidey+330,menu.spidey+480,"
+            "menu.spidey+630,menu.spidey+780,menu.spidey+930,"
+            "menu.spidey+1080"
+        ),
         "exitFrame": 1800,
         "inputScript": MENU_INPUT_SCRIPT,
     },
@@ -276,6 +280,15 @@ def run_costume(
         markers["introMovieSkipped"] = bool(
             title_load and int(title_load.group(1)) < 1000
         )
+        model_shots = re.findall(
+            r"\[capture\] 'menu\.spidey' at frame (\d+): "
+            r"title-shell model shot resolved to frame (\d+)",
+            console,
+        )
+        markers["liveMenuModelGate"] = (
+            len(model_shots) == len([shot for shot in shots.split(",") if shot.strip()])
+            and len({int(frame) for _, frame in model_shots}) == len(model_shots)
+        )
     head_audits = [
         (int(invalid), int(span))
         for invalid, span in re.findall(
@@ -302,6 +315,15 @@ def run_costume(
         if len(captures) != len([shot for shot in shots.split(",") if shot.strip()]):
             raise ValueError(f"expected {shots} captures, found {sorted(captures)}")
         if proof_mode == "menu":
+            for capture_name in captures:
+                if not re.search(
+                    rf"\[capture\].*{re.escape(capture_name)} .*"
+                    r"\(live-3d 16bpp display aspect\)",
+                    console,
+                ):
+                    raise ValueError(
+                        f"{capture_name} lacks the native live-3D 16bpp capture marker"
+                    )
             for capture_name, capture in captures.items():
                 capture["mainMenuSignature"] = validate_main_menu_signature(
                     costume_dir / capture_name
@@ -408,7 +430,7 @@ def main() -> None:
     results.sort(key=lambda item: item["slot"])
     passed = sum(result["status"] == valid_status for result in results)
     report = {
-        "schemaVersion": 2,
+        "schemaVersion": 3,
         "batch": str(batch),
         "proofMode": args.proof_mode,
         "level": level,
@@ -420,6 +442,10 @@ def main() -> None:
         "results": results,
         "status": valid_status if passed == len(slots) else "capture-invalid",
         "visualReview": "pending; every frame must be inspected before a model passes",
+        "captureGate": (
+            "title.bmr followed by LoadPsx(spidey), native live-3D 16bpp readback, "
+            "and four exact main-menu chrome regions"
+        ),
         "processPolicy": "strictly sequential; never more than one SpiderMan process",
     }
     report_path = output / "runtime-validation.json"

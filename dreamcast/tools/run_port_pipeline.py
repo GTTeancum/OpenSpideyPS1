@@ -444,7 +444,7 @@ def audit_runtime_evidence(runtime_executed: bool) -> dict[str, Any]:
             "SM1 costume menu",
             sm1_costume_path,
             "menu-capture-valid",
-            2,
+            3,
             actor_manifest,
             (
                 ("proofMode is not menu", sm1_costume.get("proofMode") == "menu"),
@@ -453,6 +453,7 @@ def audit_runtime_evidence(runtime_executed: bool) -> dict[str, Any]:
                     "one or more costumes lacks a valid menu signature",
                     all(
                         result.get("status") == "menu-capture-valid"
+                        and result.get("markers", {}).get("liveMenuModelGate") is True
                         and result.get("markers", {}).get("mainMenuVisualSignature") is True
                         for result in sm1_costume.get("results", [])
                     )

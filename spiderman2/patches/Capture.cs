@@ -39,6 +39,8 @@ public static class Capture
         public long Offset;
         public int Occurrence = 1;  // which load of that file, 1-based
         public int Seen;
+        public bool Started;
+        public int Remaining;
     }
 
     sealed class Shot
@@ -225,8 +227,21 @@ public static class Capture
             // intro movies. The symptom was that arming any script changed where the
             // game got to, which made scripted runs and measurement runs disagree.
             if (p.Frame < 0) continue;
-            if (e.Frame >= p.Frame && e.Frame < p.Frame + p.Hold)
+            // Movie presentation can jump across exact emulated frame numbers. Fire
+            // on the first delivered VSync at or after the target, then hold for the
+            // requested number of delivered VSyncs so a skip cannot strand the run.
+            if (!p.Started && e.Frame >= p.Frame)
+            {
+                p.Started = true;
+                p.Remaining = p.Hold;
+                Console.WriteLine(
+                    $"[capture] input fired at frame {e.Frame} (target {p.Frame}, hold {p.Hold})");
+            }
+            if (p.Remaining > 0)
+            {
                 held |= p.Mask;
+                p.Remaining--;
+            }
         }
 
         RecompOne.Runtime.Hardware.Controller.ScriptHeld = held;

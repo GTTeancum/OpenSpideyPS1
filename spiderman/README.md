@@ -274,7 +274,8 @@ SPIDEY_COSTUME=symbiote    spiderman 2099 symbiote captain unlimited bagman
                            scarlet benreilly quickchange peterparker
 SPIDEY_ASSET_DIR=path      override extracted CD.WAD entries by filename
 SPIDEY_SNAP=crash          dump the game's RAM on the crash, or on named frames
-SPIDEY_SHOTS=1050,1500     write a PNG on these frames
+SPIDEY_SHOTS=1050,menu.spidey+300
+                           write a PNG on an absolute frame or after a named event
 SPIDEY_SHOT_EVERY=150      ...or every N frames
 SPIDEY_SHOT_DIR=shots      where they go
 SPIDEY_EXIT=2200           quit after frame N
@@ -319,6 +320,13 @@ A step's frame can be an absolute number or an offset from the load of a named a
 file. Prefer the second: the game paces itself off the wall clock, so the frame a screen
 appears on moves by hundreds between runs and an absolute schedule stops lining up. This
 reaches level 1:
+
+Scripted presses fire on the first delivered VSync at or after their target and remain
+held for the requested number of VSyncs. This matters during FMV playback, where the
+emulated frame counter can advance in jumps and skip an exact numeric target. Menu proof
+screenshots can use the stronger `menu.spidey+N` event, which resolves only after the
+title shell has loaded `title.bmr` and then its live Spider-Man model; boot preloads and
+24-bit movie frames do not satisfy that gate.
 
 ```
 title.bmr+120:start:12;title.bmr+420:cross:12;title.bmr+720:cross:12;

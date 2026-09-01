@@ -14,7 +14,8 @@ namespace Recompiled;
 /// Headless verification harness. Off unless the environment asks for it, so a normal
 /// launch is unaffected.
 ///
-///   SPIDEY_SHOTS=60,300,600   frames to write a PNG on
+///   SPIDEY_SHOTS=60,menu.spidey+180
+///                              absolute or event-anchored frames to write a PNG on
 ///   SPIDEY_SHOT_EVERY=120     ...or write one every N frames
 ///   SPIDEY_SHOT_DIR=shots     where they go (default "shots")
 ///   SPIDEY_SHOT_CROP=x,y,w,h  also write an exact display-pixel close-up per shot
@@ -37,14 +38,25 @@ public static class Capture
         public int Hold;
         public string Anchor;       // archive file whose load starts the countdown
         public long Offset;
+        public bool Started;
+        public int Remaining;
     }
 
-    static readonly HashSet<long> _shotFrames = new();
+    sealed class Shot
+    {
+        public long Frame;          // -1 until an anchor resolves it
+        public string Anchor;
+        public long Offset;
+        public bool Fired;
+    }
+
+    static readonly List<Shot> _shots = new();
     static readonly List<Press> _script = new();
     static string _dir = "shots";
     static long _every;
     static long _exit = -1;
     static bool _active;
+    static bool _titleShellLoaded;
     static int _cropX = -1, _cropY, _cropW, _cropH;
 
     static readonly Dictionary<string, ushort> Buttons = new(StringComparer.OrdinalIgnoreCase)
@@ -70,7 +82,10 @@ public static class Capture
     public static void Install()
     {
         foreach (var f in Split("SPIDEY_SHOTS"))
-            if (long.TryParse(f, out var n)) { _shotFrames.Add(n); _active = true; }
+        {
+            _shots.Add(MakeShot(f));
+            _active = true;
+        }
 
         var every = Environment.GetEnvironmentVariable("SPIDEY_SHOT_EVERY");
         if (long.TryParse(every, out var e) && e > 0) { _every = e; _active = true; }
@@ -117,7 +132,7 @@ public static class Capture
         Event.AddListener<VSyncEvent>(OnFrame);
         if (!_active) return;
         string cropStatus = _cropX >= 0 ? $" crop={_cropX},{_cropY},{_cropW},{_cropH}" : "";
-        Console.WriteLine($"[capture] armed: shots={_shotFrames.Count} every={_every} exit={_exit} script={_script.Count}{cropStatus}");
+        Console.WriteLine($"[capture] armed: shots={_shots.Count} every={_every} exit={_exit} script={_script.Count}{cropStatus}");
     }
 
     static IEnumerable<string> Split(string name, char sep = ',')
@@ -139,8 +154,14 @@ public static class Capture
         if (_markEvery > 0 && e.Frame % _markEvery == 0)
             Console.WriteLine($"[frame {e.Frame}]");
 
-        if (_shotFrames.Contains(e.Frame) || (_every > 0 && e.Frame % _every == 0))
-            Save(e.Frame);
+        bool explicitShot = false;
+        foreach (var shot in _shots)
+        {
+            if (shot.Fired || shot.Frame < 0 || e.Frame < shot.Frame) continue;
+            shot.Fired = true;
+            explicitShot = true;
+        }
+        if (explicitShot || (_every > 0 && e.Frame % _every == 0)) Save(e.Frame);
 
         if (_exit > 0 && e.Frame >= _exit)
         {
@@ -166,8 +187,22 @@ public static class Capture
             // the interval from -1 through Hold-2 is treated as active at boot, so a
             // title-anchored START press also fires on frame zero.
             if (p.Frame < 0) continue;
-            if (e.Frame >= p.Frame && e.Frame < p.Frame + p.Hold)
+            // FMV presentation can advance the emulated counter by several frames at
+            // once. Start on the first delivered VSync at or after the target, then
+            // hold for the requested number of delivered VSyncs. An exact numeric
+            // window can be skipped completely and leave the run trapped in a movie.
+            if (!p.Started && e.Frame >= p.Frame)
+            {
+                p.Started = true;
+                p.Remaining = p.Hold;
+                Console.WriteLine(
+                    $"[capture] input fired at frame {e.Frame} (target {p.Frame}, hold {p.Hold})");
+            }
+            if (p.Remaining > 0)
+            {
                 held |= p.Mask;
+                p.Remaining--;
+            }
         }
 
         RecompOne.Runtime.Hardware.Controller.ScriptHeld = held;
@@ -196,9 +231,41 @@ public static class Capture
         return new Press { Frame = -1, Mask = mask, Hold = hold, Anchor = anchor, Offset = offset };
     }
 
+    static Shot MakeShot(string raw)
+    {
+        if (long.TryParse(raw, NumberStyles.Integer, CultureInfo.InvariantCulture, out var abs))
+            return new Shot { Frame = abs };
+
+        long offset = 0;
+        string anchor = raw;
+        int plus = raw.LastIndexOf('+');
+        if (plus > 0 && long.TryParse(raw.Substring(plus + 1), out var off))
+        {
+            anchor = raw.Substring(0, plus);
+            offset = off;
+        }
+        if (string.IsNullOrWhiteSpace(anchor))
+            throw new ArgumentException($"invalid SPIDEY_SHOTS entry: {raw}");
+        return new Shot { Frame = -1, Anchor = anchor, Offset = offset };
+    }
+
+    static void ResolveAnchor(string anchor, long frame, string source)
+    {
+        foreach (var shot in _shots)
+            if (shot.Frame < 0 && shot.Anchor != null &&
+                string.Equals(shot.Anchor, anchor, StringComparison.OrdinalIgnoreCase))
+            {
+                shot.Frame = frame + shot.Offset;
+                Console.WriteLine(
+                    $"[capture] '{anchor}' at frame {frame}: {source} shot resolved to frame {shot.Frame}");
+            }
+    }
+
     /// <summary>Called for every archive lookup; resolves any step anchored to it.</summary>
     public static void NoteWadLoad(string name, long frame)
     {
+        if (string.Equals(name, "title.bmr", StringComparison.OrdinalIgnoreCase))
+            _titleShellLoaded = true;
         foreach (var p in _script)
             if (p.Frame < 0 && p.Anchor != null &&
                 string.Equals(p.Anchor, name, StringComparison.OrdinalIgnoreCase))
@@ -206,6 +273,17 @@ public static class Capture
                 p.Frame = frame + p.Offset;
                 Console.WriteLine($"[capture] '{name}' at frame {frame}: step resolved to frame {p.Frame}");
             }
+        ResolveAnchor(name, frame, "archive");
+    }
+
+    /// <summary>
+    /// Called by the LoadPsx hook. Only a spidey load after title.bmr is accepted as
+    /// the live-menu boundary. Boot preload calls are deliberately ignored.
+    /// </summary>
+    public static void NoteModelLoad(string name, long frame)
+    {
+        if (_titleShellLoaded && string.Equals(name, "spidey", StringComparison.OrdinalIgnoreCase))
+            ResolveAnchor("menu.spidey", frame, "title-shell model");
     }
 
 
@@ -218,7 +296,7 @@ public static class Capture
 
         string path = Path.Combine(_dir, $"frame_{frame:D5}.png");
         PngWriter.WriteRgba(path, rgba, w, h);
-        Console.WriteLine($"[capture] {path} {w}x{h} (display aspect)");
+        Console.WriteLine($"[capture] {path} {w}x{h} (live-3d 16bpp display aspect)");
         SaveCloseup(frame, rgba, w, h);
     }
 

@@ -283,7 +283,9 @@ public static class GameTrace
     /// <summary>pre-hook on LoadPsx(char *name, int)</summary>
     public static void LoadPsx(CpuContext c, IMemory m)
     {
-        if (On) Console.WriteLine($"[game]   LoadPsx(\"{Str(m, c.A0)}\") from ra=0x{c.RA:X8}");
+        string name = Str(m, c.A0);
+        Capture.NoteModelLoad(name, System.Threading.Interlocked.Read(ref Diag.Frame));
+        if (On) Console.WriteLine($"[game]   LoadPsx(\"{name}\") from ra=0x{c.RA:X8}");
     }
 
     /// <summary>pre-hook on LoadOverlay(char *name, int heap)</summary>
