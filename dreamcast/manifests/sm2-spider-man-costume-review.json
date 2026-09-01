@@ -1,0 +1,45 @@
+{
+  "schemaVersion": 1,
+  "status": "runtime-validated-and-manually-reviewed",
+  "scope": "SM2 Spider-Man costumes only; retail environments, NPCs, and enemies are unchanged",
+  "capturePolicy": {
+    "anchor": "charlite.dat",
+    "menuOffsets": [300, 400, 500, 600, 700],
+    "renderSize": [1280, 960],
+    "fmvRejection": "320x240 title/FMV captures are rejected",
+    "processPolicy": "one sequential SpiderMan2 process per costume"
+  },
+  "reviewPolicy": "All five live 3D menu frames for every slot were inspected for readable menu UI, coherent UV placement, stable silhouette, intact limbs, and pose-dependent geometry failures.",
+  "runtimeReport": "dreamcast/converted/sm2-spider-man-runtime/runtime-menu-proof/runtime-validation.json",
+  "costumes": [
+    {"slot": 0, "status": "manual-visual-pass", "evidence": "dreamcast/converted/sm2-spider-man-runtime/runtime-menu-proof/slot-00/menu_sequence_contact.png"},
+    {"slot": 1, "status": "manual-visual-pass", "evidence": "dreamcast/converted/sm2-spider-man-runtime/runtime-menu-proof/slot-01/menu_sequence_contact.png"},
+    {"slot": 2, "status": "manual-visual-pass", "evidence": "dreamcast/converted/sm2-spider-man-runtime/runtime-menu-proof/slot-02/menu_sequence_contact.png"},
+    {"slot": 3, "status": "manual-visual-pass", "evidence": "dreamcast/converted/sm2-spider-man-runtime/runtime-menu-proof/slot-03/menu_sequence_contact.png"},
+    {"slot": 4, "status": "manual-visual-pass", "evidence": "dreamcast/converted/sm2-spider-man-runtime/runtime-menu-proof/slot-04/menu_sequence_contact.png"},
+    {"slot": 5, "status": "manual-visual-pass", "evidence": "dreamcast/converted/sm2-spider-man-runtime/runtime-menu-proof/slot-05/menu_sequence_contact.png"},
+    {"slot": 6, "status": "manual-visual-pass", "evidence": "dreamcast/converted/sm2-spider-man-runtime/runtime-menu-proof/slot-06/menu_sequence_contact.png"},
+    {"slot": 7, "status": "manual-visual-pass", "evidence": "dreamcast/converted/sm2-spider-man-runtime/runtime-menu-proof/slot-07/menu_sequence_contact.png"},
+    {"slot": 8, "status": "manual-visual-pass", "evidence": "dreamcast/converted/sm2-spider-man-runtime/runtime-menu-proof/slot-08/menu_sequence_contact.png"},
+    {"slot": 9, "status": "manual-visual-pass", "evidence": "dreamcast/converted/sm2-spider-man-runtime/runtime-menu-proof/slot-09/menu_sequence_contact.png"},
+    {"slot": 10, "status": "manual-visual-pass", "evidence": "dreamcast/converted/sm2-spider-man-runtime/runtime-menu-proof/slot-10/menu_sequence_contact.png"},
+    {"slot": 11, "status": "manual-visual-pass", "evidence": "dreamcast/converted/sm2-spider-man-runtime/runtime-menu-proof/slot-11/menu_sequence_contact.png"},
+    {"slot": 12, "status": "manual-visual-pass", "evidence": "dreamcast/converted/sm2-spider-man-runtime/runtime-menu-proof/slot-12/menu_sequence_contact.png"},
+    {
+      "slot": 13,
+      "status": "manual-visual-pass",
+      "evidence": "dreamcast/converted/sm2-spider-man-runtime/runtime-menu-proof/slot-13/menu_sequence_contact.png",
+      "adaptation": "Dedicated Dreamcast Bag-Man geometry and textures on the complete SM2 skeleton; no fabricated generic wings; topology-guarded nested-shell depth ordering; compact VRAM pages plus original-resolution host replacements."
+    },
+    {"slot": 14, "status": "manual-visual-pass", "evidence": "dreamcast/converted/sm2-spider-man-runtime/runtime-menu-proof/slot-14/menu_sequence_contact.png"},
+    {"slot": 15, "status": "manual-visual-pass", "evidence": "dreamcast/converted/sm2-spider-man-runtime/runtime-menu-proof/slot-15/menu_sequence_contact.png"},
+    {"slot": 16, "status": "manual-visual-pass", "evidence": "dreamcast/converted/sm2-spider-man-runtime/runtime-menu-proof/slot-16/menu_sequence_contact.png"},
+    {
+      "slot": 17,
+      "status": "manual-visual-pass",
+      "evidence": "dreamcast/converted/sm2-spider-man-runtime/runtime-menu-proof/slot-17/menu_sequence_contact.png",
+      "adaptation": "Dedicated Dreamcast Peter Parker geometry and textures on the complete SM2 skeleton; no fabricated generic wings; compact VRAM pages plus original-resolution host replacements."
+    },
+    {"slot": 18, "status": "manual-visual-pass", "evidence": "dreamcast/converted/sm2-spider-man-runtime/runtime-menu-proof/slot-18/menu_sequence_contact.png"}
+  ]
+}

@@ -194,6 +194,7 @@ class AttachmentSource:
 class WingDonor:
     templates: dict[int, WingTemplate]
     attachment_sources: dict[int, AttachmentSource]
+    mesh_names: tuple[int, ...]
 
 
 @dataclass(frozen=True)
@@ -460,6 +461,7 @@ def load_wing_templates(path: Path) -> WingDonor:
     return WingDonor(
         templates,
         {index: attachment_sources[index] for index in referenced_attachments},
+        parse_skeleton_donor(path).mesh_names,
     )
 
 
@@ -472,13 +474,48 @@ def prepare_wing_transfer(model: ParsedModel, donor: WingDonor) -> WingTransfer:
     copies are therefore added to the corresponding DC body parts so position,
     normal and bone influence all remain exact without altering DC body faces.
     """
+    if (
+        len(donor.mesh_names) != model.mesh_count
+        or set(donor.mesh_names) != set(model.mesh_names)
+    ):
+        raise ValueError("wing donor and target model have different mesh-name sets")
+    target_index_by_name = {
+        mesh_name: mesh_index for mesh_index, mesh_name in enumerate(model.mesh_names)
+    }
+
+    # Attachment sources and wing-bearing meshes are identified by their stable
+    # object names, not their numeric positions. Alternate costumes can reorder
+    # same-named hand/forearm parts while retaining the same 18-part hierarchy;
+    # treating the donor's numeric index as the target index then stitches a wing
+    # corner to the wrong body part.
+    remapped_sources = {
+        donor_index: AttachmentSource(
+            source.attachment_index,
+            target_index_by_name[donor.mesh_names[source.mesh_index]],
+            source.vertex_index,
+            source.vertex,
+            source.normal,
+        )
+        for donor_index, source in donor.attachment_sources.items()
+    }
+    remapped_templates = {
+        target_index_by_name[donor.mesh_names[template.mesh_index]]: WingTemplate(
+            target_index_by_name[donor.mesh_names[template.mesh_index]],
+            template.vertices,
+            template.vertex_normals,
+            template.faces,
+            template.face_normals,
+        )
+        for template in donor.templates.values()
+    }
+
     target_sources = collect_attachment_sources(model.data, model.mesh_pointers)
     exact: dict[tuple[int, bytes, bytes], AttachmentSource] = {
         (source.mesh_index, source.vertex, source.normal): source for source in target_sources
     }
     inserted: dict[int, list[AttachmentSource]] = {}
     matches: dict[int, AttachmentSource | None] = {}
-    for donor_index, source in donor.attachment_sources.items():
+    for donor_index, source in remapped_sources.items():
         match = exact.get((source.mesh_index, source.vertex, source.normal))
         matches[donor_index] = match
         if match is None:
@@ -501,7 +538,7 @@ def prepare_wing_transfer(model: ParsedModel, donor: WingDonor) -> WingTransfer:
         return index + sum(count for point, count in insertion_points if index >= point)
 
     reference_map: dict[int, int] = {}
-    for donor_index, source in donor.attachment_sources.items():
+    for donor_index, source in remapped_sources.items():
         match = matches[donor_index]
         if match is not None:
             reference_map[donor_index] = shift_old(match.attachment_index)
@@ -515,11 +552,76 @@ def prepare_wing_transfer(model: ParsedModel, donor: WingDonor) -> WingTransfer:
         reference_map[donor_index] = point + earlier_insertions + ordinal
 
     return WingTransfer(
-        donor.templates,
+        remapped_templates,
         reference_map,
         {mesh: tuple(sources) for mesh, sources in inserted.items()},
         insertion_points,
     )
+
+
+def attachment_reorder_map(
+    model: ParsedModel,
+    mesh_order: tuple[int, ...],
+    wing_transfer: WingTransfer | None,
+) -> dict[int, int]:
+    """Map post-insertion stitch indices into the emitted mesh traversal order.
+
+    Type-1 vertices form one file-wide attachment table in mesh/vertex traversal
+    order, while type-2 vertices store an index into that table.  A skeleton donor
+    can reorder same-named meshes (notably the alternate left/right hand parts),
+    so retaining the old indices would weight stitched vertices to unrelated body
+    parts.  Wing source insertions are already reflected in the intermediate
+    indices produced by ``prepare_wing_transfer``; this map performs the remaining
+    mesh-order permutation.
+    """
+    if mesh_order == tuple(range(model.mesh_count)):
+        return {}
+
+    additions = wing_transfer.inserted_sources if wing_transfer else {}
+    keys_by_mesh: dict[int, tuple[tuple[int, int], ...]] = {}
+    for mesh_index, pointer in enumerate(model.mesh_pointers):
+        _, vertices, _, _ = mesh_parts(model.data, pointer)
+        source_count = sum(u16(vertex, 6) == 1 for vertex in vertices)
+        source_count += len(additions.get(mesh_index, ()))
+        keys_by_mesh[mesh_index] = tuple(
+            (mesh_index, ordinal) for ordinal in range(source_count)
+        )
+
+    intermediate = tuple(
+        key
+        for mesh_index in range(model.mesh_count)
+        for key in keys_by_mesh[mesh_index]
+    )
+    emitted = tuple(
+        key for mesh_index in mesh_order for key in keys_by_mesh[mesh_index]
+    )
+    if len(intermediate) != len(emitted) or set(intermediate) != set(emitted):
+        raise ValueError("attachment reorder does not preserve the source set")
+    emitted_index = {key: index for index, key in enumerate(emitted)}
+    return {
+        index: emitted_index[key] for index, key in enumerate(intermediate)
+    }
+
+
+def remap_attachment_references(mesh: bytes, mapping: Mapping[int, int]) -> bytes:
+    """Retarget every stitched vertex in one converted mesh."""
+    if not mapping:
+        return mesh
+    header, vertices, normals, faces = mesh_parts(mesh, 0)
+    remapped: list[bytes] = []
+    for vertex in vertices:
+        if u16(vertex, 6) != 2:
+            remapped.append(vertex)
+            continue
+        old_reference = u16(vertex, 2)
+        if old_reference not in mapping:
+            raise ValueError(
+                f"stitched vertex references missing attachment {old_reference}"
+            )
+        adjusted = bytearray(vertex)
+        struct.pack_into("<H", adjusted, 2, mapping[old_reference])
+        remapped.append(bytes(adjusted))
+    return bytes(header) + b"".join(remapped) + b"".join(normals) + b"".join(faces)
 
 
 def parse_model(path: Path) -> ParsedModel:
@@ -1710,6 +1812,7 @@ def build_character(
         if skeleton_donor is None
         else skeleton_mesh_order(model, skeleton_donor)
     )
+    attachment_remap = attachment_reorder_map(model, mesh_order, wing_transfer)
     output_mesh_names = (
         model.mesh_names
         if skeleton_donor is None
@@ -1739,17 +1842,16 @@ def build_character(
             # lighting triplet for each of the six faces per segment.
             face_lighting = skeleton_donor.face_lighting_by_mesh[mesh_name]
         mesh_offsets.append(len(output))
-        output.extend(
-            convert_mesh(
-                model,
-                mesh_index,
-                dimensions,
-                wing_transfer,
-                wing_index,
-                face_lighting,
-                is_jameson_model(model),
-            )
+        converted_mesh = convert_mesh(
+            model,
+            mesh_index,
+            dimensions,
+            wing_transfer,
+            wing_index,
+            face_lighting,
+            is_jameson_model(model),
         )
+        output.extend(remap_attachment_references(converted_mesh, attachment_remap))
     for index, mesh_offset in enumerate(mesh_offsets):
         struct.pack_into("<I", output, model.mesh_pointer_table_offset + index * 4, mesh_offset)
 

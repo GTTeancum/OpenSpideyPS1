@@ -50,6 +50,12 @@
    "address": "0x80074C38",
    "name": "LoadPsx",
    "size": 560
+  },
+  {
+   "address": "0x80088B18",
+   "name": "DrawPrimSet",
+   "size": 12020,
+   "_note": "Verified engine-equivalent of SM1 0x8007C4D8: identical entry contract (a0 face stream, a2 face count), scratchpad layout, GTE setup, face flag decode, and primitive traversal; instruction-shape score 0.540 over 2991 words with 0.512 runner-up gap."
   }
  ]
 }

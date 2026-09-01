@@ -42,6 +42,19 @@ public static class Program
         SeedSettings(gameData);
         RecompOne.Runtime.Assets.LooseWadOverrides.Initialize(gameData);
 
+        // A generated Dreamcast actor batch can carry original-resolution host
+        // textures beside its compact PS1-VRAM compatibility pages. Keep that
+        // batch self-contained unless the caller selected another pack root.
+        if (string.IsNullOrWhiteSpace(Environment.GetEnvironmentVariable("RECOMP_ASSET_PACK_DIR")))
+        {
+            string actorRoot = Environment.GetEnvironmentVariable("SPIDEY_ASSET_DIR");
+            string actorPacks = string.IsNullOrWhiteSpace(actorRoot)
+                ? null
+                : Path.Combine(Path.GetFullPath(actorRoot), "packs");
+            if (actorPacks != null && Directory.Exists(actorPacks))
+                Environment.SetEnvironmentVariable("RECOMP_ASSET_PACK_DIR", actorPacks);
+        }
+
         var guard = Environment.GetEnvironmentVariable("SPIDEY_GUARD");
         if (!string.IsNullOrEmpty(guard))
             RecompOne.Runtime.Diagnostics.MemGuard.Address =
@@ -84,6 +97,7 @@ public static class Program
         Capture.Install();
         RamSnap.Install();
         LevelSwitch.Install();
+        Costume.Install();
         Cheats.Install();
         Rates.Install();
         Harness.Install();

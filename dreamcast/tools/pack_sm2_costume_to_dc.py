@@ -162,6 +162,7 @@ def container_layout(data: bytes) -> dict[str, Any]:
         cursor += 4
     return {
         "meshCount": mesh_count,
+        "meshPointerTable": pointer_table,
         "meshPointers": mesh_pointers,
         "meshNames": mesh_names,
         "hashCountOffset": hash_count_offset,
@@ -222,13 +223,15 @@ def match_static_mapping(
     dimensions: dict[int, tuple[int, int]],
 ) -> tuple[dict[tuple[int, int], list[tuple[int, dict[str, Any]]]], dict[str, int]]:
     lookup: dict[tuple[Any, ...], list[tuple[int, int, int]]] = defaultdict(list)
-    face_by_ref: dict[tuple[int, int], dict[str, Any]] = {}
     for mesh in target_dump["Meshes"]:
+        if mesh["NameHash"] in HAND_MESH_NAMES:
+            continue
         mesh_index = mesh["MeshIndex"]
         for face in mesh["Faces"]:
             face_index = face["FaceIndex"]
-            face_by_ref[(mesh_index, face_index)] = face
             texture_hash = face["TextureHash"]
+            if texture_hash == WING_HASH:
+                continue
             width, height = dimensions[texture_hash]
             for triangle_index, slots in enumerate(emitted_slot_orders(face)):
                 positions = [
@@ -248,6 +251,7 @@ def match_static_mapping(
 
     used: Counter[tuple[Any, ...]] = Counter()
     matched: dict[tuple[int, int], list[tuple[int, dict[str, Any]]]] = defaultdict(list)
+    semantic_glb_polygons = 0
     for polygon in mapping["polygons"]:
         original = polygon["original"]
         key = polygon_key(
@@ -256,6 +260,13 @@ def match_static_mapping(
             original["uvs"],
         )
         candidates = lookup.get(key, [])
+        if not candidates:
+            # Static geometry is proven complete below.  Any remaining GLB
+            # polygons belong to alternate hand meshes or donor-exact wings.
+            # Hands are mapped semantically because only one pose is visible in
+            # a static export; wing packets retain their native UVs directly.
+            semantic_glb_polygons += 1
+            continue
         ordinal = used[key]
         if ordinal >= len(candidates):
             raise ValueError(
@@ -265,9 +276,18 @@ def match_static_mapping(
         used[key] += 1
         matched[(mesh_index, face_index)].append((triangle_index, polygon))
 
+    expected_static_polygons = sum(len(candidates) for candidates in lookup.values())
+    matched_static_polygons = sum(len(items) for items in matched.values())
+    if matched_static_polygons != expected_static_polygons:
+        raise ValueError(
+            f"static mapping proves {matched_static_polygons} of "
+            f"{expected_static_polygons} native target triangles"
+        )
+
     return matched, {
         "staticPolygons": len(mapping["polygons"]),
-        "matchedStaticPolygons": sum(len(items) for items in matched.values()),
+        "matchedStaticPolygons": matched_static_polygons,
+        "semanticGlbPolygons": semantic_glb_polygons,
         "matchedNativeFaces": len(matched),
     }
 
@@ -410,10 +430,10 @@ def semantic_face_mapping(
     return triangle.texture_hash, mapped_uvs
 
 
-def static_face_mapping(
+def static_face_mappings(
     face: dict[str, Any],
     polygons: list[tuple[int, dict[str, Any]]],
-) -> tuple[int, list[tuple[float, float]]]:
+) -> tuple[list[tuple[int, list[tuple[float, float]]]], bool]:
     by_triangle = {triangle_index: polygon for triangle_index, polygon in polygons}
     expected = 2 if face["IsQuad"] else 1
     if set(by_triangle) != set(range(expected)):
@@ -425,25 +445,39 @@ def static_face_mapping(
     if not face["IsQuad"]:
         # Emitted order is native slots 0,2,1.
         mapped = first["uvs"]
-        return texture_hash, [tuple(mapped[0]), tuple(mapped[2]), tuple(mapped[1])]
+        return [
+            (texture_hash, [tuple(mapped[0]), tuple(mapped[2]), tuple(mapped[1])])
+        ], False
 
     second = by_triangle[1]["mapped"]
-    if material_hash(second["material"]) != texture_hash:
-        raise ValueError(f"quad face {face['FaceIndex']} maps to two materials")
-    if any(
+    second_hash = material_hash(second["material"])
+    # glTF emits a native quad as two triangles.  Nearest-surface transfer can
+    # choose a different source triangle for each half.  If their material or
+    # shared-corner UVs differ, preserve the transfer exactly by replacing the
+    # native quad with its two emitted native triangles.
+    split = second_hash != texture_hash or any(
         abs(a - b) > 1e-6
         for a, b in zip(first["uvs"][2], second["uvs"][0])
     ) or any(
         abs(a - b) > 1e-6
         for a, b in zip(first["uvs"][1], second["uvs"][1])
-    ):
-        raise ValueError(f"quad face {face['FaceIndex']} has inconsistent shared UVs")
-    return texture_hash, [
-        tuple(first["uvs"][0]),
-        tuple(first["uvs"][2]),
-        tuple(first["uvs"][1]),
-        tuple(second["uvs"][2]),
-    ]
+    )
+    if split:
+        return [
+            (texture_hash, [tuple(uv) for uv in first["uvs"]]),
+            (second_hash, [tuple(uv) for uv in second["uvs"]]),
+        ], True
+    return [
+        (
+            texture_hash,
+            [
+                tuple(first["uvs"][0]),
+                tuple(first["uvs"][2]),
+                tuple(first["uvs"][1]),
+                tuple(second["uvs"][2]),
+            ],
+        )
+    ], False
 
 
 def uv_byte(value: float, dimension: int) -> int:
@@ -460,18 +494,31 @@ def rewrite_faces(
     dimensions: dict[int, tuple[int, int]],
     output_hashes: tuple[int, ...],
 ) -> tuple[bytes, dict[str, int]]:
-    output = bytearray(target)
     texture_index = {texture_hash: index for index, texture_hash in enumerate(output_hashes)}
     if len(texture_index) != len(output_hashes):
         raise ValueError("SM2 model contains duplicate material hashes")
     counters: Counter[str] = Counter()
+    first_mesh = min(target_layout["meshPointers"])
+    output = bytearray(target[:first_mesh])
+    mesh_offsets: list[int] = []
 
     for mesh in target_dump["Meshes"]:
         mesh_index = mesh["MeshIndex"]
         mesh_name = mesh["NameHash"]
         pointer = target_layout["meshPointers"][mesh_index]
         vertex_count, normal_count = struct.unpack_from("<HH", target, pointer + 2)
+        original_face_count = len(mesh["Faces"])
+        if normal_count != vertex_count + original_face_count:
+            raise ValueError(
+                f"target mesh {mesh_index} has {normal_count} normals; expected "
+                f"{vertex_count} vertex plus {original_face_count} face normals"
+            )
+        vertex_normal_end = pointer + 28 + vertex_count * 8 + vertex_count * 8
         face_offset = pointer + 28 + vertex_count * 8 + normal_count * 8
+        rebuilt_mesh = bytearray(target[pointer:vertex_normal_end])
+        rebuilt_face_normals: list[bytes] = []
+        rebuilt_faces: list[bytes] = []
+        rebuilt_face_count = 0
         for face in mesh["Faces"]:
             face_index = face["FaceIndex"]
             length = u16(target, face_offset + 2)
@@ -480,11 +527,19 @@ def rewrite_faces(
                     f"target mesh {mesh_index} face {face_index} is not a v4 textured face"
                 )
 
+            native_face = target[face_offset : face_offset + length]
+            split_quad = False
             if face["TextureHash"] == WING_HASH:
-                mapped_hash = WING_HASH
-                mapped_uvs = [
-                    (coordinate["U"], coordinate["V"])
-                    for coordinate in face["TextureCoordinates"][: 4 if face["IsQuad"] else 3]
+                mappings = [
+                    (
+                        WING_HASH,
+                        [
+                            (coordinate["U"], coordinate["V"])
+                            for coordinate in face["TextureCoordinates"][
+                                : 4 if face["IsQuad"] else 3
+                            ]
+                        ],
+                    )
                 ]
                 counters["wingFaces"] += 1
                 uv_is_native = True
@@ -493,6 +548,7 @@ def rewrite_faces(
                 if not candidates:
                     raise ValueError(f"SM2 donor lacks hand mesh {mesh_name:08X}")
                 mapped_hash, mapped_uvs = semantic_face_mapping(face, candidates)
+                mappings = [(mapped_hash, mapped_uvs)]
                 counters["semanticHandFaces"] += 1
                 uv_is_native = False
             else:
@@ -501,27 +557,77 @@ def rewrite_faces(
                     raise ValueError(
                         f"target mesh {mesh_index} face {face_index} lacks a proven static mapping"
                     )
-                mapped_hash, mapped_uvs = static_face_mapping(face, polygons)
+                mappings, split_quad = static_face_mappings(face, polygons)
                 counters["staticMappedFaces"] += 1
+                if split_quad:
+                    counters["splitStaticQuads"] += 1
                 uv_is_native = False
 
-            if mapped_hash not in texture_index:
-                raise ValueError(f"mapped material {mapped_hash:08X} is absent from SM2 model")
-            struct.pack_into("<I", output, face_offset + 16, texture_index[mapped_hash])
-            width, height = dimensions[mapped_hash]
-            for slot, uv in enumerate(mapped_uvs):
-                if uv_is_native:
-                    u, v = int(uv[0]), int(uv[1])
-                else:
-                    u, v = uv_byte(uv[0], width), uv_byte(uv[1], height)
-                output[face_offset + 20 + slot * 2] = u
-                output[face_offset + 21 + slot * 2] = v
+            indices = face["Indices"]
+            split_indices = (
+                ((indices[0], indices[2], indices[1]), (indices[1], indices[2], indices[3]))
+                if split_quad
+                else (None,)
+            )
+            for mapping_index, (mapped_hash, mapped_uvs) in enumerate(mappings):
+                if mapped_hash not in texture_index:
+                    raise ValueError(
+                        f"mapped material {mapped_hash:08X} is absent from SM2 model"
+                    )
+                packet = bytearray(native_face)
+                if split_quad:
+                    # Bit 0x10 selects a triangle in this v4 face packet.  Both
+                    # triangles reuse the quad's authored face normal.
+                    struct.pack_into("<H", packet, 0, u16(packet, 0) | 0x0010)
+                    packet[4:8] = bytes((*split_indices[mapping_index], 0))
+                struct.pack_into("<H", packet, 12, vertex_count + rebuilt_face_count)
+                struct.pack_into("<I", packet, 16, texture_index[mapped_hash])
+                width, height = dimensions[mapped_hash]
+                for slot, uv in enumerate(mapped_uvs):
+                    if uv_is_native:
+                        u, v = int(uv[0]), int(uv[1])
+                    else:
+                        u, v = uv_byte(uv[0], width), uv_byte(uv[1], height)
+                    packet[20 + slot * 2] = u
+                    packet[21 + slot * 2] = v
+                original_normal = target[
+                    vertex_normal_end + face_index * 8 :
+                    vertex_normal_end + (face_index + 1) * 8
+                ]
+                if len(original_normal) != 8:
+                    raise ValueError(
+                        f"target mesh {mesh_index} face {face_index} lacks its face normal"
+                    )
+                rebuilt_face_normals.append(original_normal)
+                rebuilt_faces.append(bytes(packet))
+                rebuilt_face_count += 1
             face_offset += length
 
         if face_offset > len(target):
             raise ValueError(f"target mesh {mesh_index} faces extend past EOF")
+        struct.pack_into("<H", rebuilt_mesh, 6, rebuilt_face_count)
+        struct.pack_into("<H", rebuilt_mesh, 4, vertex_count + rebuilt_face_count)
+        rebuilt_mesh.extend(b"".join(rebuilt_face_normals))
+        rebuilt_mesh.extend(b"".join(rebuilt_faces))
+        mesh_offsets.append(len(output))
+        output.extend(rebuilt_mesh)
 
-    counters["totalFaces"] = sum(mesh["FaceCount"] for mesh in target_dump["Meshes"])
+    while len(output) % 4:
+        output.append(0)
+    tagged_start = len(output)
+    output.extend(target[u32(target, 4) :])
+    struct.pack_into("<I", output, 4, tagged_start)
+    for mesh_index, mesh_offset in enumerate(mesh_offsets):
+        struct.pack_into(
+            "<I",
+            output,
+            target_layout["meshPointerTable"] + mesh_index * 4,
+            mesh_offset,
+        )
+
+    counters["totalFaces"] = sum(mesh["FaceCount"] for mesh in target_dump["Meshes"]) + counters[
+        "splitStaticQuads"
+    ]
     return bytes(output), dict(counters)
 
 
@@ -578,6 +684,16 @@ def main() -> None:
     dc_model = converter.parse_model(args.dc_model.resolve())
     wing_donor = converter.load_wing_templates(args.sm2_model.resolve())
     skeleton_donor = converter.parse_skeleton_donor(args.sm2_model.resolve())
+    if set(dc_model.mesh_names) != set(skeleton_donor.mesh_names):
+        raise ValueError("Dreamcast and SM2 actors have different mesh-name sets")
+    # Animation transforms address objects by numeric position. Name-match and
+    # reorder alternate Dreamcast costume meshes onto the complete SM2 object
+    # table; the converter also remaps every file-wide stitched-vertex reference
+    # into that emitted order.
+    metadata_mode = "complete SM2 skeleton donor"
+    tagged_chunks = None
+    build_skeleton_donor = skeleton_donor
+    expected_mesh_names = skeleton_donor.mesh_names
     mapping = json.loads(args.mapping.read_text(encoding="utf-8"))
     dimensions = source_dimensions(mapping)
 
@@ -589,12 +705,13 @@ def main() -> None:
         args.dc_textures.resolve(),
         1,
         wing_donor,
-        skeleton_donor=skeleton_donor,
+        tagged_chunks=tagged_chunks,
+        skeleton_donor=build_skeleton_donor,
     )
     base_layout = container_layout(base)
     sm2_model_layout = container_layout(args.sm2_model.read_bytes())
-    if base_layout["meshNames"] != sm2_model_layout["meshNames"]:
-        raise ValueError("rebuilt Dreamcast mesh order does not match the SM2 donor")
+    if base_layout["meshNames"] != expected_mesh_names:
+        raise ValueError("rebuilt Dreamcast mesh order does not match its metadata")
 
     with tempfile.TemporaryDirectory(prefix="sm2-dc-native-pack-") as temporary:
         temporary_root = Path(temporary)
@@ -656,6 +773,7 @@ def main() -> None:
         "dcModel": str(args.dc_model.resolve()),
         "sm2Model": str(args.sm2_model.resolve()),
         "sm2TextureLibrary": str(args.sm2_textures.resolve()),
+        "animationMetadata": metadata_mode,
         "staticMapping": str(args.mapping.resolve()),
         "outputModel": str(args.output_model.resolve()),
         "outputTextureLibrary": str(args.output_textures.resolve()),

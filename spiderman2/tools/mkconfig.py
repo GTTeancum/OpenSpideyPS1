@@ -62,7 +62,17 @@ def main():
             ('CdWadFind', 'post', 'Recompiled.OverlayPatches.CdWadFindExit'),
             ('CdWadRead', 'pre',  'RecompOne.Runtime.Assets.LooseWadOverrides.Read'),
             ('HeapAlloc', 'pre',  'Recompiled.OverlayPatches.HeapAlloc'),
-            ('HeapFree',  'pre',  'Recompiled.OverlayPatches.HeapFree')):
+            ('HeapFree',  'pre',  'Recompiled.OverlayPatches.HeapFree'),
+            # Verified at 0x8004E4BC: its second argument is one-based and indexes
+            # the nineteen-entry sp_tex00..18 filename table at 0x800B30E4.
+            ('func_8004E4BC', 'pre', 'Recompiled.Costume.SelectTextureLibrary'),
+            # The retail Bag-Man/Peter path copies fixed low-detail coordinates into
+            # mesh 7. Dedicated high-detail DC actors already have the right head.
+            ('func_8004EC34', 'pre', 'Recompiled.Costume.SkipRetailSpecialHeadMorph'),
+            # Translate the Dreamcast Bag-Man inner/outer shell depth relationship
+            # through the engine's native per-face ordering-table offset channel.
+            ('DrawPrimSet', 'pre', 'Recompiled.DcModelCompatibility.ApplyBagmanNestedShellDepth'),
+            ('DrawPrimSet', 'post', 'Recompiled.DcModelCompatibility.RestoreBagmanNestedShellDepth')):
         if fn in names:
             patches.append({'overlay': 'main', 'function': fn, 'mode': mode, 'target': target})
         else:

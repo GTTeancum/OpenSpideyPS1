@@ -209,6 +209,30 @@
     },
     {
       "overlay": "main",
+      "function": "func_8004E4BC",
+      "mode": "pre",
+      "target": "Recompiled.Costume.SelectTextureLibrary"
+    },
+    {
+      "overlay": "main",
+      "function": "func_8004EC34",
+      "mode": "pre",
+      "target": "Recompiled.Costume.SkipRetailSpecialHeadMorph"
+    },
+    {
+      "overlay": "main",
+      "function": "DrawPrimSet",
+      "mode": "pre",
+      "target": "Recompiled.DcModelCompatibility.ApplyBagmanNestedShellDepth"
+    },
+    {
+      "overlay": "main",
+      "function": "DrawPrimSet",
+      "mode": "post",
+      "target": "Recompiled.DcModelCompatibility.RestoreBagmanNestedShellDepth"
+    },
+    {
+      "overlay": "main",
       "function": "MovieNextFrame",
       "mode": "post",
       "target": "Recompiled.MovieTrace.NextFrameExit"
