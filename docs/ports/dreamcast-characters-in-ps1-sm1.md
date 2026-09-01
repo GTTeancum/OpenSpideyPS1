@@ -267,15 +267,17 @@ python dreamcast/tools/validate_sm1_costume_models_runtime.py `
   --concurrency 1 --render-scale 4 --proof-mode menu
 ```
 
-Quick Change remains blocked. A separate 21-frame L1A1 gameplay sequence confirms
-hard triangular protrusions at the rear hip/jacket boundary during its deep crouch,
-plus suspect shoulder and ankle joins. Neutral source renders are clean, all 127
-stitch sources and 143 references parse correctly, and the same failing pose remains
-with the embedded Dreamcast animation bank, so load/capture success does not clear
-the deformation. Gameplay costume proofs now require the requested retail level
-L/O/G assets, a live gameplay HUD or active level frame, and a fresh slot-2 player
-head-geometry audit before every capture. GAME OVER, save-progress, FMV, menu, and
-later NPC geometry cannot satisfy those gates.
+Quick Change remains blocked for the user's requested feet/jacket review. All 21
+L1A1 gameplay frames and 32 consecutive native Dreamcast Character Viewer frames
+from 109.5 through 117.5 seconds of the cited reference were inspected individually.
+The native model has the same triangular upper-thigh silhouette in its deep crouch
+and the same bulky segmented jacket/shoulder joins; its running and wide-stance
+poses remain coherent. The current evidence therefore does not establish a
+port-specific deformation. Neutral source renders are clean, and all 127 stitch
+sources and 143 references parse correctly. Gameplay costume proofs require the
+requested retail level L/O/G assets, a live gameplay HUD or active level frame, and
+a fresh slot-2 player head-geometry audit before every capture. GAME OVER,
+save-progress, FMV, menu, and later NPC geometry cannot satisfy those gates.
 
 The complete selectable Character Viewer roster is also exercised in one game
 process at 4x. SM1 exposes 26 entries, ending at Sub-Mariner; the extra J. James

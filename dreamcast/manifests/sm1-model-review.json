@@ -5,7 +5,7 @@
   "actors": {
     "SPQUICK": {
       "costume": "quickchange",
-      "status": "technical-defect-confirmed",
+      "status": "user-review-required",
       "blocksClearance": true,
       "concerns": [
         {
@@ -59,7 +59,7 @@
         "nativeDreamcastAnimationComparison": "dreamcast/converted/quickchange-dc-animation-diagnostic/08-quickchange/frame_04450.png",
         "dreamcastVideoReference": "https://www.youtube.com/watch?v=QDu_hYTLFHM"
       },
-      "note": "All seven current 4x main-menu frames and all 21 L1A1 gameplay frames from 4100 through 4600 were inspected individually and sequentially. The gameplay sequence confirms hard triangular protrusions at the rear hip/jacket boundary during the deep crouch (most clearly 4350-4500), bright shoulder seams, and broken-looking pant/ankle joins. Neutral source renders are clean, the native stitch parser reports all 127 sources and 143 references as valid, and the same failing pose persists with Quick Change's embedded Dreamcast animation bank, so the defect is not cleared or papered over. The hardened focused proof additionally binds every gameplay capture to a fresh slot-2 player-head audit after L1A1 geometry loads; the later slot-9 NPC can no longer substitute for the player geometry audit. Keep this item blocked pending a proper deformation fix and user review."
+      "note": "All seven current 4x main-menu frames and all 21 L1A1 gameplay frames from 4100 through 4600 were inspected individually and sequentially. Thirty-two consecutive native Dreamcast Character Viewer frames from 109.5 through 117.5 seconds of the cited reference were then inspected individually. The native model shows the same light-blue triangular upper-thigh silhouettes in the deep crouch and the same bulky segmented jacket/shoulder joins; its running and wide-stance poses remain coherent. The port therefore does not have a confirmed port-specific deformation on this evidence. Neutral source renders are clean, the native stitch parser reports all 127 sources and 143 references as valid, the embedded Dreamcast animation comparison preserves the same authored pose shapes, and the hardened L1A1 proof passes a fresh slot-2 player-head audit after level geometry loads. Keep the user's feet/jacket concern blocked for their more thorough review, but do not classify the authored Dreamcast silhouette as a technical failure."
     },
     "BLACKCAT": {
       "status": "runtime-validated-awaiting-user-review",
