@@ -24,6 +24,7 @@ HOSTAGEF_PROOF = CONVERTED / "hostagef-viewer-probe"
 SYMBIOTE_PROOF = CONVERTED / "symbiote-compatible-viewer-probe"
 COSTUME_ROOT = CONVERTED / "sm2-costume-tests"
 SM2_DEFAULT_RUNTIME = COSTUME_ROOT / "runtime" / "default"
+SM2_COSTUME_RUNTIME = CONVERTED / "sm2-spider-man-runtime"
 COSTUMES = {
     "default": ("sp_tex00.glb", "DEFAULT_DC_WINGED_TPOSE.glb"),
     "dusk": ("sp_tex03.glb", "DUSK_DC_WINGED_TPOSE.glb"),
@@ -370,6 +371,10 @@ def main() -> None:
                 str(multitool),
             ],
         )
+        stages["buildSm2SpiderManCostumePack"] = run(
+            "build the complete 19-slot SM2 Dreamcast Spider-Man pack",
+            [python, str(TOOLS / "build_sm2_spider_man_costume_pack.py")],
+        )
     if not args.skip_runtime:
         sm2_capture_command = [
             python,
@@ -380,6 +385,18 @@ def main() -> None:
         stages["captureSm2DefaultNative"] = run(
             "capture native SM2 Default Dreamcast actor in one game process",
             sm2_capture_command,
+        )
+        sm2_costume_command = [
+            python,
+            str(TOOLS / "validate_sm2_spider_man_costumes_runtime.py"),
+            "--render-scale",
+            "4",
+        ]
+        if args.reuse_wing_captures:
+            sm2_costume_command.append("--reuse-captures")
+        stages["validateSm2SpiderManCostumesRuntime"] = run(
+            "validate all 19 SM2 Spider-Man slots on the live 3D menu, sequentially",
+            sm2_costume_command,
         )
 
     # Generate the mapping report after the native pack and runtime proof so its
@@ -418,6 +435,9 @@ def main() -> None:
             "sm2DefaultRuntimeValidation": str((SM2_DEFAULT_RUNTIME / "runtime-wing-proof" / "runtime-validation.json").resolve()),
             "sm2DefaultMenuWingProof": str((SM2_DEFAULT_RUNTIME / "runtime-wing-proof" / "sm2_default_menu_wings_close.png").resolve()),
             "sm2DefaultGameplayWingProof": str((SM2_DEFAULT_RUNTIME / "runtime-wing-proof" / "sm2_default_gameplay_wings_close.png").resolve()),
+            "sm2SpiderManCostumePack": str((SM2_COSTUME_RUNTIME / "costume-pack.json").resolve()),
+            "sm2SpiderManCostumeRuntimeValidation": str((SM2_COSTUME_RUNTIME / "runtime-menu-proof" / "runtime-validation.json").resolve()),
+            "sm2SpiderManCostumeReview": str((ROOT / "dreamcast" / "manifests" / "sm2-spider-man-costume-review.json").resolve()),
         },
     }
     report_path = CONVERTED / "port-pipeline-report.json"

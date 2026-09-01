@@ -356,11 +356,11 @@ NPC/enemy actors as explicit fallbacks retaining their original SM2 models and
 textures. Almost none of the structural candidates share material hashes, so a
 same-name model is not treated as texture compatible.
 
-The selected SM2 costumes are transferred onto the wing-capable high-detail
-Dreamcast body and exported as static T-pose GLBs. The current set is Default
-(`sp_tex00`), Prodigy (`sp_tex02`), Dusk (`sp_tex03`), and Ricochet (`sp_tex08`).
-Each output has five whole-model review views and six tight wing views covering
-front, rear, underside, and both obliques.
+Default (`sp_tex00`), Prodigy (`sp_tex02`), Dusk (`sp_tex03`), and Ricochet
+(`sp_tex08`) retain static T-pose GLB audits of the texture transfer onto the
+wing-capable high-detail Dreamcast body. Each output has five whole-model review
+views and six tight wing views covering front, rear, underside, and both
+obliques.
 
 The original projection-bake prototype was rejected because Dreamcast's reused,
 overlapping UV islands allowed unrelated target polygons to overwrite one
@@ -385,25 +385,56 @@ The report passes all four costumes, 20 T-pose views, and 24 wing close-ups.
 These GLBs are independent texture-mapping proofs, not game inputs. SM1 and SM2
 continue to load `.psx` containers at runtime.
 
-Default now completes the native path. `transfer_sm2_costume_to_dc.py` emits an
-exact per-polygon material/UV sidecar, and `pack_sm2_costume_to_dc.py` matches it
-back to the Dreamcast face records, maps all four open/closed hand meshes by
-stable mesh name, restores SM2's hierarchy and animations, and embeds the
-unchanged retail SM2 texture section. The output files are:
+The native runtime pack covers all nineteen retail Spider-Man texture slots:
 
-```text
-dreamcast/converted/sm2-costume-tests/runtime/default/spidey.psx
-dreamcast/converted/sm2-costume-tests/runtime/default/sp_tex00.psx
+```powershell
+python dreamcast/tools/build_sm2_spider_man_costume_pack.py
 ```
 
-`capture_sm2_default_runtime.py` launches exactly one `SpiderMan2.exe` process,
-uses only the process-local controller harness, anchors menu/gameplay captures to
-archive loads, and validates the loose model and texture overrides. Its 8x
-captures and unfiltered native-pixel crops are recorded in
-`runtime/default/runtime-wing-proof/runtime-validation.json`. This proves that
-the packed `.psx`, not the GLB, renders the mapped suit and connected wings in
-normal gameplay. Every non-player structural candidate remains an explicit
-retail-SM2 fallback under the current player-only upgrade policy.
+Ordinary slots share a native SM2 `spidey.psx` containing Dreamcast geometry,
+SM2's complete object table, hierarchy and animations, all alternate hand
+meshes, and the authored wing seams. All nineteen `sp_tex00.psx` through
+`sp_tex18.psx` libraries remain byte-exact retail SM2 inputs. Their compact PS1
+pages identify textures only; the host renderer is not constrained to the PS1
+page dimensions.
+
+Bag-Man (slot 13) and Peter Parker (slot 17) change topology, so they cannot be
+represented by the shared body plus the retail low-detail mesh-7 coordinate
+morph. `build_sm2_special_dc_costumes.py` instead name-matches the complete
+Dreamcast `SPBAGMAN` and `SPPARK` actors onto SM2's object order, skeleton and
+animation metadata. The runtime keeps those converted actors resident under
+private resource names. When the ordinary retail costume loader selects either
+slot, it switches the shared Spider-Man resource's complete processed binding—
+mesh table, texture table, tagged chunks, and container base—then refreshes the
+three retail morph targets. This is the normal interactive selection path, not a
+proof-only `spidey.psx` pre-load alias. Returning to any ordinary slot restores
+the complete shared binding. Bag-Man additionally translates Dreamcast's nested
+head/paper-bag depth relationship through the renderer's native per-face ordering
+offset, guarded by the exact audited 179-face topology.
+
+The special actors use compact emulated-VRAM identity pages plus 21
+original-resolution Dreamcast host PNG mappings. No generic web wings are
+invented for either dedicated actor.
+
+Validate every slot against the actual live 3D main menu with:
+
+```powershell
+python dreamcast/tools/validate_sm2_spider_man_costumes_runtime.py --render-scale 4
+```
+
+The validator rejects the 320x240 title/FMV path, anchors all captures to
+`charlite.dat`, and launches strictly one `SpiderMan2.exe` process at a time. It
+records five 1280x960 frames for every slot: 95 frames total. All nineteen runtime
+evidence sets pass, and all 95 frames have been manually reviewed. The review is
+locked to the exact aggregate runtime-report SHA-256 in
+`dreamcast/manifests/sm2-spider-man-costume-review.json`; any changed capture set
+requires a new visual review before `map_sm2_dc_actors.py` promotes the mapping.
+
+`capture_sm2_default_runtime.py` remains the separate 8x Default menu/gameplay
+wing proof. Together these results prove that native `.psx` assets—not the audit
+GLBs—render the mapped suits and connected wings. Every non-player structural
+candidate remains an explicit retail-SM2 fallback under the player-only upgrade
+policy.
 
 ## One-command pipeline
 
@@ -411,8 +442,9 @@ retail-SM2 fallback under the current player-only upgrade policy.
 exact wing parity, native in-game capture and close-crop authorship, all-character
 reconstruction/rendering, 18-level runtime coverage, all ten SM1 menu costume
 proofs, the complete 26-entry Character Viewer sweep, costume mapping, native SM2
-Default packing and its menu/gameplay proof, and final reports. Runtime validation
-is restricted to one game process:
+Default packing and its menu/gameplay proof, the complete nineteen-slot SM2
+Spider-Man pack and sequential 3D-menu proof, and final reports. Runtime
+validation is restricted to one game process at a time:
 
 ```powershell
 python dreamcast/tools/run_port_pipeline.py `

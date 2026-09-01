@@ -92,6 +92,11 @@ MAPPING_PROOFS = {
             "sm2-costume-tests/runtime/default/runtime-wing-proof/"
             "sm2_default_gameplay_wings_close.png",
         ],
+        "costumePack": "sm2-spider-man-runtime/costume-pack.json",
+        "costumeRuntimeValidation": (
+            "sm2-spider-man-runtime/runtime-menu-proof/runtime-validation.json"
+        ),
+        "costumeReview": "dreamcast/manifests/sm2-spider-man-costume-review.json",
         "scope": "native SM2 .psx actor using Dreamcast geometry and original SM2 textures",
     }
 }
@@ -115,6 +120,15 @@ def read_pass_report(path: Path) -> dict[str, Any] | None:
     return report if report.get("status") == "pass" else None
 
 
+def read_json(path: Path) -> dict[str, Any] | None:
+    if not path.is_file():
+        return None
+    try:
+        return json.loads(path.read_text(encoding="utf-8"))
+    except (OSError, UnicodeDecodeError, json.JSONDecodeError):
+        return None
+
+
 def validate_mapping_proof(name: str) -> tuple[str, dict[str, Any] | None]:
     definition = MAPPING_PROOFS.get(name)
     if definition is None:
@@ -127,6 +141,13 @@ def validate_mapping_proof(name: str) -> tuple[str, dict[str, Any] | None]:
     runtime_report = read_pass_report(
         DEFAULT_DC_BATCH.parent / definition["runtimeValidation"]
     )
+    costume_pack = read_pass_report(
+        DEFAULT_DC_BATCH.parent / definition["costumePack"]
+    )
+    costume_runtime = read_json(
+        DEFAULT_DC_BATCH.parent / definition["costumeRuntimeValidation"]
+    )
+    costume_review = read_json(ROOT / definition["costumeReview"])
     pack_valid = bool(
         pack_report
         and model.is_file()
@@ -139,6 +160,33 @@ def validate_mapping_proof(name: str) -> tuple[str, dict[str, Any] | None]:
         and all(runtime_report.get("runtimeMarkers", {}).values())
         and runtime_report.get("inputMethod")
         == "process-local SPIDEY_SCRIPT controller state"
+    )
+    costume_runtime_results = (
+        costume_runtime.get("results", []) if costume_runtime else []
+    )
+    costume_review_results = (
+        costume_review.get("costumes", []) if costume_review else []
+    )
+    costume_valid = bool(
+        costume_pack
+        and costume_pack.get("costumeCount") == 19
+        and costume_pack.get("environmentPolicy")
+        == "retail PS1 SM2 environments are unchanged"
+        and costume_runtime
+        and costume_runtime.get("status") == "evidence-valid"
+        and costume_runtime.get("costumeCount") == 19
+        and len(costume_runtime_results) == 19
+        and all(
+            item.get("status") == "evidence-valid"
+            and all(item.get("runtimeMarkers", {}).values())
+            for item in costume_runtime_results
+        )
+        and costume_review
+        and costume_review.get("status") == "runtime-validated-and-manually-reviewed"
+        and costume_review.get("runtimeReportSha256")
+        == sha256(DEFAULT_DC_BATCH.parent / definition["costumeRuntimeValidation"])
+        and len(costume_review_results) == 19
+        and all(item.get("status") == "manual-visual-pass" for item in costume_review_results)
     )
     proof_hashes: dict[str, str] = {}
     if runtime_valid:
@@ -153,9 +201,10 @@ def validate_mapping_proof(name: str) -> tuple[str, dict[str, Any] | None]:
     proof["checks"] = {
         "nativePack": pack_valid,
         "oneProcessRuntime": runtime_valid,
+        "allNineteenCostumeMenuProofs": costume_valid,
         "runtimeProofHashes": proof_hashes,
     }
-    if pack_valid and runtime_valid:
+    if pack_valid and runtime_valid and costume_valid:
         return "runtime-native-texture-mapping-proven", proof
     return "static-texture-mapping-proven-runtime-psx-pending", proof
 

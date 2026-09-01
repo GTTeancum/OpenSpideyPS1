@@ -208,10 +208,18 @@ def validate_slot(
         ),
         "modelOverride": bool(
             re.search(
-                rf"\[loose-wad\] override spidey\.psx"
-                rf"(?: <- {re.escape(actor_name)})?: {actor_size} bytes",
+                (
+                    rf"\[loose-wad\] override spidey\.psx: {actor_size} bytes"
+                    if slot not in SPECIAL_ACTORS
+                    else rf"\[loose-wad\] override (?:spbagdc|spparkdc)\.psx"
+                    rf" <- {re.escape(actor_name)}: {actor_size} bytes"
+                ),
                 console,
                 re.IGNORECASE,
+            )
+            and (
+                slot not in SPECIAL_ACTORS
+                or f"[costume] active actor slot {slot:02d}" in console
             )
         ),
         "textureOverride": bool(

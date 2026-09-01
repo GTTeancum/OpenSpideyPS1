@@ -106,17 +106,22 @@ tube receives SM1's required material-18 alias to the original Dreamcast skin.
 A separate converter-independent texture-pack audit passes 51
 converted actors, 618 mappings, 589 unique runtime keys, and 589 host PNGs whose
 dimensions and RGBA pixels exactly match their Dreamcast sources. SM2 Default,
-Prodigy, Dusk, and Ricochet also have audited static T-pose mappings onto the DC
-body with exact source wing UV/texture parity. Default is additionally repacked as
-a native SM2 `spidey.psx` with the Dreamcast geometry, SM2 hierarchy/animations,
-the unchanged retail `sp_tex00.psx`, all alternate hand meshes, and authored wing
-seams. Its 8x one-process validation covers the 3D menu and normal gameplay and
-emits exact-pixel close-ups of both wing attachments. A separate 30-actor SM2 structural
-audit identifies ten same-name DC actors and the structural `HOSTAGE2` to
-`HOSTAGE` alias, but the current SM2 upgrade policy selects Spider-Man only. All
-29 NPC/enemy actors are explicit original-SM2 model-and-texture fallbacks, whether
-or not a same-name DC file exists. The GLBs are audit artifacts only; both games
-continue to use `.psx` runtime assets.
+Prodigy, Dusk, and Ricochet also retain audited static T-pose mappings onto the DC
+body with exact source wing UV/texture parity. The native runtime pack now covers
+all nineteen Spider-Man slots with the Dreamcast body, SM2 hierarchy/animations,
+all alternate hand meshes, authored wing seams, and byte-exact retail costume
+libraries. Bag-Man and Peter Parker use their dedicated Dreamcast actors and
+original-resolution host texture packs; ordinary interactive selection swaps the
+complete processed actor binding for those topology-changing slots and restores
+the shared actor for every other slot. The live-menu validator rejects FMV frames,
+captures five 1280x960 `charlite.dat`-anchored frames per slot with only one game
+process at a time, and has 19/19 evidence sets plus 95/95 manually reviewed frames.
+Default retains a separate 8x menu/gameplay proof with exact-pixel wing close-ups.
+A separate 30-actor SM2 structural audit identifies ten same-name DC actors and
+the structural `HOSTAGE2` to `HOSTAGE` alias, but the current SM2 upgrade policy
+selects Spider-Man only. All 29 NPC/enemy actors are explicit original-SM2
+model-and-texture fallbacks, whether or not a same-name DC file exists. The GLBs
+are audit artifacts only; both games continue to use `.psx` runtime assets.
 
 The complete automated build/capture/validation entry point is
 `tools/run_port_pipeline.py`; its aggregate result is written to

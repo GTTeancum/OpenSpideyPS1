@@ -1,5 +1,6 @@
 using System;
 using RecompOne.Runtime.Context;
+using RecompOne.Runtime.Dispatch;
 using RecompOne.Runtime.Memory;
 
 namespace Recompiled;
@@ -21,6 +22,20 @@ namespace Recompiled;
 public static class Costume
 {
     const int CostumeCount = 19;
+    const uint ResourceTable = 0x800ACED8u;
+    const uint ResourceStride = 64u;
+    const uint ResourcePermanentOffset = 0x0Bu;
+    const uint ResourceBindingStart = 0x0Cu;
+    const uint ResourceBindingEnd = 0x38u;
+    const uint SpideyResourceIndex = 0x800C236Du;
+    const uint LoadPsx = 0x80074C38u;
+    const uint ScratchName = 0x807F0000u;
+
+    static readonly (int Slot, string Request, string Source, uint NameAddress)[] SpecialActors =
+    {
+        (13, "spbagdc", "spidey-slot13.psx", ScratchName),
+        (17, "spparkdc", "spidey-slot17.psx", ScratchName + 0x20u),
+    };
 
     static readonly System.Collections.Generic.Dictionary<string, int> Aliases =
         new(StringComparer.OrdinalIgnoreCase)
@@ -40,22 +55,26 @@ public static class Costume
     };
 
     static int _slot = -1;
+    static bool _forced;
     static bool _reported;
     static bool _headMorphReported;
+    static int _activeActorSlot = -1;
+    static uint[] _genericBinding;
+    static readonly System.Collections.Generic.Dictionary<int, int> SpecialActorResources = new();
 
     /// <summary>
-    /// Slots 13 and 17 change the head/body silhouette and cannot use the shared
-    /// Dreamcast SPIDEY mesh.  During a forced validation run, source the game's
-    /// spidey.psx request from the dedicated native SM2-skeleton actor instead.
+    /// Resolve the private short resource names used to keep the dedicated actors
+    /// resident.  The normal spidey.psx lookup is intentionally never aliased: the
+    /// game loads that shared actor once, and costume changes do not reload it.
     /// </summary>
     public static string DreamcastAssetFor(string requestedName)
     {
-        string source = (_slot, requestedName.ToLowerInvariant()) switch
+        string source = requestedName.ToLowerInvariant() switch
         {
-            (13, "spidey.psx") => "spidey-slot13.psx",
-            (17, "spidey.psx") => "spidey-slot17.psx",
-            (13, "sp_tex13.psx") => "sp_tex13-dc.psx",
-            (17, "sp_tex17.psx") => "sp_tex17-dc.psx",
+            "spbagdc.psx" => "spidey-slot13.psx",
+            "spparkdc.psx" => "spidey-slot17.psx",
+            "sp_tex13.psx" when _slot == 13 => "sp_tex13-dc.psx",
+            "sp_tex17.psx" when _slot == 17 => "sp_tex17-dc.psx",
             _ => requestedName,
         };
         if (!source.Equals(requestedName, StringComparison.OrdinalIgnoreCase))
@@ -80,19 +99,139 @@ public static class Costume
             return;
         }
 
+        _forced = true;
         Console.WriteLine($"[costume] requested slot {_slot:D2} (sp_tex{_slot:D2}.psx)");
     }
 
     /// <summary>Pre-hook on func_8004E4BC(actor data, one-based costume).</summary>
     public static void SelectTextureLibrary(CpuContext c, IMemory m)
     {
-        if (_slot < 0) return;
+        if (_forced)
+            c.A1 = (uint)(_slot + 1);
+        else if (c.A1 >= 1 && c.A1 <= CostumeCount)
+            _slot = (int)c.A1 - 1;
+        else
+            return;
 
-        c.A1 = (uint)(_slot + 1);
+        ActivateActor(c, m, _slot);
         if (_reported) return;
         _reported = true;
         Console.WriteLine(
             $"[costume] selected retail loader slot {_slot:D2} -> sp_tex{_slot:D2}.psx");
+    }
+
+    static uint ResourceEntry(int index)
+        => ResourceTable + checked((uint)index * ResourceStride);
+
+    static void WriteCString(IMemory m, uint address, string value)
+    {
+        for (int index = 0; index < value.Length; index++)
+            m.WriteU8(address + (uint)index, (byte)value[index]);
+        m.WriteU8(address + (uint)value.Length, 0);
+    }
+
+    static int LoadSpecialActor(CpuContext c, IMemory m, int slot)
+    {
+        foreach (var special in SpecialActors)
+        {
+            if (special.Slot != slot) continue;
+            WriteCString(m, special.NameAddress, special.Request);
+            var snapshot = c.Snapshot();
+            c.A0 = special.NameAddress;
+            c.A1 = 0;
+            Dispatcher.Call(c, m, LoadPsx);
+            int index = unchecked((int)c.V0);
+            c.Restore(snapshot);
+            if (index < 0 || index >= 40)
+                throw new InvalidOperationException(
+                    $"failed to load dedicated costume actor {special.Source}");
+
+            uint entry = ResourceEntry(index);
+            uint pointer = m.ReadU32(entry + 0x14u);
+            if (pointer == 0)
+                throw new InvalidOperationException(
+                    $"dedicated costume actor {special.Source} has no resource pointer");
+            m.WriteU8(entry + ResourcePermanentOffset, 1);
+            Console.WriteLine(
+                $"[costume] resident actor slot {slot:D2}: {special.Source} " +
+                $"at 0x{pointer:X8} (resource {index})");
+            return index;
+        }
+        throw new InvalidOperationException($"slot {slot:D2} has no dedicated actor");
+    }
+
+    static uint[] ReadBinding(IMemory m, uint entry)
+    {
+        int count = checked((int)((ResourceBindingEnd - ResourceBindingStart) / 4u + 1u));
+        var binding = new uint[count];
+        for (int index = 0; index < count; index++)
+            binding[index] = m.ReadU32(entry + ResourceBindingStart + (uint)(index * 4));
+        return binding;
+    }
+
+    static void WriteBinding(IMemory m, uint entry, uint[] binding)
+    {
+        for (int index = 0; index < binding.Length; index++)
+            m.WriteU32(
+                entry + ResourceBindingStart + (uint)(index * 4), binding[index]);
+    }
+
+    static void RebindMorphTargets(CpuContext c, IMemory m, int spideyIndex)
+    {
+        foreach (var target in new (uint Address, uint Mesh)[]
+        {
+            (0x800C2258u, 7u),
+            (0x800C225Cu, 17u),
+            (0x800C2260u, 14u),
+        })
+        {
+            m.WriteU32(target.Address, 0);
+            var snapshot = c.Snapshot();
+            c.A0 = (uint)spideyIndex;
+            c.A1 = target.Mesh;
+            c.A2 = target.Address;
+            Dispatcher.Call(c, m, 0x8004EB74u);
+            c.Restore(snapshot);
+        }
+    }
+
+    /// <summary>
+    /// Retail keeps one spidey resource resident and changes only its texture/morph
+    /// state. Bag-Man and Peter alter topology, so keep their complete converted actors
+    /// in private resource records and switch the shared record's data pointer before
+    /// the retail texture loader runs. This works for ordinary interactive selection as
+    /// well as the process-local proof selector and avoids a test-only pre-load alias.
+    /// </summary>
+    static void ActivateActor(CpuContext c, IMemory m, int slot)
+    {
+        int spideyIndex = m.ReadU8(SpideyResourceIndex);
+        if (spideyIndex < 0 || spideyIndex >= 40) return;
+        uint spideyEntry = ResourceEntry(spideyIndex);
+        if (_genericBinding == null)
+            _genericBinding = ReadBinding(m, spideyEntry);
+        if (_genericBinding[2] == 0) return;
+
+        int actorSlot = slot == 13 || slot == 17 ? slot : 0;
+        if (_activeActorSlot == actorSlot) return;
+        uint[] binding = _genericBinding;
+        if (actorSlot != 0 && !SpecialActorResources.TryGetValue(actorSlot, out int resource))
+        {
+            resource = LoadSpecialActor(c, m, actorSlot);
+            SpecialActorResources[actorSlot] = resource;
+        }
+        if (actorSlot != 0)
+            binding = ReadBinding(m, ResourceEntry(SpecialActorResources[actorSlot]));
+
+        // The runtime actor binding is a family of processed pointers, not just the
+        // container base at +0x14. Copying only that base leaves the generic mesh table
+        // at +0x10 active and produces a black generic silhouette with special textures.
+        WriteBinding(m, spideyEntry, binding);
+        RebindMorphTargets(c, m, spideyIndex);
+        _activeActorSlot = actorSlot;
+        uint pointer = binding[2];
+        Console.WriteLine(
+            $"[costume] active actor {(actorSlot == 0 ? "shared Dreamcast Spider-Man" : $"slot {actorSlot:D2}")} " +
+            $"at 0x{pointer:X8}");
     }
 
     /// <summary>

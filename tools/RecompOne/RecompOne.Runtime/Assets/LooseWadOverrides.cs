@@ -11,6 +11,7 @@ public static class LooseWadOverrides
     static byte[]? _pending;
     static string? _pendingName;
     static bool _pendingExternal;
+    static bool _pendingAliased;
     static uint _pendingRoundedSize;
 
     // The retail allocator only owns the original 2 MB address space. Recompiled
@@ -105,6 +106,7 @@ public static class LooseWadOverrides
         _pending = null;
         _pendingName = null;
         _pendingExternal = false;
+        _pendingAliased = false;
         _pendingRoundedSize = 0;
 
         if (!Path.GetFileName(name).Equals(name, StringComparison.Ordinal)) return;
@@ -117,6 +119,8 @@ public static class LooseWadOverrides
         byte[] data = File.ReadAllBytes(path);
         if (data.Length == 0) throw new InvalidDataException($"loose WAD entry is empty: {path}");
         _pending = data;
+        _pendingAliased = externalAlias != null &&
+            !name.Equals(overrideName, StringComparison.OrdinalIgnoreCase);
         _pendingName = externalAlias == null || name.Equals(overrideName, StringComparison.OrdinalIgnoreCase)
             ? name
             : $"{name} <- {overrideName}";
@@ -132,6 +136,17 @@ public static class LooseWadOverrides
                               $"({_pendingRoundedSize} allocated)");
     }
 
+    /// <summary>
+    /// Complete a lookup for a private loose alias that has no retail WAD directory
+    /// entry. The following CdWadRead still consumes the pending host bytes normally.
+    /// </summary>
+    public static bool TryCompleteAliasedFind(CpuContext c)
+    {
+        if (_pending == null || !_pendingAliased) return false;
+        FindExit(c);
+        return true;
+    }
+
     public static bool Read(CpuContext c, IMemory m)
     {
         if (_pending == null) return true;
@@ -141,6 +156,7 @@ public static class LooseWadOverrides
         _pending = null;
         _pendingName = null;
         _pendingExternal = false;
+        _pendingAliased = false;
         _pendingRoundedSize = 0;
         return false;
     }

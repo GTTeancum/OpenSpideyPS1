@@ -11,6 +11,7 @@
   },
   "reviewPolicy": "All five live 3D menu frames for every slot were inspected for readable menu UI, coherent UV placement, stable silhouette, intact limbs, and pose-dependent geometry failures.",
   "runtimeReport": "dreamcast/converted/sm2-spider-man-runtime/runtime-menu-proof/runtime-validation.json",
+  "runtimeReportSha256": "119b01f7110aa6a1f721ca08c9dfa9d9b8a8a37ecc3d95fbe4a229fb739a9048",
   "costumes": [
     {"slot": 0, "status": "manual-visual-pass", "evidence": "dreamcast/converted/sm2-spider-man-runtime/runtime-menu-proof/slot-00/menu_sequence_contact.png"},
     {"slot": 1, "status": "manual-visual-pass", "evidence": "dreamcast/converted/sm2-spider-man-runtime/runtime-menu-proof/slot-01/menu_sequence_contact.png"},
@@ -29,7 +30,7 @@
       "slot": 13,
       "status": "manual-visual-pass",
       "evidence": "dreamcast/converted/sm2-spider-man-runtime/runtime-menu-proof/slot-13/menu_sequence_contact.png",
-      "adaptation": "Dedicated Dreamcast Bag-Man geometry and textures on the complete SM2 skeleton; no fabricated generic wings; topology-guarded nested-shell depth ordering; compact VRAM pages plus original-resolution host replacements."
+      "adaptation": "Dedicated Dreamcast Bag-Man geometry and textures on the complete SM2 skeleton; interactive selection swaps the complete processed actor binding rather than relying on a test-time spidey.psx alias; no fabricated generic wings; topology-guarded nested-shell depth ordering; compact VRAM pages plus original-resolution host replacements."
     },
     {"slot": 14, "status": "manual-visual-pass", "evidence": "dreamcast/converted/sm2-spider-man-runtime/runtime-menu-proof/slot-14/menu_sequence_contact.png"},
     {"slot": 15, "status": "manual-visual-pass", "evidence": "dreamcast/converted/sm2-spider-man-runtime/runtime-menu-proof/slot-15/menu_sequence_contact.png"},
@@ -38,7 +39,7 @@
       "slot": 17,
       "status": "manual-visual-pass",
       "evidence": "dreamcast/converted/sm2-spider-man-runtime/runtime-menu-proof/slot-17/menu_sequence_contact.png",
-      "adaptation": "Dedicated Dreamcast Peter Parker geometry and textures on the complete SM2 skeleton; no fabricated generic wings; compact VRAM pages plus original-resolution host replacements."
+      "adaptation": "Dedicated Dreamcast Peter Parker geometry and textures on the complete SM2 skeleton; interactive selection swaps the complete processed actor binding rather than relying on a test-time spidey.psx alias; no fabricated generic wings; compact VRAM pages plus original-resolution host replacements."
     },
     {"slot": 18, "status": "manual-visual-pass", "evidence": "dreamcast/converted/sm2-spider-man-runtime/runtime-menu-proof/slot-18/menu_sequence_contact.png"}
   ]
