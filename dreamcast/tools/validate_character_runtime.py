@@ -9,7 +9,6 @@ isolated log and native GPU screenshots, which are then checked and summarized.
 from __future__ import annotations
 
 import argparse
-from concurrent.futures import ThreadPoolExecutor, as_completed
 import json
 import os
 from pathlib import Path
@@ -59,6 +58,11 @@ RUNTIME_EQUIVALENTS = {
     "lizman": {"lizman", "lizman2"},
     "thug": {"thug", "henchman", "henchngt"},
 }
+LEVEL_ASSET_ALIASES = {
+    # Retail L1A2a has variant-specific geometry/logic but intentionally shares
+    # the L1A2 object archive.
+    ("l1a2a", "O"): ("L1A2_O",),
+}
 
 
 def parse_args() -> argparse.Namespace:
@@ -76,7 +80,7 @@ def parse_args() -> argparse.Namespace:
         default=1,
         help="runtime validation is deliberately restricted to one game process",
     )
-    parser.add_argument("--render-scale", type=int, default=1)
+    parser.add_argument("--render-scale", type=int, default=4)
     parser.add_argument("--shots", default="4300,4400")
     parser.add_argument("--exit-frame", type=int, default=4450)
     parser.add_argument("--timeout", type=int, default=180)
@@ -96,6 +100,20 @@ def parse_args() -> argparse.Namespace:
         help="pass a focused --levels run when every requested level passes",
     )
     return parser.parse_args()
+
+
+def ensure_no_game_process() -> None:
+    result = subprocess.run(
+        ["tasklist", "/FI", "IMAGENAME eq SpiderMan.exe", "/FO", "CSV", "/NH"],
+        text=True,
+        stdout=subprocess.PIPE,
+        stderr=subprocess.STDOUT,
+        check=False,
+    )
+    if result.returncode == 0 and re.search(
+        r'"SpiderMan\.exe"', result.stdout, re.IGNORECASE
+    ):
+        raise RuntimeError("refusing to launch while another SpiderMan.exe process exists")
 
 
 def all_story_actor_names(manifest: dict[str, Any], trigger_dir: Path) -> set[str]:
@@ -120,6 +138,7 @@ def summarize_level(
     timed_out: bool,
     exit_frame: int,
     reused: bool,
+    render_scale: int,
 ) -> dict[str, Any]:
     overrides = sorted(
         {
@@ -128,12 +147,52 @@ def summarize_level(
         }
     )
     captures = sorted(level_dir.glob("frame_*.png"))
-    capture_sizes: dict[str, list[int]] = {}
+    capture_sizes: dict[str, dict[str, Any]] = {}
+    capture_errors: list[str] = []
+    expected_size = (320 * render_scale, 240 * render_scale)
     for path in captures:
-        with Image.open(path) as image:
-            image.verify()
-            capture_sizes[path.name] = [image.width, image.height]
+        try:
+            with Image.open(path) as opened:
+                opened.load()
+                image = opened.convert("RGB")
+                size = image.size
+                extrema = image.getextrema()
+                colors = image.getcolors(maxcolors=image.width * image.height)
+            dynamic_range = max(high - low for low, high in extrema)
+            color_count = len(colors) if colors is not None else image.width * image.height
+            if size != expected_size:
+                raise ValueError(f"size {size}, expected live 3D raster {expected_size}")
+            if dynamic_range < 32 or color_count < 64:
+                raise ValueError(
+                    f"not a reviewable rendered frame (range={dynamic_range}, colors={color_count})"
+                )
+            capture_sizes[path.name] = {
+                "size": list(size),
+                "dynamicRange": dynamic_range,
+                "colorCount": color_count,
+            }
+        except Exception as error:
+            capture_errors.append(f"{path.name}: {error}")
     clean_exit = f"[capture] exit at frame {exit_frame}" in text
+    # The default level logs an explicit [level] source -> destination remap,
+    # while redirected levels load their requested L/O/G resources directly.
+    # The WAD-load line is emitted only after the exact requested asset has
+    # resolved, so it is the common authoritative proof for both paths.
+    level_asset_proofs: dict[str, str] = {}
+    for suffix in ("L", "O", "G"):
+        expected_stems = (f"{level.upper()}_{suffix}",) + LEVEL_ASSET_ALIASES.get(
+            (level.lower(), suffix), ()
+        )
+        for stem in expected_stems:
+            if re.search(
+                rf"(?m)^{re.escape(stem)}\.psx\[wad\]\s+"
+                rf"{re.escape(stem)}\.psx\s+<-",
+                text,
+                re.IGNORECASE,
+            ):
+                level_asset_proofs[suffix] = f"{stem}.psx"
+                break
+    level_assets_loaded = len(level_asset_proofs) == 3
     bad_markers = [
         marker
         for marker in ("Unhandled exception", "watchdog: STALLED", "MISSED -- overlay not resident")
@@ -141,7 +200,13 @@ def summarize_level(
     ]
     status = (
         "pass"
-        if not timed_out and return_code == 0 and clean_exit and captures and not bad_markers
+        if not timed_out
+        and return_code == 0
+        and clean_exit
+        and level_assets_loaded
+        and captures
+        and not capture_errors
+        and not bad_markers
         else "fail"
     )
     return {
@@ -150,7 +215,10 @@ def summarize_level(
         "returnCode": return_code,
         "timedOut": timed_out,
         "cleanExit": clean_exit,
+        "levelAssetsLoaded": level_assets_loaded,
+        "levelAssetProofs": level_asset_proofs,
         "badMarkers": bad_markers,
+        "captureErrors": capture_errors,
         "loadedOverrides": overrides,
         "captures": capture_sizes,
         "consoleLog": str(console_path),
@@ -183,10 +251,14 @@ def run_level(
             False,
             exit_frame,
             True,
+            render_scale,
         )
         if existing["status"] == "pass":
             return existing
 
+    ensure_no_game_process()
+    for old_capture in level_dir.glob("frame_*.png"):
+        old_capture.unlink()
     env = {key: value for key, value in os.environ.items() if not key.startswith("SPIDEY_")}
     env.pop("RECOMP_RENDER_SCALE", None)
     env.update(
@@ -228,7 +300,15 @@ def run_level(
         timed_out = True
     console_path.write_text(text, encoding="utf-8")
     return summarize_level(
-        level, level_dir, console_path, text, return_code, timed_out, exit_frame, False
+        level,
+        level_dir,
+        console_path,
+        text,
+        return_code,
+        timed_out,
+        exit_frame,
+        False,
+        render_scale,
     )
 
 
@@ -244,41 +324,39 @@ def main() -> None:
         raise ValueError("--levels produced an empty level set")
     if args.concurrency < 1:
         raise ValueError("--concurrency must be positive")
+    if args.render_scale != 4:
+        raise ValueError("--render-scale must be 4 for reviewable runtime evidence")
     output.mkdir(parents=True, exist_ok=True)
 
     manifest = json.loads(manifest_path.read_text(encoding="utf-8"))
     runtime_target = all_story_actor_names(manifest, trigger_dir)
     print(
         f"launching {len(levels)} levels at concurrency {args.concurrency}; "
-        f"runtime target is {len(runtime_target)} story-loaded actors"
+        f"runtime target is {len(runtime_target)} story-loaded actors",
+        flush=True,
     )
 
     results: list[dict[str, Any]] = []
-    with ThreadPoolExecutor(max_workers=args.concurrency) as executor:
-        futures = {
-            executor.submit(
-                run_level,
-                level,
-                exe,
-                batch,
-                output,
-                args.render_scale,
-                args.shots,
-                args.exit_frame,
-                args.timeout,
-                args.resume,
-                args.dump_textures,
-            ): level
-            for level in levels
-        }
-        for future in as_completed(futures):
-            result = future.result()
-            results.append(result)
-            print(
-                f"{result['status'].upper():4s} {result['level']:6s} "
-                f"overrides={len(result['loadedOverrides']):2d} "
-                f"captures={len(result['captures']):2d}"
-            )
+    for level in levels:
+        result = run_level(
+            level,
+            exe,
+            batch,
+            output,
+            args.render_scale,
+            args.shots,
+            args.exit_frame,
+            args.timeout,
+            args.resume,
+            args.dump_textures,
+        )
+        results.append(result)
+        print(
+            f"{result['status'].upper():4s} {result['level']:6s} "
+            f"overrides={len(result['loadedOverrides']):2d} "
+            f"captures={len(result['captures']):2d}",
+            flush=True,
+        )
 
     results.sort(key=lambda item: levels.index(item["level"]))
     loaded = {name for result in results for name in result["loadedOverrides"]}
@@ -289,10 +367,12 @@ def main() -> None:
     }
     missing = sorted(runtime_target - covered)
     report = {
-        "schemaVersion": 1,
+        "schemaVersion": 2,
         "manifest": str(manifest_path),
         "batch": str(batch),
         "inputMethod": "process-local SPIDEY_SCRIPT controller state",
+        "processPolicy": "strictly sequential; never more than one SpiderMan process",
+        "renderScale": args.render_scale,
         "levels": list(levels),
         "levelCount": len(levels),
         "passedLevelCount": sum(result["status"] == "pass" for result in results),

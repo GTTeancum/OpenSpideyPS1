@@ -1,0 +1,79 @@
+{
+  "schemaVersion": 1,
+  "lastUpdated": "2026-09-01",
+  "runtimeReport": "dreamcast/converted/all-characters-costumes-runtime-current/runtime-validation.json",
+  "runtimeReportSha256": "4ed37005aeadda2660e65de769c5f03a848287fa33a8c54ece17e816baaea427",
+  "captureGate": "schema-2 exact main-menu signatures at 4x; FMV/title frames fail closed",
+  "reviewMethod": "Every one of the seven frames for each costume was inspected individually and sequentially; contact sheets and image metrics were not substituted for visual review.",
+  "frameNumbers": [600, 750, 900, 1050, 1200, 1350, 1500],
+  "costumes": [
+    {
+      "slot": 0,
+      "costume": "spiderman",
+      "status": "manual-visual-pass",
+      "evidenceDirectory": "dreamcast/converted/all-characters-costumes-runtime-current/00-spiderman"
+    },
+    {
+      "slot": 1,
+      "costume": "2099",
+      "status": "manual-visual-pass",
+      "evidenceDirectory": "dreamcast/converted/all-characters-costumes-runtime-current/01-2099"
+    },
+    {
+      "slot": 2,
+      "costume": "symbiote",
+      "status": "manual-visual-pass",
+      "evidenceDirectory": "dreamcast/converted/all-characters-costumes-runtime-current/02-symbiote"
+    },
+    {
+      "slot": 3,
+      "costume": "captain",
+      "status": "manual-visual-pass",
+      "evidenceDirectory": "dreamcast/converted/all-characters-costumes-runtime-current/03-captain"
+    },
+    {
+      "slot": 4,
+      "costume": "unlimited",
+      "status": "manual-visual-pass",
+      "evidenceDirectory": "dreamcast/converted/all-characters-costumes-runtime-current/04-unlimited"
+    },
+    {
+      "slot": 5,
+      "costume": "bagman",
+      "status": "user-accepted-and-manual-visual-pass",
+      "evidenceDirectory": "dreamcast/converted/all-characters-costumes-runtime-current/05-bagman",
+      "note": "The face remains inside the paper bag and the restored neck opening remains intact through the crouch and rise."
+    },
+    {
+      "slot": 6,
+      "costume": "scarlet",
+      "status": "manual-visual-pass",
+      "evidenceDirectory": "dreamcast/converted/all-characters-costumes-runtime-current/06-scarlet"
+    },
+    {
+      "slot": 7,
+      "costume": "benreilly",
+      "status": "manual-visual-pass",
+      "evidenceDirectory": "dreamcast/converted/all-characters-costumes-runtime-current/07-benreilly",
+      "sourceReference": "dreamcast/decoded/mesh-thumbnails/SPREILLY.png",
+      "note": "The apparently asymmetric boot color is the authored Dreamcast design: red occupies each outer calf panel while the inner/front-facing surfaces remain blue."
+    },
+    {
+      "slot": 8,
+      "costume": "quickchange",
+      "status": "user-review-required",
+      "blocksClearance": true,
+      "evidenceDirectory": "dreamcast/converted/all-characters-costumes-runtime-current/08-quickchange",
+      "note": "The seven frames are coherent and source-parity evidence supports the black sock/shoe transitions and jacket flaps, but the user explicitly held the feet and jacket for a more thorough review."
+    },
+    {
+      "slot": 9,
+      "costume": "peterparker",
+      "status": "manual-visual-pass",
+      "evidenceDirectory": "dreamcast/converted/all-characters-costumes-runtime-current/09-peterparker",
+      "note": "The corrected head remains attached and undistorted through all seven poses."
+    }
+  ],
+  "completionBlockers": ["SPQUICK"],
+  "status": "manual-review-complete-user-review-required"
+}

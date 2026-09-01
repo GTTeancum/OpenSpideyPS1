@@ -26,6 +26,10 @@ COSTUME_ROOT = CONVERTED / "sm2-costume-tests"
 SM2_DEFAULT_RUNTIME = COSTUME_ROOT / "runtime" / "default"
 SM2_COSTUME_RUNTIME = CONVERTED / "sm2-spider-man-runtime"
 SM1_REVIEW_QUEUE = ROOT / "dreamcast" / "manifests" / "sm1-model-review.json"
+SM1_COSTUME_REVIEW = ROOT / "dreamcast" / "manifests" / "sm1-costume-menu-review.json"
+SM1_RUNTIME_VISUAL_REVIEW = ROOT / "dreamcast" / "manifests" / "sm1-runtime-visual-review.json"
+SM2_COSTUME_REVIEW = ROOT / "dreamcast" / "manifests" / "sm2-spider-man-costume-review.json"
+SM1_STORY_LEVEL_COUNT = 18
 COSTUMES = {
     "default": ("sp_tex00.glb", "DEFAULT_DC_WINGED_TPOSE.glb"),
     "dusk": ("sp_tex03.glb", "DUSK_DC_WINGED_TPOSE.glb"),
@@ -43,6 +47,14 @@ def parse_args() -> argparse.Namespace:
     parser.add_argument("--skip-costume-build", action="store_true")
     parser.add_argument("--skip-static-tools", action="store_true")
     parser.add_argument("--skip-runtime", action="store_true")
+    parser.add_argument(
+        "--use-existing-runtime-evidence",
+        action="store_true",
+        help=(
+            "do not launch game processes; hash/audit the existing runtime reports "
+            "and their literal visual-review manifests"
+        ),
+    )
     parser.add_argument("--resume-runtime", action="store_true")
     parser.add_argument("--reuse-wing-captures", action="store_true")
     parser.add_argument(
@@ -148,8 +160,400 @@ def audit_sm1_review_queue() -> dict[str, Any]:
     }
 
 
+def audit_costume_review_manifest(
+    name: str,
+    manifest_path: Path,
+    runtime_report_path: Path,
+    expected_costume_count: int,
+    allowed_blockers: set[str],
+) -> dict[str, Any]:
+    errors: list[str] = []
+    payload: dict[str, Any] = {}
+    if not manifest_path.is_file():
+        errors.append("review manifest is missing")
+    else:
+        try:
+            loaded = json.loads(manifest_path.read_text(encoding="utf-8"))
+            if not isinstance(loaded, dict):
+                raise TypeError("root is not an object")
+            payload = loaded
+        except Exception as error:
+            errors.append(f"invalid review manifest: {error}")
+
+    costumes = payload.get("costumes", []) if payload else []
+    if len(costumes) != expected_costume_count:
+        errors.append(
+            f"review contains {len(costumes)} costumes, expected {expected_costume_count}"
+        )
+    manifest_blockers = set(payload.get("completionBlockers", []))
+    if not manifest_blockers.issubset(allowed_blockers):
+        errors.append(
+            "unexpected costume review blockers: "
+            + ", ".join(sorted(manifest_blockers - allowed_blockers))
+        )
+    unreviewed = [
+        str(costume.get("slot"))
+        for costume in costumes
+        if "manual-visual-pass" not in str(costume.get("status", ""))
+        and not costume.get("blocksClearance")
+    ]
+    if unreviewed:
+        errors.append("costume slots lack manual review: " + ", ".join(unreviewed))
+
+    expected_hash = payload.get("runtimeReportSha256")
+    actual_hash = (
+        hashlib.sha256(runtime_report_path.read_bytes()).hexdigest()
+        if runtime_report_path.is_file()
+        else None
+    )
+    if actual_hash is None:
+        errors.append("reviewed runtime report is missing")
+    elif expected_hash != actual_hash:
+        errors.append("runtime report hash no longer matches the reviewed evidence")
+
+    return {
+        "name": name,
+        "status": "pass" if not errors else "fail",
+        "manifest": str(manifest_path.resolve()),
+        "runtimeReport": str(runtime_report_path.resolve()),
+        "expectedRuntimeReportSha256": expected_hash,
+        "actualRuntimeReportSha256": actual_hash,
+        "costumeCount": len(costumes),
+        "allowedUserBlockers": sorted(allowed_blockers),
+        "errors": errors,
+        "completionBlockers": [] if not errors else [f"{name}:stale-or-incomplete-review"],
+    }
+
+
+def audit_sm1_runtime_visual_review() -> dict[str, Any]:
+    """Hash-lock literal frame review to the runtime reports it inspected."""
+    errors: list[str] = []
+    payload: dict[str, Any] = {}
+    try:
+        loaded = json.loads(SM1_RUNTIME_VISUAL_REVIEW.read_text(encoding="utf-8"))
+        if not isinstance(loaded, dict):
+            raise TypeError("root is not an object")
+        payload = loaded
+    except Exception as error:
+        errors.append(f"invalid or missing review manifest: {error}")
+
+    expected = {
+        "story": CONVERTED / "all-characters-runtime-current" / "runtime-validation.json",
+        "viewer": CONVERTED / "all-characters-viewer-runtime-current" / "runtime-validation.json",
+        "hostagef": HOSTAGEF_PROOF / "runtime-validation.json",
+        "symbiote": SYMBIOTE_PROOF / "runtime-validation.json",
+        "jamesonScorpion": JAMESON_SCORPION_PROOF / "runtime-validation.json",
+    }
+    report_reviews = payload.get("reports", {}) if payload else {}
+    report_results: list[dict[str, Any]] = []
+    for name, runtime_path in expected.items():
+        review = report_reviews.get(name, {})
+        actual_hash = (
+            hashlib.sha256(runtime_path.read_bytes()).hexdigest()
+            if runtime_path.is_file()
+            else None
+        )
+        expected_hash = review.get("runtimeReportSha256")
+        reviewed_count = review.get("reviewedFrameCount")
+        actual_count = None
+        if runtime_path.is_file():
+            try:
+                runtime = json.loads(runtime_path.read_text(encoding="utf-8"))
+                if "captureCount" in runtime:
+                    actual_count = runtime.get("captureCount")
+                else:
+                    actual_count = sum(
+                        len(result.get("captures", {}))
+                        for result in runtime.get("results", [])
+                    )
+            except Exception as error:
+                errors.append(f"{name} runtime report is invalid: {error}")
+        item_errors: list[str] = []
+        if not review:
+            item_errors.append("review entry is missing")
+        if actual_hash is None:
+            item_errors.append("runtime report is missing")
+        elif expected_hash != actual_hash:
+            item_errors.append("runtime report hash no longer matches reviewed evidence")
+        if actual_count != reviewed_count:
+            item_errors.append(
+                f"reviewed frame count {reviewed_count!r} does not match runtime count {actual_count!r}"
+            )
+        if "review-complete" not in str(review.get("status", "")):
+            item_errors.append("review status is incomplete")
+        errors.extend(f"{name}: {message}" for message in item_errors)
+        report_results.append(
+            {
+                "name": name,
+                "runtimeReport": str(runtime_path.resolve()),
+                "expectedRuntimeReportSha256": expected_hash,
+                "actualRuntimeReportSha256": actual_hash,
+                "reviewedFrameCount": reviewed_count,
+                "actualFrameCount": actual_count,
+                "status": "pass" if not item_errors else "fail",
+                "errors": item_errors,
+            }
+        )
+
+    preserved_holds = set(payload.get("preservedUserHolds", []))
+    expected_holds = {"BLACKCAT", "JJVIEWER", "SCORPION"}
+    if preserved_holds != expected_holds:
+        errors.append(
+            "preserved user holds do not match the runtime review queue: "
+            + ", ".join(sorted(preserved_holds ^ expected_holds))
+        )
+    return {
+        "status": "pass" if not errors else "fail",
+        "manifest": str(SM1_RUNTIME_VISUAL_REVIEW.resolve()),
+        "reports": report_results,
+        "preservedUserHolds": sorted(preserved_holds),
+        "errors": errors,
+        "completionBlockers": [] if not errors else ["SM1-runtime:stale-or-incomplete-review"],
+    }
+
+
+def audit_runtime_report(
+    name: str,
+    path: Path,
+    expected_status: str,
+    minimum_schema: int,
+    fresh_after: Path,
+    requirements: tuple[tuple[str, bool], ...],
+) -> dict[str, Any]:
+    errors: list[str] = []
+    payload: dict[str, Any] = {}
+    if not path.is_file():
+        errors.append("report is missing")
+    else:
+        try:
+            loaded = json.loads(path.read_text(encoding="utf-8"))
+            if not isinstance(loaded, dict):
+                raise TypeError("root is not an object")
+            payload = loaded
+        except Exception as error:
+            errors.append(f"invalid JSON: {error}")
+
+    if payload:
+        schema = payload.get("schemaVersion")
+        if not isinstance(schema, int) or schema < minimum_schema:
+            errors.append(f"schemaVersion {schema!r} is below {minimum_schema}")
+        if payload.get("status") != expected_status:
+            errors.append(
+                f"status {payload.get('status')!r} is not {expected_status!r}"
+            )
+        errors.extend(message for message, condition in requirements if not condition)
+        if not fresh_after.is_file():
+            errors.append(f"freshness input is missing: {fresh_after}")
+        elif path.stat().st_mtime_ns < fresh_after.stat().st_mtime_ns:
+            errors.append(f"report predates {fresh_after.name}")
+
+    return {
+        "name": name,
+        "path": str(path.resolve()),
+        "expectedStatus": expected_status,
+        "freshAfter": str(fresh_after.resolve()),
+        "status": "pass" if not errors else "fail",
+        "errors": errors,
+    }
+
+
+def audit_runtime_evidence(runtime_executed: bool) -> dict[str, Any]:
+    """Fail closed when runtime stages were skipped, stale, or structurally invalid."""
+    required_stage_names = [
+        "validateStoryRuntime",
+        "validateSm1CostumeRuntime",
+        "validateCharacterViewerRuntime",
+        "validateHostagefViewerProbe",
+        "validateSymbioteViewerProbe",
+        "validateJamesonScorpionGameplayRuntime",
+        "captureSm2DefaultNative",
+        "validateSm2SpiderManCostumesRuntime",
+    ]
+    if not runtime_executed:
+        return {
+            "status": "runtime-not-run",
+            "runtimeExecuted": False,
+            "completionBlockers": [f"runtime:{name}" for name in required_stage_names],
+            "reports": [],
+            "policy": "Skipped runtime work can never produce a technical pass.",
+        }
+
+    actor_manifest = CONVERTED / "all-characters" / "manifest.json"
+    sm2_default_pack = SM2_DEFAULT_RUNTIME / "pack-report.json"
+    sm2_costume_pack = SM2_COSTUME_RUNTIME / "costume-pack.json"
+
+    story_path = CONVERTED / "all-characters-runtime-current" / "runtime-validation.json"
+    story = json.loads(story_path.read_text(encoding="utf-8")) if story_path.is_file() else {}
+    sm1_costume_path = (
+        CONVERTED / "all-characters-costumes-runtime-current" / "runtime-validation.json"
+    )
+    sm1_costume = (
+        json.loads(sm1_costume_path.read_text(encoding="utf-8"))
+        if sm1_costume_path.is_file()
+        else {}
+    )
+    viewer_path = (
+        CONVERTED / "all-characters-viewer-runtime-current" / "runtime-validation.json"
+    )
+    viewer = json.loads(viewer_path.read_text(encoding="utf-8")) if viewer_path.is_file() else {}
+    hostagef_path = HOSTAGEF_PROOF / "runtime-validation.json"
+    hostagef = json.loads(hostagef_path.read_text(encoding="utf-8")) if hostagef_path.is_file() else {}
+    symbiote_path = SYMBIOTE_PROOF / "runtime-validation.json"
+    symbiote = json.loads(symbiote_path.read_text(encoding="utf-8")) if symbiote_path.is_file() else {}
+    jameson_scorpion_path = JAMESON_SCORPION_PROOF / "runtime-validation.json"
+    jameson_scorpion = (
+        json.loads(jameson_scorpion_path.read_text(encoding="utf-8"))
+        if jameson_scorpion_path.is_file()
+        else {}
+    )
+    sm2_default_path = SM2_DEFAULT_RUNTIME / "runtime-wing-proof" / "runtime-validation.json"
+    sm2_default = (
+        json.loads(sm2_default_path.read_text(encoding="utf-8"))
+        if sm2_default_path.is_file()
+        else {}
+    )
+    sm2_costumes_path = SM2_COSTUME_RUNTIME / "runtime-menu-proof" / "runtime-validation.json"
+    sm2_costumes = (
+        json.loads(sm2_costumes_path.read_text(encoding="utf-8"))
+        if sm2_costumes_path.is_file()
+        else {}
+    )
+
+    reports = [
+        audit_runtime_report(
+            "SM1 story actor matrix",
+            story_path,
+            "pass",
+            2,
+            actor_manifest,
+            (
+                ("renderScale is not 4", story.get("renderScale") == 4),
+                ("story level matrix is incomplete", story.get("levelCount") == SM1_STORY_LEVEL_COUNT),
+                (
+                    "story actor coverage is incomplete",
+                    story.get("runtimeCoveredCount") == story.get("runtimeTargetCount"),
+                ),
+                (
+                    "one-process policy is missing",
+                    story.get("processPolicy")
+                    == "strictly sequential; never more than one SpiderMan process",
+                ),
+            ),
+        ),
+        audit_runtime_report(
+            "SM1 costume menu",
+            sm1_costume_path,
+            "menu-capture-valid",
+            2,
+            actor_manifest,
+            (
+                ("proofMode is not menu", sm1_costume.get("proofMode") == "menu"),
+                ("costume matrix is incomplete", sm1_costume.get("costumeCount") == 10),
+                (
+                    "one or more costumes lacks a valid menu signature",
+                    all(
+                        result.get("status") == "menu-capture-valid"
+                        and result.get("markers", {}).get("mainMenuVisualSignature") is True
+                        for result in sm1_costume.get("results", [])
+                    )
+                    and len(sm1_costume.get("results", [])) == 10,
+                ),
+            ),
+        ),
+        audit_runtime_report(
+            "SM1 Character Viewer roster",
+            viewer_path,
+            "pass",
+            2,
+            actor_manifest,
+            (
+                ("renderScale is not 4", viewer.get("renderScale") == 4),
+                ("viewer roster is incomplete", viewer.get("rosterCount") == 26),
+                (
+                    "viewer captures are incomplete",
+                    viewer.get("captureCount") == viewer.get("rosterCount"),
+                ),
+            ),
+        ),
+        audit_runtime_report(
+            "SM1 HOSTAGEF viewer probe",
+            hostagef_path,
+            "pass",
+            2,
+            actor_manifest,
+            (
+                ("renderScale is not 4", hostagef.get("renderScale") == 4),
+                ("HOSTAGEF probe alias is missing", bool(hostagef.get("probe"))),
+            ),
+        ),
+        audit_runtime_report(
+            "SM1 SYMBIOTE viewer probe",
+            symbiote_path,
+            "pass",
+            2,
+            actor_manifest,
+            (
+                ("renderScale is not 4", symbiote.get("renderScale") == 4),
+                ("SYMBIOTE probe alias is missing", bool(symbiote.get("probe"))),
+            ),
+        ),
+        audit_runtime_report(
+            "SM1 Jameson/Scorpion gameplay",
+            jameson_scorpion_path,
+            "pass",
+            2,
+            actor_manifest,
+            (
+                ("renderScale is not 4", jameson_scorpion.get("renderScale") == 4),
+                ("focused gameplay level is not L2A2", jameson_scorpion.get("levels") == ["l2a2"]),
+            ),
+        ),
+        audit_runtime_report(
+            "SM2 default Spider-Man wings",
+            sm2_default_path,
+            "pass",
+            1,
+            sm2_default_pack,
+            (("renderScale is below 4", int(sm2_default.get("renderScale", 0)) >= 4),),
+        ),
+        audit_runtime_report(
+            "SM2 Spider-Man costume menu",
+            sm2_costumes_path,
+            "menu-capture-valid",
+            2,
+            sm2_costume_pack,
+            (
+                ("renderScaleRequested is not 4", sm2_costumes.get("renderScaleRequested") == 4),
+                ("SM2 Spider-Man costume matrix is incomplete", sm2_costumes.get("costumeCount") == 19),
+                (
+                    "one or more SM2 costumes lacks a valid menu signature",
+                    all(
+                        result.get("status") == "menu-capture-valid"
+                        and result.get("runtimeMarkers", {}).get("mainMenuVisualSignature") is True
+                        for result in sm2_costumes.get("results", [])
+                    )
+                    and len(sm2_costumes.get("results", [])) == 19,
+                ),
+            ),
+        ),
+    ]
+    blockers = [f"runtime:{report['name']}" for report in reports if report["status"] != "pass"]
+    return {
+        "status": "pass" if not blockers else "fail",
+        "runtimeExecuted": True,
+        "completionBlockers": blockers,
+        "reports": reports,
+        "policy": "Runtime evidence must be current, structurally complete, and reviewable at 4x or higher.",
+    }
+
+
 def main() -> None:
     args = parse_args()
+    if args.skip_runtime and args.use_existing_runtime_evidence:
+        raise ValueError(
+            "--skip-runtime and --use-existing-runtime-evidence are mutually exclusive"
+        )
+    execute_runtime = not args.skip_runtime and not args.use_existing_runtime_evidence
     python = str(Path(args.python).resolve())
     blender = None if args.skip_costume_build else resolve_blender(args.blender)
     multitool = (
@@ -232,12 +636,14 @@ def main() -> None:
         static_command.extend(["--multitool", str(multitool)])
     stages["validateAllCharacters"] = run("validate every converted actor", static_command)
 
-    if not args.skip_runtime:
+    if execute_runtime:
         runtime_command = [
             python,
             str(TOOLS / "validate_character_runtime.py"),
             "--concurrency",
             str(args.runtime_concurrency),
+            "--render-scale",
+            "4",
         ]
         if args.resume_runtime:
             runtime_command.append("--resume")
@@ -411,7 +817,7 @@ def main() -> None:
             "build the complete 19-slot SM2 Dreamcast Spider-Man pack",
             [python, str(TOOLS / "build_sm2_spider_man_costume_pack.py")],
         )
-    if not args.skip_runtime:
+    if execute_runtime:
         sm2_capture_command = [
             python,
             str(TOOLS / "capture_sm2_default_runtime.py"),
@@ -444,15 +850,50 @@ def main() -> None:
 
     review_gate = audit_sm1_review_queue()
     stages["auditSm1ReviewQueue"] = review_gate
+    sm1_costume_review = audit_costume_review_manifest(
+        "SM1-costumes",
+        SM1_COSTUME_REVIEW,
+        CONVERTED / "all-characters-costumes-runtime-current" / "runtime-validation.json",
+        10,
+        {"SPQUICK"},
+    )
+    stages["auditSm1CostumeReview"] = sm1_costume_review
+    sm1_runtime_visual_review = audit_sm1_runtime_visual_review()
+    stages["auditSm1RuntimeVisualReview"] = sm1_runtime_visual_review
+    sm2_costume_review = audit_costume_review_manifest(
+        "SM2-Spider-Man-costumes",
+        SM2_COSTUME_REVIEW,
+        SM2_COSTUME_RUNTIME / "runtime-menu-proof" / "runtime-validation.json",
+        19,
+        set(),
+    )
+    stages["auditSm2CostumeReview"] = sm2_costume_review
+    runtime_gate = audit_runtime_evidence(not args.skip_runtime)
+    stages["auditRuntimeEvidence"] = runtime_gate
+
+    runtime_blockers = runtime_gate["completionBlockers"]
+    review_blockers = (
+        review_gate["blockedActors"]
+        + sm1_costume_review["completionBlockers"]
+        + sm1_runtime_visual_review["completionBlockers"]
+        + sm2_costume_review["completionBlockers"]
+    )
+    completion_blockers = runtime_blockers + review_blockers
+    if runtime_gate["status"] == "runtime-not-run":
+        pipeline_status = "incomplete-runtime-validation"
+    elif runtime_gate["status"] != "pass":
+        pipeline_status = "runtime-validation-failed"
+    elif review_blockers:
+        pipeline_status = "technical-pass-user-review-required"
+    else:
+        pipeline_status = "pass"
 
     report = {
-        "schemaVersion": 1,
-        "status": (
-            "pass"
-            if review_gate["status"] == "pass"
-            else "technical-pass-user-review-required"
-        ),
-        "completionBlockers": review_gate["blockedActors"],
+        "schemaVersion": 2,
+        "status": pipeline_status,
+        "completionBlockers": completion_blockers,
+        "runtimeValidationExecuted": execute_runtime,
+        "existingRuntimeEvidenceAudited": args.use_existing_runtime_evidence,
         "stages": stages,
         "artifacts": {
             "visibleModel": digest(VISIBLE / "spidey.psx"),
@@ -481,20 +922,28 @@ def main() -> None:
             "sm2DefaultGameplayWingProof": str((SM2_DEFAULT_RUNTIME / "runtime-wing-proof" / "sm2_default_gameplay_wings_close.png").resolve()),
             "sm2SpiderManCostumePack": str((SM2_COSTUME_RUNTIME / "costume-pack.json").resolve()),
             "sm2SpiderManCostumeRuntimeValidation": str((SM2_COSTUME_RUNTIME / "runtime-menu-proof" / "runtime-validation.json").resolve()),
-            "sm2SpiderManCostumeReview": str((ROOT / "dreamcast" / "manifests" / "sm2-spider-man-costume-review.json").resolve()),
+            "sm2SpiderManCostumeReview": str(SM2_COSTUME_REVIEW.resolve()),
+            "sm1CostumeMenuReview": str(SM1_COSTUME_REVIEW.resolve()),
+            "sm1RuntimeVisualReview": str(SM1_RUNTIME_VISUAL_REVIEW.resolve()),
             "sm1ModelReview": str(SM1_REVIEW_QUEUE.resolve()),
         },
     }
     report_path = CONVERTED / "port-pipeline-report.json"
     report_path.write_text(json.dumps(report, indent=2) + "\n", encoding="utf-8")
-    if review_gate["status"] == "pass":
+    if pipeline_status == "pass":
         summary = "PASS: complete Dreamcast character port pipeline"
+    elif pipeline_status == "incomplete-runtime-validation":
+        summary = "INCOMPLETE: runtime validation was skipped"
+    elif pipeline_status == "runtime-validation-failed":
+        summary = "FAIL: required runtime evidence is missing, stale, or invalid"
     else:
         summary = (
             "TECHNICAL PASS; USER REVIEW REQUIRED: "
-            + ", ".join(review_gate["blockedActors"])
+            + ", ".join(review_blockers)
         )
     print(f"\n{summary}\nreport: {report_path}")
+    if pipeline_status == "runtime-validation-failed":
+        raise SystemExit(1)
 
 
 if __name__ == "__main__":

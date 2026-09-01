@@ -119,13 +119,42 @@ def capture_frames(roster: tuple[tuple[str, str], ...]) -> list[int]:
     ]
 
 
-def verify_capture(path: Path) -> list[int]:
-    with Image.open(path) as image:
+def ensure_no_game_process() -> None:
+    result = subprocess.run(
+        ["tasklist", "/FI", "IMAGENAME eq SpiderMan.exe", "/FO", "CSV", "/NH"],
+        text=True,
+        stdout=subprocess.PIPE,
+        stderr=subprocess.STDOUT,
+        check=False,
+    )
+    if result.returncode == 0 and re.search(
+        r'"SpiderMan\.exe"', result.stdout, re.IGNORECASE
+    ):
+        raise RuntimeError("refusing to launch while another SpiderMan.exe process exists")
+
+
+def verify_capture(path: Path, render_scale: int) -> dict[str, Any]:
+    with Image.open(path) as opened:
+        opened.load()
+        image = opened.convert("RGB")
         size = image.size
-        image.verify()
-    if size[0] <= 0 or size[1] <= 0:
-        raise ValueError(f"invalid capture dimensions {size}: {path}")
-    return [size[0], size[1]]
+        extrema = image.getextrema()
+        colors = image.getcolors(maxcolors=image.width * image.height)
+    expected_size = (320 * render_scale, 240 * render_scale)
+    if size != expected_size:
+        raise ValueError(f"invalid capture dimensions {size}; expected {expected_size}: {path}")
+    dynamic_range = max(high - low for low, high in extrema)
+    color_count = len(colors) if colors is not None else image.width * image.height
+    if dynamic_range < 32 or color_count < 64:
+        raise ValueError(
+            f"capture is not a reviewable rendered frame "
+            f"(range={dynamic_range}, colors={color_count}): {path}"
+        )
+    return {
+        "size": list(size),
+        "dynamicRange": dynamic_range,
+        "colorCount": color_count,
+    }
 
 
 def link_or_copy(source: Path, destination: Path) -> None:
@@ -153,6 +182,8 @@ def main() -> None:
     exe = args.exe.resolve()
     batch = args.batch.resolve()
     output = args.output.resolve()
+    if args.render_scale != 4:
+        raise ValueError("--render-scale must be 4 for reviewable runtime evidence")
     probe_model = args.probe_model.lower() if args.probe_model else None
     effective_last_model = args.probe_slot if probe_model else args.last_model
     last_index = next(
@@ -160,6 +191,9 @@ def main() -> None:
     )
     roster = ROSTER[: last_index + 1]
     output.mkdir(parents=True, exist_ok=True)
+    ensure_no_game_process()
+    for old_capture in output.glob("frame_*.png"):
+        old_capture.unlink()
     console_path = output / "console.log"
     frames = capture_frames(roster)
     exit_frame = frames[-1] + 150
@@ -234,7 +268,7 @@ def main() -> None:
     for (display_name, model), frame in zip(roster, frames):
         path = output / f"frame_{frame:05d}.png"
         try:
-            size = verify_capture(path)
+            capture_metrics = verify_capture(path, args.render_scale)
             captures.append(
                 {
                     "index": len(captures),
@@ -242,7 +276,7 @@ def main() -> None:
                     "model": model,
                     "frame": frame,
                     "path": str(path),
-                    "size": size,
+                    **capture_metrics,
                     **(
                         {"sourceModel": probe_model}
                         if probe_model and model == args.probe_slot
@@ -272,7 +306,7 @@ def main() -> None:
         else "fail"
     )
     report = {
-        "schemaVersion": 1,
+        "schemaVersion": 2,
         "batch": str(batch),
         "probe": (
             {
@@ -286,6 +320,7 @@ def main() -> None:
         ),
         "inputMethod": "process-local SPIDEY_SCRIPT controller state",
         "gameProcessCount": 1,
+        "processPolicy": "strictly sequential; never more than one SpiderMan process",
         "renderScale": args.render_scale,
         "rosterCount": len(roster),
         "loadedModelCount": len(expected_models & load_calls),
