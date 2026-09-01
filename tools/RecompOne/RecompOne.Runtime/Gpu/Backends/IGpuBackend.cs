@@ -43,6 +43,17 @@ public interface IGpuBackend
         return null;
     }
 
+    /// <summary>
+    /// The same last-presented frame immediately before the built-in FXAA pass. This is
+    /// exposed for exact A/B capture: source and result are then guaranteed to come from
+    /// one rendered game frame rather than two runs with different animation timing.
+    /// </summary>
+    byte[]? ReadPreFxaa(out int outW, out int outH)
+    {
+        outW = outH = 0;
+        return null;
+    }
+
     //add other stuff
     int RegisterImage(ReadOnlySpan<byte> rgba, int width, int height);
 

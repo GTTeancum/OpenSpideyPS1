@@ -30,36 +30,48 @@ public static class GteScreen
     /// <summary>Off unless something is asking, since it costs a hash insert per vertex.</summary>
     public static bool Tracking;
 
-    // Two generations. The game builds one ordering table while walking the other, so
-    // the primitives drawn between two vblanks were projected in the window before them
-    // -- clearing on a single frame boundary left the set empty at exactly the moment it
-    // was consulted, and everything read as HUD. Keeping the previous window as well
-    // costs only a wider net, and a HUD vertex has to collide with a projected one on
-    // every vertex of a primitive before that matters.
-    static HashSet<int> _cur = new(8192);
-    static HashSet<int> _prev = new(8192);
+    // Four submitted-frame generations. These games build ordering tables ahead of the
+    // buffer they display, and SM2 can service multiple vblanks before it swaps that
+    // buffer. Rolling at every vblank discarded all projection points before their
+    // primitives reached the GPU. Wide rolls this ring on actual PutDispEnv swaps; four
+    // generations cover both double buffering and an ahead-built table without turning
+    // this into an unbounded history. Every vertex must still match.
+    const int Generations = 4;
+    static readonly HashSet<int>[] _sets =
+        [new(8192), new(8192), new(8192), new(8192)];
+    static int _cur;
 
     static int Key(int x, int y) => ((x & 0xFFFF) << 16) | (y & 0xFFFF);
 
     public static void Note(int x, int y)
     {
-        if (Tracking) _cur.Add(Key(x, y));
+        if (Tracking) _sets[_cur].Add(Key(x, y));
     }
 
     public static bool Has(int x, int y)
     {
         int k = Key(x, y);
-        return _cur.Contains(k) || _prev.Contains(k);
+        for (int i = 0; i < Generations; i++)
+            if (_sets[i].Contains(k)) return true;
+        return false;
     }
 
-    public static int Count => _cur.Count + _prev.Count;
+    public static int Count
+    {
+        get
+        {
+            int count = 0;
+            for (int i = 0; i < Generations; i++) count += _sets[i].Count;
+            return count;
+        }
+    }
 
     /// <summary>A few of the recorded points, for checking the coordinate convention.</summary>
     public static string Sample(int n = 6)
     {
         var sb = new System.Text.StringBuilder();
         int i = 0;
-        foreach (int k in _cur)
+        foreach (int k in _sets[_cur])
         {
             if (i++ >= n) break;
             sb.Append($"({(short)(k >> 16)},{(short)k}) ");
@@ -68,12 +80,11 @@ public static class GteScreen
     }
 
     /// <summary>
-    /// Called once a frame: the current window becomes the previous one and a fresh
-    /// window starts.
+    /// Called once per actual display-buffer swap.
     /// </summary>
     public static void Roll()
     {
-        (_cur, _prev) = (_prev, _cur);
-        _cur.Clear();
+        _cur = (_cur + 1) % Generations;
+        _sets[_cur].Clear();
     }
 }

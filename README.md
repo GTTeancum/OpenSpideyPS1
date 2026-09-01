@@ -68,8 +68,13 @@ level and plays it.
 - **Audio.** SPU voices measured at full-scale peak, with XA and MDEC feeding the movies.
 - **Level select and cheats.** All ten of the game's own cheat handlers read off and
   reproduced; `SPIDEY_LEVEL` boots any of 44 level prefixes.
+- **Modern rendering.** Gameplay defaults to true 16:9, PS1 dithering is permanently
+  removed, and host-resolution FXAA is enabled by default. A one-process audit captured
+  four ordered in-game frames for every story prefix: 20 reached gameplay, while four
+  existing model-init failures remain explicit failures.
 
-Not verified: finishing a level, the memory card, and 42 of the 44 levels. See
+Not verified: finishing a level, the memory card, and the four prefixes that currently
+fail before their first renderable frame. See
 [spiderman2/TO_DO.md](spiderman2/TO_DO.md).
 
 ### Spider-Man
@@ -146,6 +151,9 @@ SPIDEY_COSTUME=symbiote    Spider-Man only: 2099 symbiote captain unlimited bagm
 SPIDEY_CHEATS=all          the game's own cheats, each read off its own handler
 SPIDEY_SHOTS=1050,1500     write a PNG on these frames
 SPIDEY_SNAP=crash          dump the game's RAM on the crash, or on named frames
+SPIDEY_WIDE=0              disable SM2's default 16:9 gameplay (1 enables it in SM1)
+RECOMP_RENDER_SCALE=4      internal rendering scale, 1..8
+RECOMP_FXAA=0              disable the default host-resolution FXAA pass
 ```
 
 The per-game notes are the interesting reading. [spiderman/README.md](spiderman/README.md)

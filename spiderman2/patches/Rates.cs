@@ -92,7 +92,9 @@ public static class Rates
             $"vblank {(vcount - _vcount) / dt,6:F1} | " +
             $"GAME TICK {(tick - _tick) / dt,6:F1} | " +
             $"VBLANK IRQ {Math.Max(0, vblankCallback - _vblankCallback) / dt,6:F1}" +
-            $" | wedge hits {RecompOne.Runtime.Gpu.WedgeHits} of {RecompOne.Runtime.Gpu.TotalVerts} verts";
+            $" | wedge hits {RecompOne.Runtime.Gpu.WedgeHits} of {RecompOne.Runtime.Gpu.TotalVerts} verts" +
+            $" | wide spans accepted {RecompOne.Runtime.Gpu.WideSpanAccepted}" +
+            $" rejected x/y {RecompOne.Runtime.Gpu.SpanXRejected}/{RecompOne.Runtime.Gpu.SpanYRejected}";
 
         _ot = ot; _disp = disp; _wait = wait;
         _poll = poll; _present = present; _service = service; _vcount = vcount; _tick = tick;

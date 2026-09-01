@@ -55,6 +55,8 @@
     <ItemGroup>
         <Compile Include="..\generated\**\*.cs" />
         <Compile Include="..\patches\**\*.cs" />
+        <!-- Projection/HUD policy is engine-shared; only the measured swap address differs. -->
+        <Compile Include="..\..\spiderman\patches\Wide.cs" Link="Shared\Wide.cs" />
     </ItemGroup>
 
     <ItemGroup>

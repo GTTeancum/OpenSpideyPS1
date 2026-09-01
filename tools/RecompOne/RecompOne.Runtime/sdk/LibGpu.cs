@@ -116,9 +116,14 @@ public static class LibGpu
             // SPIDEY_WIDE_DEBUG=1 paints it magenta, so anything showing it is ground the
             // frame never covered, as distinct from geometry that was drawn.
             if (Diagnostics.DrawEnvWarn.TintBackground) { r0 = 255; g0 = 0; b0 = 255; }
-            gpu.WriteGp0(0x60000000u | ((uint)b0 << 16) | ((uint)g0 << 8) | r0);
-            gpu.WriteGp0(((uint)(ushort)y << 16) | (ushort)x);
-            gpu.WriteGp0(((uint)(ushort)h << 16) | (ushort)w);
+            GpuHle.SubmittingBackground = true;
+            try
+            {
+                gpu.WriteGp0(0x60000000u | ((uint)b0 << 16) | ((uint)g0 << 8) | r0);
+                gpu.WriteGp0(((uint)(ushort)y << 16) | (ushort)x);
+                gpu.WriteGp0(((uint)(ushort)h << 16) | (ushort)w);
+            }
+            finally { GpuHle.SubmittingBackground = false; }
         }
 
         if (Event.HasAnyListeners<DrawEnvEvent>())

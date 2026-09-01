@@ -19,7 +19,11 @@ namespace Recompiled;
 ///   SPIDEY_SHOT_EVERY=120     ...or write one every N frames
 ///   SPIDEY_SHOT_DIR=shots     where they go (default "shots")
 ///   SPIDEY_SHOT_CROP=x,y,w,h  also write an exact display-pixel close-up per shot
+///   SPIDEY_CAPTURE_PRESENTED=1 capture the final presented frame, including FXAA
+///   SPIDEY_CAPTURE_FXAA_PAIR=1 write pre/post-FXAA images from the exact same frame
 ///   SPIDEY_EXIT=900           quit after this frame
+///   SPIDEY_EXIT=menu.spidey+900
+///                              ...or relative to an archive/model anchor
 ///   SPIDEY_SCRIPT=120:start;300:cross:8
 ///                              press a button at a frame, optionally for N frames
 ///   SPIDEY_SCRIPT=title.bmr+200:start:10
@@ -57,7 +61,10 @@ public static class Capture
     static string _dir = "shots";
     static long _every;
     static long _exit = -1;
+    static Shot _exitShot;
     static bool _active;
+    static bool _presented;
+    static bool _fxaaPair;
     static bool _titleShellLoaded;
     static int _cropX = -1, _cropY, _cropW, _cropH;
     static string _bootSkipAnchor;
@@ -109,6 +116,9 @@ public static class Capture
         var dir = Environment.GetEnvironmentVariable("SPIDEY_SHOT_DIR");
         if (!string.IsNullOrWhiteSpace(dir)) _dir = dir;
 
+        _presented = Environment.GetEnvironmentVariable("SPIDEY_CAPTURE_PRESENTED") == "1";
+        _fxaaPair = Environment.GetEnvironmentVariable("SPIDEY_CAPTURE_FXAA_PAIR") == "1";
+
         var crop = Environment.GetEnvironmentVariable("SPIDEY_SHOT_CROP");
         if (!string.IsNullOrWhiteSpace(crop))
         {
@@ -126,7 +136,13 @@ public static class Capture
         if (long.TryParse(mark, out var mk) && mk > 0) { _markEvery = mk; _active = true; }
 
         var exit = Environment.GetEnvironmentVariable("SPIDEY_EXIT");
-        if (long.TryParse(exit, out var x) && x > 0) { _exit = x; _active = true; }
+        if (!string.IsNullOrWhiteSpace(exit))
+        {
+            var stop = MakeShot(exit.Trim());
+            if (stop.Frame > 0) _exit = stop.Frame;
+            else _exitShot = stop;
+            _active = true;
+        }
 
         foreach (var step in Split("SPIDEY_SCRIPT", ';'))
         {
@@ -148,7 +164,8 @@ public static class Capture
         Event.AddListener<VSyncEvent>(OnFrame);
         if (!_active) return;
         string cropStatus = _cropX >= 0 ? $" crop={_cropX},{_cropY},{_cropW},{_cropH}" : "";
-        Console.WriteLine($"[capture] armed: shots={_shots.Count} every={_every} exit={_exit} script={_script.Count}{cropStatus}");
+        string sourceStatus = _fxaaPair ? " source=fxaa-pair" : _presented ? " source=presented" : " source=raster";
+        Console.WriteLine($"[capture] armed: shots={_shots.Count} every={_every} exit={_exit} script={_script.Count}{cropStatus}{sourceStatus}");
     }
 
     static IEnumerable<string> Split(string name, char sep = ',')
@@ -181,6 +198,9 @@ public static class Capture
 
         if (_exit > 0 && e.Frame >= _exit)
         {
+            Console.WriteLine(
+                $"[capture] span audit: wide accepted {RecompOne.Runtime.Gpu.WideSpanAccepted}, " +
+                $"rejected x/y {RecompOne.Runtime.Gpu.SpanXRejected}/{RecompOne.Runtime.Gpu.SpanYRejected}");
             Console.WriteLine($"[capture] exit at frame {e.Frame}");
             Console.Out.Flush();
             Runtime.Shutdown();
@@ -292,6 +312,17 @@ public static class Capture
                 Console.WriteLine(
                     $"[capture] '{anchor}' at frame {frame}: {source} shot resolved to frame {shot.Frame}");
             }
+        if (_exitShot is { Frame: < 0 } && _exitShot.Anchor != null &&
+            string.Equals(_exitShot.Anchor, anchor, StringComparison.OrdinalIgnoreCase))
+        {
+            if (++_exitShot.Seen >= _exitShot.Occurrence)
+            {
+                _exit = frame + _exitShot.Offset;
+                _exitShot.Frame = _exit;
+                Console.WriteLine(
+                    $"[capture] '{anchor}' at frame {frame}: {source} exit resolved to frame {_exit}");
+            }
+        }
     }
 
     /// <summary>Called for every archive lookup; resolves any step anchored to it.</summary>
@@ -331,12 +362,12 @@ public static class Capture
 
     // VRAM row 0 sits at framebuffer y=0, so glReadPixels' bottom-first order already
     // comes out top-first here -- no flip. Alpha is the PS1 mask bit, not opacity.
-    static void SaveScaled(long frame, byte[] rgba, int w, int h)
+    static void SaveScaled(long frame, byte[] rgba, int w, int h, string suffix = "")
     {
         for (int i = 3; i < rgba.Length; i += 4) rgba[i] = 255;
         (rgba, w) = ToDisplayAspect(rgba, w, h);
 
-        string path = Path.Combine(_dir, $"frame_{frame:D5}.png");
+        string path = Path.Combine(_dir, $"frame_{frame:D5}{suffix}.png");
         PngWriter.WriteRgba(path, rgba, w, h);
         Console.WriteLine($"[capture] {path} {w}x{h} (live-3d 16bpp display aspect) {GameTrace.CaptureLevelState(frame)}");
         SaveCloseup(frame, rgba, w, h);
@@ -421,6 +452,30 @@ public static class Capture
         int w = gpu.DisplayWidth, h = gpu.DisplayHeight;
         if (w <= 0 || h <= 0) return;
         int x = gpu.DisplayX, y = gpu.DisplayY;
+
+        if (_fxaaPair)
+        {
+            var source = backend.ReadPreFxaa(out int sw, out int sh);
+            var shown = backend.ReadPresented(out int pw, out int ph);
+            if (source != null && shown != null && sw == pw && sh == ph && sw > 0 && sh > 0)
+            {
+                SaveScaled(frame, source, sw, sh, "_fxaa_source");
+                SaveScaled(frame, shown, pw, ph, "_fxaa_result");
+                return;
+            }
+            Console.WriteLine("[capture] exact FXAA pair is not ready; falling back to normal capture");
+        }
+
+        if (_presented)
+        {
+            var shown = backend.ReadPresented(out int pw, out int ph);
+            if (shown != null && pw > 0 && ph > 0)
+            {
+                SaveScaled(frame, shown, pw, ph);
+                return;
+            }
+            Console.WriteLine("[capture] final presented frame is not ready; falling back to raster readback");
+        }
 
         // Prefer the full internal resolution: VRAM is stored at RenderScale, so this is
         // the image the rasteriser actually produced rather than a console-resolution

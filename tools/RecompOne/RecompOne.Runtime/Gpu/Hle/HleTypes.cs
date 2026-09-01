@@ -12,6 +12,7 @@ public struct HleVertex
 public struct PrimFlags
 {
     public bool Textured, SemiTrans, RawTexture, Gouraud;
+    public bool World, Hud, Background, IgnoreCoverage;
     public ushort TPage;
     public ushort Clut;
     public int OtIndex;
@@ -22,5 +23,5 @@ public struct PrimFlags
 }
 
 public struct HleRect { public float X, Y; public int W, H; public short U, V; public byte R, G, B; }
-public struct HleDrawEnv { public int ClipX0, ClipY0, ClipX1, ClipY1; public int TwMaskX, TwMaskY, TwOffX, TwOffY; public bool SetMask, CheckMask, Dither; }
+public struct HleDrawEnv { public int ClipX0, ClipY0, ClipX1, ClipY1; public int TwMaskX, TwMaskY, TwOffX, TwOffY; public bool SetMask, CheckMask; }
 public struct HleDispEnv { public int X, Y, W, H; public bool Rgb24, Interlace; }

@@ -30,6 +30,15 @@ internal sealed class DisplaySettingsSection : ISettingsSection
         }
         if (ImGui.IsItemHovered()) ImGui.SetTooltip(Localization.T("settings.display.vsync_hint"));
 
+        bool fxaa = ConfigManager.View.Fxaa;
+        if (ImGui.Checkbox(Localization.T("settings.display.fxaa"), ref fxaa))
+        {
+            ConfigManager.View.Fxaa = fxaa;
+            Hle.GpuHle.FxaaEnabled = fxaa;
+            ConfigManager.SaveView(PanelManager.Panels);
+        }
+        if (ImGui.IsItemHovered()) ImGui.SetTooltip(Localization.T("settings.display.fxaa_hint"));
+
         int scale = ConfigManager.View.RenderScale;
         if (ImGui.SliderInt(Localization.T("settings.display.render_scale"), ref scale, 1, 8, "%dx"))
         {

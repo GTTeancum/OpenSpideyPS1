@@ -4,8 +4,8 @@ Ordered by what blocks the most. Ruling things out is most of the value, so the 
 that turned out *not* to be a fault are recorded with their evidence.
 
 **Where it stands.** The game boots, plays both intro movies, reaches the title and the
-menus, and a new game reaches episode 1 mission 0 and holds live gameplay. One
-scripted run, from a cold boot, reproduces this reliably.
+menus, and a new game reaches live gameplay. Automated cold-boot coverage now reaches
+20 of the 24 story prefixes; four fail before rendering during model initialization.
 
 What is verified, and how:
 
@@ -25,6 +25,9 @@ What is verified, and how:
 | **Controls** | `up` walks him forward, off a rooftop, into a fall and a death — the GAME OVER screen is the proof that input, physics, collision and the death path all work |
 | **Level select** | `SPIDEY_LEVEL=e1m1` redirects the archive lookups and E1M1 loads and plays |
 | **Cheats** | all ten codes' handlers read off and reproduced; `SPIDEY_CHEATS=all` installs |
+| **Modern renderer** | dithering/5-bit output removed; FXAA enabled by default and verified with exact same-frame pre/post captures |
+| **Widescreen** | true 16:9 GTE projection, 16:9 host window, stable left/right HUD anchoring, and completed authored side bands |
+| **Story-level render audit** | four ordered gameplay captures for every prefix: 19 zero-gap passes, one native-equivalent seam review, four explicit pre-render failures |
 | Stability | zero exceptions across every run in this session |
 
 ---
@@ -93,17 +96,16 @@ A recorded-input system (`SPIDEY_REC` / `SPIDEY_PLAY` in the Spider-Man port) is
 obvious next step and is not ported here: recording a route needs a person once, and
 after that the route replays.
 
-## 4. Not started
+## 4. Remaining work
 
-- **Widescreen.** The Spider-Man port's `Wide.cs` is not ported. Nothing here has looked
-  at whether this game's projection responds the same way.
 - **Costumes.** `WASHMCHN` unlocks them and `SPIDEY_CHEATS=costumes` sets that flag, but
   there is no direct selector like the Spider-Man port's `SPIDEY_COSTUME`.
 - **Memory card.** Not exercised at all. The runtime's card fixes from the Spider-Man
   port are in the shared runtime and should apply, but "should" is not evidence.
-- **The other 43 levels.** Only `e1m0` and `e1m1` have been loaded. The Spider-Man port
-  booted 21 prefixes directly and held 7000 frames in each; the same sweep has not been
-  run here.
+- **Four story prefixes fail before rendering.** `e3m1`, `e3m2`, `e4m1`, and `e5m2`
+  crash in model initialization with invalid/unmapped source data. They are not
+  widescreen failures, but they must be fixed before those levels can join the visual
+  audit.
 - **Game-internals instrumentation.** `mkconfig.py` emits no `GameTrace`-style hooks,
   because every one of them is a global or a structure layout that has to be found in
   *this* executable first, and a hook pointed at a plausible-looking wrong address

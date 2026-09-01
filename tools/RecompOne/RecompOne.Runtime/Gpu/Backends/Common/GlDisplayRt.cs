@@ -7,6 +7,12 @@ public sealed class GlDisplayRt
     public int X, Y, W, H;
     public int Margin;
     public uint Tex, Fbo;
+    /// <summary>
+    /// R = touched by any submitted primitive, G = touched by GTE/world geometry.
+    /// It is kept separate from the PS1 mask-bit alpha channel so mask semantics stay
+    /// exact while widescreen can distinguish an authored backdrop hole from HUD.
+    /// </summary>
+    public uint CoverageTex, CoverageFbo;
     public bool Dirty;
     public long Stamp;
     public long LastDrawFrame;
@@ -24,7 +30,7 @@ public sealed class GlDisplayRt
     public bool Intersects(int rx, int ry, int rw, int rh)
         => rx < X + W && X < rx + rw && ry < Y + H && Y < ry + rh;
 
-    public void Create(GL gl)
+    public void Create(GL gl, bool coverage)
     {
         Tex = gl.GenTexture();
         gl.BindTexture(TextureTarget.Texture2D, Tex);
@@ -32,8 +38,13 @@ public sealed class GlDisplayRt
         gl.TexParameter(TextureTarget.Texture2D, TextureParameterName.TextureMagFilter, (int)GLEnum.Nearest);
         gl.TexParameter(TextureTarget.Texture2D, TextureParameterName.TextureWrapS, (int)GLEnum.ClampToEdge);
         gl.TexParameter(TextureTarget.Texture2D, TextureParameterName.TextureWrapT, (int)GLEnum.ClampToEdge);
-        gl.TexImage2D<ushort>(TextureTarget.Texture2D, 0, InternalFormat.Rgb5A1, (uint)TexW, (uint)TexH, 0,
-            PixelFormat.Rgba, PixelType.UnsignedShort1555Rev, new ushort[TexW * TexH].AsSpan());
+        // The display target is a host rendering surface, not emulated VRAM. Keeping it
+        // RGB5A1 here silently reintroduced the console's color limit after the shader
+        // had produced a full 8-bit result. Writeback to the real VRAM texture still
+        // converts to PS1 format when game feedback or readback actually requires it.
+        gl.TexImage2D<byte>(TextureTarget.Texture2D, 0, InternalFormat.Rgba8,
+            (uint)TexW, (uint)TexH, 0, PixelFormat.Rgba, PixelType.UnsignedByte,
+            new byte[TexW * TexH * 4].AsSpan());
 
         Fbo = gl.GenFramebuffer();
         gl.BindFramebuffer(FramebufferTarget.Framebuffer, Fbo);
@@ -42,12 +53,36 @@ public sealed class GlDisplayRt
         gl.ClearColor(0f, 0f, 0f, 0f);
         gl.Disable(EnableCap.ScissorTest);
         gl.Clear(ClearBufferMask.ColorBufferBit);
+
+        if (coverage)
+        {
+            CoverageTex = gl.GenTexture();
+            gl.BindTexture(TextureTarget.Texture2D, CoverageTex);
+            gl.TexParameter(TextureTarget.Texture2D, TextureParameterName.TextureMinFilter, (int)GLEnum.Nearest);
+            gl.TexParameter(TextureTarget.Texture2D, TextureParameterName.TextureMagFilter, (int)GLEnum.Nearest);
+            gl.TexParameter(TextureTarget.Texture2D, TextureParameterName.TextureWrapS, (int)GLEnum.ClampToEdge);
+            gl.TexParameter(TextureTarget.Texture2D, TextureParameterName.TextureWrapT, (int)GLEnum.ClampToEdge);
+            gl.TexImage2D<byte>(TextureTarget.Texture2D, 0, InternalFormat.Rgba8,
+                (uint)TexW, (uint)TexH, 0, PixelFormat.Rgba, PixelType.UnsignedByte,
+                new byte[TexW * TexH * 4].AsSpan());
+
+            CoverageFbo = gl.GenFramebuffer();
+            gl.BindFramebuffer(FramebufferTarget.Framebuffer, CoverageFbo);
+            gl.FramebufferTexture2D(FramebufferTarget.Framebuffer,
+                FramebufferAttachment.ColorAttachment0, TextureTarget.Texture2D,
+                CoverageTex, 0);
+            gl.ClearColor(0f, 0f, 0f, 0f);
+            gl.Clear(ClearBufferMask.ColorBufferBit);
+        }
+        gl.BindFramebuffer(FramebufferTarget.Framebuffer, 0);
     }
 
     public void Destroy(GL gl)
     {
         if (Fbo != 0) gl.DeleteFramebuffer(Fbo);
         if (Tex != 0) gl.DeleteTexture(Tex);
-        Fbo = Tex = 0;
+        if (CoverageFbo != 0) gl.DeleteFramebuffer(CoverageFbo);
+        if (CoverageTex != 0) gl.DeleteTexture(CoverageTex);
+        Fbo = Tex = CoverageFbo = CoverageTex = 0;
     }
 }

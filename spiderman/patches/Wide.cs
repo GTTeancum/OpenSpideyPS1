@@ -1,4 +1,5 @@
 using System;
+using System.Collections.Generic;
 using RecompOne.Runtime.Events;
 using RecompOne.Runtime.Hle;
 using RecompOne.Runtime.Sdk;
@@ -27,21 +28,28 @@ namespace Recompiled;
 public static class Wide
 {
     /// <summary>
-    /// The gameplay loop's buffer swap, at 0x8002C2AC. Identified positively rather than
-    /// by excluding the menus: the menu swap arrives through a path where the saved
-    /// return address is not at sp+16, so reading it there yields a junk value.
+    /// SM1's gameplay loop buffer swap, at 0x8002C2AC. Identified positively rather
+    /// than by excluding the menus: the menu swap arrives through a path where the
+    /// saved return address is not at sp+16, so reading it there yields a junk value.
     ///
     /// In-engine cutscenes run through this same loop and widen with gameplay. FMV needs
     /// no special case -- it presents through the 24-bit path.
     /// </summary>
-    const uint GameplaySwap = 0x8002C2AC;
+    const uint Sm1GameplaySwap = 0x8002C2AC;
+    static uint _gameplaySwap;
 
     public static bool Enabled { get; private set; }
 
     static float _aspect;
     static int _num = 3, _den = 4;
+    static long _lastScreenSwap = -1;
 
-    public static void Install()
+    /// <param name="gameplaySwap">
+    /// Return address immediately after the title's gameplay buffer-swap helper. SM1
+    /// uses the default; SM2 supplies its independently measured main-loop address.
+    /// </param>
+    public static void Install(uint gameplaySwap = Sm1GameplaySwap, bool completeBackdrop = false,
+        bool defaultEnabled = false)
     {
         // Before the widescreen bail-out, so the same measurement can be taken in 4:3.
         // SPIDEY_WIDE_DEBUG=1 paints the background fill magenta, which is the only way
@@ -50,8 +58,17 @@ public static class Wide
         RecompOne.Runtime.Diagnostics.DrawEnvWarn.TintBackground =
             Environment.GetEnvironmentVariable("SPIDEY_WIDE_DEBUG") == "1";
 
-        if (Environment.GetEnvironmentVariable("SPIDEY_WIDE") != "1") return;
+        string requested = Environment.GetEnvironmentVariable("SPIDEY_WIDE");
+        bool enabled = requested == "1" || (defaultEnabled && requested != "0");
+        if (!enabled) return;
         Enabled = true;
+        _gameplaySwap = gameplaySwap;
+        GpuHle.WideBackgroundCompletion = completeBackdrop &&
+            Environment.GetEnvironmentVariable("SPIDEY_WIDE_RAW_GAPS") != "1";
+        GpuHle.WideCoverageView =
+            Environment.GetEnvironmentVariable("SPIDEY_WIDE_COVERAGE_VIEW") == "1";
+        if (GpuHle.WideBackgroundCompletion)
+            Console.WriteLine("[wide] untouched side-band completion enabled");
 
         var a = Environment.GetEnvironmentVariable("SPIDEY_WIDE_ASPECT");
         _aspect = float.TryParse(a, out float f) && f > 1.3f && f < 3f ? f : 16f / 9f;
@@ -63,6 +80,7 @@ public static class Wide
 
         RecompOne.Runtime.Hardware.GteScreen.Tracking = true;
         _legacy = Environment.GetEnvironmentVariable("SPIDEY_WIDE_LEGACY") == "1";
+        _traceCoverage = Environment.GetEnvironmentVariable("SPIDEY_WIDE_COVERAGE_TRACE") == "1";
         if (_legacy) Console.WriteLine("[wide] legacy HUD rules: shape and position only");
 
         Event.AddListener<VSyncEvent>(_ => Follow());
@@ -76,14 +94,21 @@ public static class Wide
     /// </summary>
     static void Follow()
     {
-        bool wide = LibGpu.LastDispGrandparent == GameplaySwap;
+        bool wide = LibGpu.LastDispGrandparent == _gameplaySwap;
 
         GpuHle.FovNum = wide ? _num : 1;
         GpuHle.FovDen = wide ? _den : 1;
         RollElements();
 
-        // The recorded projection output belongs to one frame; see GteScreen.
-        RecompOne.Runtime.Hardware.GteScreen.Roll();
+        // Projection data belongs to submitted display buffers, not host vblanks. SM2
+        // may service more than one vblank before PutDispEnv advances, so rolling here
+        // unconditionally erased every point before its ordering table was drawn.
+        long swap = LibGpu.DispCount;
+        if (swap != _lastScreenSwap)
+        {
+            RecompOne.Runtime.Hardware.GteScreen.Roll();
+            _lastScreenSwap = swap;
+        }
 
         if (RecompOne.Runtime.Diagnostics.DrawEnvWarn.TintBackground && ++_frames % 600 == 0)
             Console.WriteLine($"[wide] world primitives rescued from the HUD rules so far: {_rescued}");
@@ -118,7 +143,9 @@ public static class Wide
         // without a heuristic.
         // SPIDEY_WIDE_LEGACY=1 puts the shape-only rules back, so the two can be run
         // against the same recording from one build and compared.
-        if (!_legacy && FromGte(e))
+        bool fromGte = FromGte(e);
+        e.World = fromGte;
+        if (!_legacy && fromGte)
         {
             // How much damage the shape test was doing on its own: world geometry that
             // the HUD rules would have claimed and moved.
@@ -143,8 +170,24 @@ public static class Wide
         int rtop = top - e.DrawTop, rbot = bot - e.DrawTop;
 
         int w = e.DrawRight - e.DrawLeft + 1, h = e.DrawBottom - e.DrawTop + 1;
-        bool panel = IsScreenAligned(e) && InHudCorner(rlo, rhi, rtop, rbot, w, h);
+        bool aligned = IsScreenAligned(e);
+        bool colorOverlayPanel = aligned && !e.Textured && !e.Gouraud &&
+            rhi - rlo >= w / 3 && rbot - rtop >= h * 3 / 4;
+        e.IgnoreCoverage = !fromGte && !e.Background &&
+            (e.SemiTransparent || colorOverlayPanel ||
+             (rhi - rlo >= w * 3 / 4 && rbot - rtop >= h * 3 / 4));
+        if (_traceCoverage && !fromGte && !e.Background &&
+            (rhi - rlo >= w / 4 || rbot - rtop >= h / 4) && _coverageSignatures.Count < 96)
+        {
+            string signature = $"{e.Count}:{rlo},{rtop}-{rhi},{rbot}:" +
+                $"tex={e.Textured}:semi={e.SemiTransparent}:g={e.Gouraud}:raw={e.Raw}:ignore={e.IgnoreCoverage}";
+            if (_coverageSignatures.Add(signature)) Console.WriteLine($"[wide-coverage] {signature}");
+        }
+        bool panel = aligned && InHudCorner(rlo, rhi, rtop, rbot, w, h);
         int host = panel ? -1 : CarryHost(rlo, rhi, rtop, rbot);
+        bool rightOverlay = aligned && rlo >= w / 2 &&
+            (rbot <= h * 2 / 5 || rtop >= h * 3 / 5);
+        e.Hud = panel || host >= 0 || rightOverlay;
         if (!panel && host < 0) return;
 
         // One anchor per element, taken from the element's own box, so every quad of it
@@ -167,13 +210,17 @@ public static class Wide
     /// <summary>
     /// Did every vertex of this primitive come out of the GTE this frame?
     ///
-    /// Vertices are compared with the draw origin removed, because the GTE records what
-    /// it produced and the GPU adds the drawing offset afterwards. Requiring *every*
+    /// Vertices are compared with the GPU drawing offset removed, because the GTE records
+    /// what it produced and the GPU adds that offset afterwards. The drawing-area edge
+    /// is a clip bound, not the offset; conflating the two made SM2 report no world at
+    /// all. Requiring *every*
     /// vertex to match is what makes a false positive negligible: a HUD vertex landing on
     /// a projected one by chance is common enough, all four doing so is not.
     /// </summary>
     static long _rescued, _frames;
     static bool _legacy;
+    static bool _traceCoverage;
+    static readonly HashSet<string> _coverageSignatures = [];
 
     /// <summary>Would the shape-and-corner rules have claimed this world primitive?</summary>
     static bool Rescued(RenderPrimEvent e)
@@ -196,7 +243,8 @@ public static class Wide
     static bool FromGte(RenderPrimEvent e)
     {
         for (int i = 0; i < e.Count; i++)
-            if (!RecompOne.Runtime.Hardware.GteScreen.Has(e.X[i] - e.DrawLeft, e.Y[i] - e.DrawTop))
+            if (!RecompOne.Runtime.Hardware.GteScreen.Has(
+                    e.X[i] - e.DrawOffsetX, e.Y[i] - e.DrawOffsetY))
                 return false;
         return true;
     }
@@ -282,11 +330,12 @@ public static class Wide
     {
         if (hi - lo > w / 4 || bot - top > h / 3) return false;
 
-        // Has to hug the corner, not merely fall inside it. The building sign sits high
-        // in the frame and its letters are axis-aligned quads like a HUD panel, so a
-        // corner region wide enough to hold the whole health display also caught them
-        // and pulled letters out of the word.
-        return lo <= w / 5 && hi <= w * 2 / 5 && bot <= h * 2 / 5;
+        // Keep the entire top-left display together. Requiring each primitive to begin
+        // inside the first fifth split the ammo number: the first digit qualified while
+        // the last one began just beyond that boundary and stayed stretched inward.
+        // The GTE-provenance gate above now protects scenery such as the building sign,
+        // so the old per-primitive left-edge restriction is no longer needed.
+        return hi <= w * 2 / 5 && bot <= h * 2 / 5;
     }
 
     /// <summary>The anchor of a remembered element, so a detail can inherit it.</summary>

@@ -463,6 +463,20 @@
             "ja-jp": "モニターのリフレッシュレートと同期します",
             "cn-zh": "使游戏刷新率与显示器的刷新率同步"
         },
+        "settings.display.fxaa": {
+            "en": "FXAA",
+            "pt-BR": "FXAA",
+            "es-419": "FXAA",
+            "ja-jp": "FXAA",
+            "cn-zh": "FXAA"
+        },
+        "settings.display.fxaa_hint": {
+            "en": "Smooths edges on the final host-resolution frame",
+            "pt-BR": "Suaviza as bordas no quadro final em resolução do host",
+            "es-419": "Suaviza los bordes en el cuadro final a resolución del host",
+            "ja-jp": "ホスト解像度の最終フレームのエッジを滑らかにします",
+            "cn-zh": "平滑最终主机分辨率画面中的边缘"
+        },
         "settings.display.render_scale": {
             "en": "Render scale",
             "pt-BR": "Escala de renderização",

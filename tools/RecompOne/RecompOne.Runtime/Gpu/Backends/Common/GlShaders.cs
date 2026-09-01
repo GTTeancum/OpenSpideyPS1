@@ -56,6 +56,229 @@ internal static class GlShaders
         }
         """;
 
+    /// <summary>
+    /// Cheap second pass over submitted triangles. Red records visible primitive coverage;
+    /// green records GTE/world geometry only. It repeats the main shader's transparency
+    /// rejection so texture cut-outs do not hide genuine holes in an authored backdrop.
+    /// </summary>
+    public const string CoverageVs = """
+        #version 330 core
+        layout(location = 0) in vec2 inPos;
+        layout(location = 2) in float inClutF;
+        layout(location = 3) in float inTexpageF;
+        layout(location = 4) in vec2 inUV;
+        layout(location = 5) in float inWorld;
+        layout(location = 6) in float inHud;
+        uniform vec2 uPosBias;
+        uniform vec2 uFbInv;
+        out vec2 vUV;
+        flat out ivec2 clutBase;
+        flat out ivec2 pageBase;
+        flat out int texMode;
+        flat out int vRepClut;
+        flat out float vWorld;
+        flat out float vHud;
+        void main() {
+            vec2 p = (inPos + uPosBias) * uFbInv - 1.0;
+            gl_Position = vec4(p, 0.0, 1.0);
+            int inClut = int(inClutF + 0.5);
+            int inTexpage = int(inTexpageF + 0.5);
+            vUV = inUV;
+            vRepClut = (inTexpage >> 12) & 1;
+            if ((inTexpage & 0x8000) != 0) texMode = 4;
+            else if ((inTexpage & 0x4000) != 0) texMode = 5;
+            else if ((inTexpage & 0x2000) != 0) texMode = 6;
+            else {
+                texMode = (inTexpage >> 7) & 3;
+                pageBase = ivec2((inTexpage & 0xf) * 64, ((inTexpage >> 4) & 1) * 256);
+                clutBase = ivec2((inClut & 0x3f) * 16, (inClut >> 6) & 0x1ff);
+            }
+            vWorld = inWorld;
+            vHud = inHud;
+        }
+        """;
+
+    public const string CoverageFs = """
+        #version 330 core
+        in vec2 vUV;
+        flat in ivec2 clutBase;
+        flat in ivec2 pageBase;
+        flat in int texMode;
+        flat in int vRepClut;
+        flat in float vWorld;
+        flat in float vHud;
+        uniform sampler2D uVram;
+        uniform sampler2D uExtTex;
+        uniform sampler2D uRepTex;
+        uniform sampler2D uRepClut;
+        uniform vec4 uRepRect;
+        uniform float uRepClutCount;
+        uniform ivec4 uTexWindow;
+        uniform int uScale;
+        out vec4 oColor;
+
+        int u5(float f) { return int(floor(f * 31.0 + 0.5)); }
+        vec4 fetch(ivec2 c) { return texelFetch(uVram, (c & ivec2(1023, 511)) * uScale, 0); }
+        int fetch16(ivec2 c) {
+            vec4 p = fetch(c);
+            return u5(p.r) | (u5(p.g) << 5) | (u5(p.b) << 10) | (int(ceil(p.a)) << 15);
+        }
+
+        void main() {
+            if (texMode == 5) {
+                if (texture(uExtTex, vUV).a < 0.5) discard;
+            } else if (texMode != 4) {
+                int rawU = dFdx(vUV.x) < 0.0 ? int(ceil(vUV.x - 0.0001)) : int(floor(vUV.x + 0.0001));
+                int rawV = dFdy(vUV.y) < 0.0 ? int(ceil(vUV.y - 0.0001)) : int(floor(vUV.y + 0.0001));
+                ivec2 uv = (ivec2(rawU, rawV) & uTexWindow.xy) | uTexWindow.zw;
+                uv &= ivec2(0xff);
+                if (texMode == 6) {
+                    vec2 win = vec2(uTexWindow.xy) + 1.0;
+                    vec2 fuv = mod(vUV, win) + vec2(uTexWindow.zw);
+                    vec2 t = (fuv - uRepRect.xy) / uRepRect.zw;
+                    if (texture(uRepTex, t).a < 0.5) discard;
+                } else {
+                    vec4 texel;
+                    if (texMode == 0) {
+                        int s = fetch16(ivec2(pageBase.x + (uv.x >> 2), pageBase.y + uv.y));
+                        int idx = (s >> ((uv.x & 3) << 2)) & 0xf;
+                        texel = vRepClut != 0
+                            ? texture(uRepClut, vec2((float(idx) + 0.5) / uRepClutCount, 0.5))
+                            : fetch(ivec2(clutBase.x + idx, clutBase.y));
+                    } else if (texMode == 1) {
+                        int s = fetch16(ivec2(pageBase.x + (uv.x >> 1), pageBase.y + uv.y));
+                        int idx = (s >> ((uv.x & 1) << 3)) & 0xff;
+                        texel = vRepClut != 0
+                            ? texture(uRepClut, vec2((float(idx) + 0.5) / uRepClutCount, 0.5))
+                            : fetch(ivec2(clutBase.x + idx, clutBase.y));
+                    } else {
+                        texel = fetch(ivec2(pageBase.x + uv.x, pageBase.y + uv.y));
+                    }
+                    if (vRepClut != 0 && texMode != 2) {
+                        if (texel.a < 0.5) discard;
+                    } else if (texel.rgb == vec3(0.0) && texel.a < 0.5) discard;
+                }
+            }
+            oColor = vec4(1.0, vWorld, vHud, 1.0);
+        }
+        """;
+
+    /// <summary>
+    /// Fill only untouched pixels in the horizontal area a wider camera adds. The
+    /// source comes from the nearest submitted world surface, never from HUD, so this
+    /// completes an authored room/sky boundary without stretching UI or changing any
+    /// pixel for which the game supplied geometry.
+    /// </summary>
+    public const string WideCompleteFs = """
+        #version 330 core
+        in vec2 vUv;
+        uniform sampler2D uTex;
+        uniform sampler2D uCoverage;
+        uniform vec2 uTexSize;
+        uniform float uBaseFraction;
+        uniform float uDebugCoverage;
+        out vec4 oColor;
+
+        bool sourceAt(ivec2 p, ivec2 size) {
+            if (p.x < 0 || p.y < 0 || p.x >= size.x || p.y >= size.y) return false;
+            vec3 coverage = texelFetch(uCoverage, p, 0).rgb;
+            return coverage.g > 0.5 || (coverage.r > 0.5 && coverage.b < 0.5);
+        }
+
+        void main() {
+            ivec2 size = ivec2(uTexSize);
+            ivec2 p = clamp(ivec2(floor(vUv * uTexSize)), ivec2(0), size - 1);
+            vec4 base = texelFetch(uTex, p, 0);
+            if (uDebugCoverage > 0.5) {
+                vec3 coverage = texelFetch(uCoverage, p, 0).rgb;
+                oColor = vec4(coverage, 1.0);
+                return;
+            }
+            float side = (1.0 - uBaseFraction) * 0.5;
+            bool addedSide = vUv.x < side || vUv.x > 1.0 - side;
+            if (texelFetch(uCoverage, p, 0).r > 0.5) {
+                oColor = base;
+                return;
+            }
+
+            // Integer projection can leave a one-pixel stair-step crack where two
+            // authored surfaces still meet. Repair only pixels enclosed by visible
+            // scene coverage on opposite sides; broad clear areas and open sky cannot
+            // satisfy this test.
+            ivec2 enclosedSource = p;
+            bool enclosed = false;
+            if (sourceAt(p + ivec2(-1, 0), size) && sourceAt(p + ivec2(1, 0), size)) {
+                enclosedSource = p + ivec2(-1, 0);
+                enclosed = true;
+            } else if (sourceAt(p + ivec2(0, -1), size) && sourceAt(p + ivec2(0, 1), size)) {
+                enclosedSource = p + ivec2(0, -1);
+                enclosed = true;
+            }
+            if (!addedSide) {
+                oColor = enclosed ? texelFetch(uTex, enclosedSource, 0) : base;
+                return;
+            }
+
+            ivec2 best = p;
+            bool found = false;
+            int toward = vUv.x < 0.5 ? 1 : -1;
+            for (int i = 1; i <= 512; i++) {
+                ivec2 q = p + ivec2(toward * i, 0);
+                if (sourceAt(q, size)) { best = q; found = true; break; }
+            }
+            oColor = found ? texelFetch(uTex, best, 0) : base;
+        }
+        """;
+
+    /// <summary>
+    /// FXAA 3-style edge search. It runs on the host-resolution presentation texture,
+    /// after any user post-process, so polygon edges are smoothed without lowering the
+    /// internal render resolution or changing texture filtering.
+    /// </summary>
+    public const string FxaaFs = """
+        #version 330 core
+        in vec2 vUv;
+        uniform sampler2D uTex;
+        uniform vec2 uTexSize;
+        out vec4 oColor;
+
+        float luma(vec3 c) { return dot(c, vec3(0.299, 0.587, 0.114)); }
+
+        void main() {
+            vec2 px = 1.0 / uTexSize;
+            vec3 nw = texture(uTex, vUv + vec2(-1.0, -1.0) * px).rgb;
+            vec3 ne = texture(uTex, vUv + vec2( 1.0, -1.0) * px).rgb;
+            vec3 sw = texture(uTex, vUv + vec2(-1.0,  1.0) * px).rgb;
+            vec3 se = texture(uTex, vUv + vec2( 1.0,  1.0) * px).rgb;
+            vec4 center = texture(uTex, vUv);
+
+            float lnw = luma(nw), lne = luma(ne), lsw = luma(sw), lse = luma(se);
+            float lm = luma(center.rgb);
+            float lo = min(lm, min(min(lnw, lne), min(lsw, lse)));
+            float hi = max(lm, max(max(lnw, lne), max(lsw, lse)));
+            if (hi - lo < max(0.0312, hi * 0.125)) {
+                oColor = center;
+                return;
+            }
+
+            vec2 dir;
+            dir.x = -((lnw + lne) - (lsw + lse));
+            dir.y =  ((lnw + lsw) - (lne + lse));
+            float reduce = max((lnw + lne + lsw + lse) * (0.25 * 0.125), 1.0 / 128.0);
+            float invMin = 1.0 / (min(abs(dir.x), abs(dir.y)) + reduce);
+            dir = clamp(dir * invMin, vec2(-8.0), vec2(8.0)) * px;
+
+            vec3 a = 0.5 * (
+                texture(uTex, vUv + dir * (1.0 / 3.0 - 0.5)).rgb +
+                texture(uTex, vUv + dir * (2.0 / 3.0 - 0.5)).rgb);
+            vec3 b = a * 0.5 + 0.25 * (
+                texture(uTex, vUv + dir * -0.5).rgb +
+                texture(uTex, vUv + dir *  0.5).rgb);
+            float lb = luma(b);
+            oColor = vec4(lb < lo || lb > hi ? a : b, center.a);
+        }
+        """;
+
     public const string PrimVs = """
         #version 330 core
         layout(location = 0) in vec2  inPos;
@@ -69,7 +292,6 @@ internal static class GlShaders
         flat out ivec2 clutBase;
         flat out ivec2 pageBase;
         flat out int   texMode;
-        flat out int   vDither;
         flat out int   vRepClut;
 
         uniform vec2 uVertexOffset;
@@ -84,7 +306,6 @@ internal static class GlShaders
             int inTexpage = int(inTexpageF + 0.5);
 
             vColor = vec4(inColorF, 0.0) / 255.0;
-            vDither = (inTexpage >> 10) & 1;
             vRepClut = (inTexpage >> 12) & 1;
 
             if ((inTexpage & 0x8000) != 0) {
@@ -111,7 +332,6 @@ internal static class GlShaders
         flat in ivec2 clutBase;
         flat in ivec2 pageBase;
         flat in int   texMode;
-        flat in int   vDither;
         flat in int   vRepClut;
 
         layout(location = 0, index = 0) out vec4 FragColor;
@@ -132,31 +352,19 @@ internal static class GlShaders
         uniform int   uScale;
         uniform vec2  uPosBias;
 
-        const int ditherTbl[16] = int[16](
-            -4,  0, -3,  1,
-             2, -2,  3, -1,
-            -3,  1, -4,  0,
-             3, -1,  2, -2 );
-
         int u5(float f) { return int(floor(f * 31.0 + 0.5)); }
         vec4 fetch(ivec2 c) { return texelFetch(uVram, (c & ivec2(1023, 511)) * uScale, 0); }
         int fetch16(ivec2 c) {
             vec4 p = fetch(c);
             return u5(p.r) | (u5(p.g) << 5) | (u5(p.b) << 10) | (int(ceil(p.a)) << 15);
         }
-        vec3 quant5(ivec3 c8) {
-            if (vDither != 0) {
-                ivec2 vp = ivec2(floor(gl_FragCoord.xy / float(uScale) - uPosBias));
-                c8 = clamp(c8 + ditherTbl[(vp.y & 3) * 4 + (vp.x & 3)], 0, 255);
-            }
-            return vec3(min(c8 >> 3, 31)) / 31.0;
-        }
+        vec3 fullColor(ivec3 c8) { return vec3(clamp(c8, 0, 255)) / 255.0; }
 
         void main() {
             if (uCheckMask != 0 && texelFetch(uDest, ivec2(gl_FragCoord.xy), 0).a >= 0.5) discard;
 
             if (texMode == 4) {
-                FragColor = vec4(quant5(ivec3(vColor.rgb * 255.0 + 0.5)), uSetMask);
+                FragColor = vec4(fullColor(ivec3(vColor.rgb * 255.0 + 0.5)), uSetMask);
                 BlendColor = uBlend;
                 return;
             }
@@ -165,7 +373,7 @@ internal static class GlShaders
                 vec4 img = texture(uExtTex, vUV);
                 if (img.a < 0.5) discard;
                 ivec3 e8 = (ivec3(img.rgb * 255.0 + 0.5) * ivec3(vColor.rgb * 255.0 + 0.5)) >> 7;
-                FragColor = vec4(quant5(e8), uSetMask);
+                FragColor = vec4(fullColor(e8), uSetMask);
                 BlendColor = uBlend;
                 return;
             }
@@ -213,7 +421,7 @@ internal static class GlShaders
                 if (texel.a < 0.5) discard;
                 ivec3 e8 = (ivec3(texel.rgb * 255.0 + 0.5) * ivec3(vColor.rgb * 255.0 + 0.5)) >> 7;
                 float stp = texel.a < 0.95 ? 1.0 : 0.0;
-                FragColor = vec4(quant5(e8), max(stp, uSetMask));
+                FragColor = vec4(fullColor(e8), max(stp, uSetMask));
                 BlendColor = stp > 0.5 ? uBlend : uBlendOpaque;
                 return;
             }
@@ -221,7 +429,7 @@ internal static class GlShaders
             if (texel.rgb == vec3(0.0) && texel.a < 0.5) discard;
             ivec3 t8 = ivec3(texel.rgb * 31.0 + 0.5) << 3;
             ivec3 c8 = (t8 * ivec3(vColor.rgb * 255.0 + 0.5)) >> 7;
-            FragColor = vec4(quant5(c8), max(texel.a, uSetMask));
+            FragColor = vec4(fullColor(c8), max(texel.a, uSetMask));
             BlendColor = texel.a >= 0.5 ? uBlend : uBlendOpaque;
         }
         """;
@@ -282,6 +490,220 @@ internal static class GlShaders
         }
         """;
 
+    public const string CoverageVs120 = """
+        #version 120
+        attribute vec2 inPos;
+        attribute float inClutF;
+        attribute float inTexpageF;
+        attribute vec2 inUV;
+        attribute float inWorld;
+        attribute float inHud;
+        uniform vec2 uPosBias;
+        uniform vec2 uFbInv;
+        varying vec2 vUV;
+        varying vec2 vClutBase;
+        varying vec2 vPageBase;
+        varying float vTexMode;
+        varying float vRepClut;
+        varying float vWorld;
+        varying float vHud;
+        float bitAt(float v, float bit) { return floor(mod(v / bit, 2.0)); }
+        void main() {
+            vec2 p = (inPos + uPosBias) * uFbInv - 1.0;
+            gl_Position = vec4(p, 0.0, 1.0);
+            float tp = floor(inTexpageF + 0.5);
+            float clut = floor(inClutF + 0.5);
+            vUV = inUV;
+            vRepClut = bitAt(tp, 4096.0);
+            vClutBase = vec2(0.0);
+            vPageBase = vec2(0.0);
+            if (bitAt(tp, 32768.0) > 0.5) vTexMode = 4.0;
+            else if (bitAt(tp, 16384.0) > 0.5) vTexMode = 5.0;
+            else if (bitAt(tp, 8192.0) > 0.5) vTexMode = 6.0;
+            else {
+                vTexMode = floor(mod(tp / 128.0, 4.0));
+                vPageBase = vec2(mod(tp, 16.0) * 64.0, bitAt(tp, 16.0) * 256.0);
+                vClutBase = vec2(mod(clut, 64.0) * 16.0, mod(floor(clut / 64.0), 512.0));
+            }
+            vWorld = inWorld;
+            vHud = inHud;
+        }
+        """;
+
+    public const string CoverageFs120 = """
+        #version 120
+        varying vec2 vUV;
+        varying vec2 vClutBase;
+        varying vec2 vPageBase;
+        varying float vTexMode;
+        varying float vRepClut;
+        varying float vWorld;
+        varying float vHud;
+        uniform sampler2D uVram;
+        uniform sampler2D uExtTex;
+        uniform sampler2D uRepTex;
+        uniform sampler2D uRepClut;
+        uniform vec4 uRepRect;
+        uniform float uRepClutCount;
+        uniform vec4 uTexWindow;
+        uniform float uScale;
+        uniform vec2 uVramSize;
+
+        float u5(float f) { return floor(f * 31.0 + 0.5); }
+        vec4 fetch(vec2 c) {
+            vec2 w = vec2(mod(c.x, 1024.0), mod(c.y, 512.0));
+            return texture2D(uVram, (w * uScale + 0.5) / uVramSize);
+        }
+        float fetch16(vec2 c) {
+            vec4 p = fetch(c);
+            return u5(p.r) + u5(p.g) * 32.0 + u5(p.b) * 1024.0 + ceil(p.a) * 32768.0;
+        }
+
+        void main() {
+            if (vTexMode > 4.5 && vTexMode < 5.5) {
+                if (texture2D(uExtTex, vUV).a < 0.5) discard;
+            } else if (vTexMode < 3.5 || vTexMode > 4.5) {
+                vec2 win = uTexWindow.xy + 1.0;
+                vec2 fuv = vec2(mod(vUV.x, win.x), mod(vUV.y, win.y)) + uTexWindow.zw;
+                float rawU = dFdx(vUV.x) < 0.0 ? ceil(vUV.x - 0.0001) : floor(vUV.x + 0.0001);
+                float rawV = dFdy(vUV.y) < 0.0 ? ceil(vUV.y - 0.0001) : floor(vUV.y + 0.0001);
+                if (vTexMode > 5.5) {
+                    vec2 t = (fuv - uRepRect.xy) / uRepRect.zw;
+                    if (texture2D(uRepTex, t).a < 0.5) discard;
+                } else {
+                    vec2 uv = vec2(mod(rawU, win.x), mod(rawV, win.y)) + uTexWindow.zw;
+                    uv = vec2(mod(uv.x, 256.0), mod(uv.y, 256.0));
+                    vec4 texel;
+                    if (vTexMode < 0.5) {
+                        float s = fetch16(vec2(vPageBase.x + floor(uv.x / 4.0), vPageBase.y + uv.y));
+                        float lane = mod(uv.x, 4.0);
+                        float div = lane < 0.5 ? 1.0 : (lane < 1.5 ? 16.0 : (lane < 2.5 ? 256.0 : 4096.0));
+                        float idx = mod(floor(s / div), 16.0);
+                        texel = vRepClut > 0.5
+                            ? texture2D(uRepClut, vec2((idx + 0.5) / uRepClutCount, 0.5))
+                            : fetch(vec2(vClutBase.x + idx, vClutBase.y));
+                    } else if (vTexMode < 1.5) {
+                        float s = fetch16(vec2(vPageBase.x + floor(uv.x / 2.0), vPageBase.y + uv.y));
+                        float div = mod(uv.x, 2.0) < 0.5 ? 1.0 : 256.0;
+                        float idx = mod(floor(s / div), 256.0);
+                        texel = vRepClut > 0.5
+                            ? texture2D(uRepClut, vec2((idx + 0.5) / uRepClutCount, 0.5))
+                            : fetch(vec2(vClutBase.x + idx, vClutBase.y));
+                    } else {
+                        texel = fetch(vec2(vPageBase.x + uv.x, vPageBase.y + uv.y));
+                    }
+                    if (vRepClut > 0.5 && vTexMode < 1.5) {
+                        if (texel.a < 0.5) discard;
+                    } else if (texel.r == 0.0 && texel.g == 0.0 && texel.b == 0.0 && texel.a < 0.5) discard;
+                }
+            }
+            gl_FragColor = vec4(1.0, vWorld, vHud, 1.0);
+        }
+        """;
+
+    public const string WideCompleteFs120 = """
+        #version 120
+        varying vec2 vUv;
+        uniform sampler2D uTex;
+        uniform sampler2D uCoverage;
+        uniform vec2 uTexSize;
+        uniform float uBaseFraction;
+        uniform float uDebugCoverage;
+
+        vec4 at(sampler2D tex, vec2 p) {
+            return texture2D(tex, (p + 0.5) / uTexSize);
+        }
+        bool sourceAt(vec2 p) {
+            if (p.x < 0.0 || p.y < 0.0 || p.x >= uTexSize.x || p.y >= uTexSize.y)
+                return false;
+            vec3 coverage = at(uCoverage, p).rgb;
+            return coverage.g > 0.5 || (coverage.r > 0.5 && coverage.b < 0.5);
+        }
+
+        void main() {
+            vec2 p = clamp(floor(vUv * uTexSize), vec2(0.0), uTexSize - 1.0);
+            vec4 base = at(uTex, p);
+            if (uDebugCoverage > 0.5) {
+                vec3 coverage = at(uCoverage, p).rgb;
+                gl_FragColor = vec4(coverage, 1.0);
+                return;
+            }
+            float side = (1.0 - uBaseFraction) * 0.5;
+            bool addedSide = vUv.x < side || vUv.x > 1.0 - side;
+            if (at(uCoverage, p).r > 0.5) {
+                gl_FragColor = base;
+                return;
+            }
+
+            vec2 enclosedSource = p;
+            bool enclosed = false;
+            if (sourceAt(p + vec2(-1.0, 0.0)) && sourceAt(p + vec2(1.0, 0.0))) {
+                enclosedSource = p + vec2(-1.0, 0.0);
+                enclosed = true;
+            } else if (sourceAt(p + vec2(0.0, -1.0)) && sourceAt(p + vec2(0.0, 1.0))) {
+                enclosedSource = p + vec2(0.0, -1.0);
+                enclosed = true;
+            }
+            if (!addedSide) {
+                gl_FragColor = enclosed ? at(uTex, enclosedSource) : base;
+                return;
+            }
+
+            vec2 best = p;
+            bool found = false;
+            float toward = vUv.x < 0.5 ? 1.0 : -1.0;
+            for (int i = 1; i <= 512; i++) {
+                float d = float(i);
+                vec2 q = p + vec2(toward * d, 0.0);
+                if (sourceAt(q)) { best = q; found = true; break; }
+            }
+            gl_FragColor = found ? at(uTex, best) : base;
+        }
+        """;
+
+    public const string FxaaFs120 = """
+        #version 120
+        varying vec2 vUv;
+        uniform sampler2D uTex;
+        uniform vec2 uTexSize;
+
+        float luma(vec3 c) { return dot(c, vec3(0.299, 0.587, 0.114)); }
+
+        void main() {
+            vec2 px = 1.0 / uTexSize;
+            vec3 nw = texture2D(uTex, vUv + vec2(-1.0, -1.0) * px).rgb;
+            vec3 ne = texture2D(uTex, vUv + vec2( 1.0, -1.0) * px).rgb;
+            vec3 sw = texture2D(uTex, vUv + vec2(-1.0,  1.0) * px).rgb;
+            vec3 se = texture2D(uTex, vUv + vec2( 1.0,  1.0) * px).rgb;
+            vec4 center = texture2D(uTex, vUv);
+
+            float lnw = luma(nw), lne = luma(ne), lsw = luma(sw), lse = luma(se);
+            float lm = luma(center.rgb);
+            float lo = min(lm, min(min(lnw, lne), min(lsw, lse)));
+            float hi = max(lm, max(max(lnw, lne), max(lsw, lse)));
+            if (hi - lo < max(0.0312, hi * 0.125)) {
+                gl_FragColor = center;
+                return;
+            }
+
+            vec2 dir;
+            dir.x = -((lnw + lne) - (lsw + lse));
+            dir.y =  ((lnw + lsw) - (lne + lse));
+            float reduce = max((lnw + lne + lsw + lse) * (0.25 * 0.125), 1.0 / 128.0);
+            float invMin = 1.0 / (min(abs(dir.x), abs(dir.y)) + reduce);
+            dir = clamp(dir * invMin, vec2(-8.0), vec2(8.0)) * px;
+
+            vec3 a = 0.5 * (
+                texture2D(uTex, vUv + dir * (1.0 / 3.0 - 0.5)).rgb +
+                texture2D(uTex, vUv + dir * (2.0 / 3.0 - 0.5)).rgb);
+            vec3 b = a * 0.5 + 0.25 * (
+                texture2D(uTex, vUv + dir * -0.5).rgb +
+                texture2D(uTex, vUv + dir *  0.5).rgb);
+            float lb = luma(b);
+            gl_FragColor = vec4(lb < lo || lb > hi ? a : b, center.a);
+        }
+        """;
+
     public const string BlitVs120 = """
         #version 120
         attribute vec2 aPos;
@@ -316,7 +738,6 @@ internal static class GlShaders
         varying vec2  vClutBase;
         varying vec2  vPageBase;
         varying float vTexMode;
-        varying float vDither;
         varying float vRepClut;
 
         uniform vec2 uVertexOffset;
@@ -333,7 +754,6 @@ internal static class GlShaders
             float clut = floor(inClutF + 0.5);
 
             vColor = vec4(inColorF / 255.0, 0.0);
-            vDither = bitAt(tp, 1024.0);
             vRepClut = bitAt(tp, 4096.0);
             vUV = inUV;
             vClutBase = vec2(0.0);
@@ -361,7 +781,6 @@ internal static class GlShaders
         varying vec2  vClutBase;
         varying vec2  vPageBase;
         varying float vTexMode;
-        varying float vDither;
         varying float vRepClut;
 
         uniform sampler2D uVram;
@@ -393,20 +812,7 @@ internal static class GlShaders
             return u5(p.r) + u5(p.g) * 32.0 + u5(p.b) * 1024.0 + ceil(p.a) * 32768.0;
         }
 
-        vec3 quant5(vec3 c8) {
-            if (vDither > 0.5) {
-                vec2 vp = floor(gl_FragCoord.xy / uScale - uPosBias);
-                float col = mod(vp.x, 4.0);
-                float row = mod(vp.y, 4.0);
-                float d = 0.0;
-                if (row < 0.5)      d = col < 0.5 ? -4.0 : (col < 1.5 ?  0.0 : (col < 2.5 ? -3.0 :  1.0));
-                else if (row < 1.5) d = col < 0.5 ?  2.0 : (col < 1.5 ? -2.0 : (col < 2.5 ?  3.0 : -1.0));
-                else if (row < 2.5) d = col < 0.5 ? -3.0 : (col < 1.5 ?  1.0 : (col < 2.5 ? -4.0 :  0.0));
-                else                d = col < 0.5 ?  3.0 : (col < 1.5 ? -1.0 : (col < 2.5 ?  2.0 : -2.0));
-                c8 = clamp(c8 + d, 0.0, 255.0);
-            }
-            return min(floor(c8 / 8.0), 31.0) / 31.0;
-        }
+        vec3 fullColor(vec3 c8) { return clamp(c8, 0.0, 255.0) / 255.0; }
 
         vec3 blendWith(vec3 src, vec3 dst) {
             if (uBlendMode < 0.5) return (dst + src) * 0.5;
@@ -491,7 +897,7 @@ internal static class GlShaders
 
             vec3 outRgb = hostReplacement > 0.5
                 ? clamp(rgb, 0.0, 255.0) / 255.0
-                : quant5(floor(rgb));
+                : fullColor(floor(rgb));
             if (uSemiTrans * stp > 0.5) outRgb = clamp(blendWith(outRgb, dstTexel.rgb), 0.0, 1.0);
 
             gl_FragColor = vec4(outRgb, mask);
@@ -500,7 +906,8 @@ internal static class GlShaders
 
     static readonly (uint Index, string Name)[] PrimAttribs =
     [
-        (0, "inPos"), (1, "inColorF"), (2, "inClutF"), (3, "inTexpageF"), (4, "inUV"),
+        (0, "inPos"), (1, "inColorF"), (2, "inClutF"), (3, "inTexpageF"),
+        (4, "inUV"), (5, "inWorld"), (6, "inHud"),
     ];
 
     public static uint BuildPrim(GL gl, string vsSrc, string fsSrc, string name)

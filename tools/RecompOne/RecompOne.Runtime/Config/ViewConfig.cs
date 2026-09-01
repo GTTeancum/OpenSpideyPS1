@@ -66,6 +66,12 @@ public class ViewConfig
         set => SetBool("VSync", value);
     }
 
+    public bool Fxaa
+    {
+        get => GetBool("Fxaa", true);
+        set => SetBool("Fxaa", value);
+    }
+
     public int WindowWidth
     {
         get => Math.Clamp(GetInt("WindowWidth", 1280), 320, 7680);

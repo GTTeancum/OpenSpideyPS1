@@ -235,10 +235,11 @@ Two details it needs to be right about:
 - **Every vertex must match.** A single HUD vertex landing on a projected one happens
   often enough to matter; all four doing so does not.
 
-This does not yet replace the shape rules -- ground strips still come through with
+This does not replace the shape rules -- ground strips still come through with
 vertices the GTE did not produce, so squeezing everything non-GTE would distort the floor.
-It gates them, which is what stops the world being moved. Still open: the ammo counter's
-digits are split, because the corner test admits the `0` and rejects the `9`.
+It gates them, which is what stops the world being moved. The ammo counter split was
+fixed by treating the full top-left display as one provenance-protected element; `x 07`
+stays joined across consecutive in-game proof frames.
 
 ## Cross-game: one costume set and one move set across both games
 
@@ -306,65 +307,38 @@ checked across representative levels. It addresses texture swimming and diagonal
 only; vertex snapping, low-precision geometry jitter, filtering, colour quantisation, and
 other PS1 rendering traits are separate concerns and should remain unchanged.
 
-## Cross-game: optional FXAA
+## Cross-game: fixed — host-resolution FXAA
 
-Add FXAA as an optional final-frame post-process shared by both games. Apply it after the
-scene has been rendered at the selected host resolution so it smooths polygon and texture
-edges without reintroducing a PS1-era resolution limit. Keep it independently toggleable
-from texture filtering, render scale, perspective-correct texturing, and the authentic
-nearest-neighbour path. Validate at native and increased render scales, including menus,
-HUD text, thin web lines, character silhouettes, and high-contrast texture details so the
-edge pass does not visibly blur interface art or erase fine geometry.
+FXAA is a shared optional final-frame post-process, applied after user post-processing at
+host resolution. It is independently toggleable in Display settings and with
+`RECOMP_FXAA=0|1`, and defaults on. Exact same-frame pre/post captures changed 10.509% of
+SM1 pixels and 22.097% of SM2 pixels at 4x, proving the pass is active without confusing
+animation with the comparison.
 
-## Cross-game: remove PS1 color dithering permanently
+## Cross-game: fixed — PS1 color dithering removed permanently
 
-Remove the PS1 GPU's ordered color-dither pass from the modern renderer in both games.
-This is required rather than an authenticity option: render scale currently evaluates the
-4x4 console dither matrix in original PS1 coordinates, which magnifies each dither cell at
-higher internal resolutions and makes otherwise clean 4x output look grainy. Replacement
-textures already bypass the 5-bit quantization/dither branch; extend that full-color policy
-to native scene geometry, sprites, lines, and non-replacement textures as well. Delete or
-disable both the GL shader and software-rasterizer dither paths, then verify gradients,
-lighting, transparency, HUD art, FMV transitions, and captures at 1x through 8x.
+The GL 3.3, GL 2.1, HLE and software raster paths now retain full-color output for native
+geometry, sprites, lines and textures. The ordered 4x4 matrix and 5-bit framebuffer
+quantization are gone rather than hidden behind an authenticity option, so increasing
+render scale no longer magnifies console dither cells into visible grain.
 
-### Open: the HUD jumps between the adjusted and original position
+### Fixed: the HUD no longer jumps or splits
 
-Observed in play, not in a capture, and the distinction matters: a single screenshot of
-it reads as one element torn in half -- the ammo counter showing `x 0    9` -- but it is
-not spatial. The whole upper-left HUD sits in the adjusted position most frames and snaps
-back to the original one on some frames. A still frame catches it mid-flicker and the two
-digits appear to have been separated.
+Projection provenance now rolls on actual display-buffer swaps rather than host vblanks,
+and four generations cover the ordering-table pipeline without losing the points before
+draw. The full top-left display is classified as one element after the GTE gate, so its
+digits share an anchor. Four consecutive frames in each final proof scene show no jump or
+split.
 
-So this is a per-frame classification that is not stable, and the likeliest suspect is the
-provenance test that was just added. `GteScreen` keeps **two** generations of projected
-points, which doubles the surface for a coincidence: a HUD primitive whose every vertex
-happens to land on a projected world point is taken for world and left un-squeezed for
-that one frame. Every vertex has to collide, which is rare -- but the HUD is drawn every
-frame, and rare per frame is frequent over a minute.
+### Fixed/audited: widened-view polygon coverage
 
-Three things worth trying, cheapest first:
-
-- Narrow to one generation with the correct phase, rather than covering both. The two-
-  generation window was added because the game builds one ordering table while walking the
-  other; if the phase can be established exactly, one window is enough and halves the
-  collision surface.
-- Require a HUD element to have been in the same place last frame. The HUD does not move;
-  world geometry that collides by accident will not repeat the accident.
-- Better: carry provenance with the primitive instead of recovering it by matching
-  coordinates. Matching is what makes collisions possible at all.
-
-### Open: geometry still drops out occasionally, away from the edges
-
-Reported in play after the provenance fix, which cleared up the edges. Not reproduced by
-any sweep here: across the recorded route no primitive was rejected by the span limit
-(0 of ~380 in both aspects), widescreen submits more geometry than 4:3 rather than less
-(386 against 360 at the same frame), and primitive coverage is flat across the whole
-framebuffer width including the new margins. So whatever this is, it is not the renderer
-refusing geometry and not the game declining to fill the margins.
-
-It needs to be caught in the act. The recorder has no way to say "here" -- adding a marker
-key that stamps a `# mark` into the recording as it is played would turn "here and there"
-into exact frames, which is the missing instrument.
+The renderer accepts the GTE's full `-1024..1023` coordinate range (zero X/Y span
+rejections in the story sweep), records visible non-HUD coverage with the same texture
+alpha rules as the color pass, and completes only untouched pixels in newly exposed side
+bands. One-pixel projection-rounding cracks are repaired only when real scene coverage
+encloses them on opposite sides. The automated SM2 sweep cold-boots every story prefix
+and captures four ordered gameplay frames; 19 reachable levels have zero diagnostic gaps,
+e6m3 retains only its native-4:3 ramp seam, and four model-init failures never render.
 
 ### Open: a replay reproduces a route, not a frame
 

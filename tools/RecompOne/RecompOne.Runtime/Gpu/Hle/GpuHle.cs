@@ -14,6 +14,23 @@ public static class GpuHle
     public static float TargetAspect { get; set; } = 4f / 3f;
     public const float BaseAspect = 4f / 3f;
 
+    /// <summary>Apply FXAA to the final host-resolution frame. Enabled by default.</summary>
+    public static bool FxaaEnabled { get; set; } = true;
+
+    /// <summary>
+    /// Complete untouched pixels in a widened view from nearby world coverage. This is
+    /// deliberately opt-in per title: it is for authored scene meshes that end just
+    /// outside their original 4:3 camera, not a generic image filter.
+    /// </summary>
+    public static bool WideBackgroundCompletion { get; set; }
+    public static bool WideCoverageView { get; set; }
+
+    /// <summary>
+    /// True only while LibGpu submits the draw-environment background rectangle. The
+    /// GPU command itself is indistinguishable from an ordinary flat rectangle later.
+    /// </summary>
+    public static bool SubmittingBackground { get; set; }
+
     public struct DispRect { public int X, Y, W, H; public long Stamp; public bool Valid; }
 
     static readonly DispRect[] _rects = new DispRect[2];
@@ -39,19 +56,16 @@ public static class GpuHle
     public static DispRect GetRect(int i) => _rects[i];
 
     /// <summary>
-    /// Largest primitive the GPU will accept, horizontally.
+    /// Largest primitive span the recompilation renderer will accept.
     ///
-    /// Real hardware drops anything wider than 1023, and games lean on that. The catch
-    /// in widescreen is that the GTE saturates a projected X to +/-1024, so a polygon
-    /// running off the side of the screen arrives with a clamped vertex and a span of
-    /// 2047 -- and gets dropped. At 4:3 that costs nothing, because what it would have
-    /// covered is off screen anyway. Widen the view and those are exactly the polygons
-    /// the new margins needed: the floor stops short and the background shows through.
-    ///
-    /// So the limit opens to the saturated span while a margin is in play, which admits
-    /// those polygons and nothing wilder. At 4:3 the hardware rule is untouched.
+    /// Real hardware drops triangles wider than 1023 or taller than 511. Those limits
+    /// protected a fixed-function rasteriser; preserving them in the recompilation was
+    /// dropping otherwise valid GTE-saturated surfaces and directly exposing background
+    /// clear pixels in widescreen scenes. Coordinates saturate to -1024..1023, so 2047
+    /// admits the entire representable span without accepting anything out of range.
     /// </summary>
-    public static int MaxSpanX => WideAspect > 0f ? 2047 : 1023;
+    public const int MaxSpanX = 2047;
+    public const int MaxSpanY = 2047;
 
     /// <summary>
     /// Horizontal squeeze applied to projected X, as a fraction. 3/4 fits a 16:9 field

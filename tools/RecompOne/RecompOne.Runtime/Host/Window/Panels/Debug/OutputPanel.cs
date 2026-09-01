@@ -53,20 +53,22 @@ internal sealed class OutputPanel : IPanel
     static bool _fitted;
 
     /// <summary>
-    /// Shape the window to the aspect being presented, once, on the first frame that
-    /// has a real panel area. Only when the game is presenting something wider than the
-    /// console's own 4:3 -- otherwise the window is left exactly as the user had it.
+    /// Shape the window to the aspect being presented, once, on the first widescreen
+    /// gameplay frame with a real panel area. Menus arrive first at 4:3; treating that
+    /// first texture as the one chance to fit permanently stranded later 16:9 gameplay
+    /// inside the original 4:3 host window.
     /// </summary>
     static void FitWindowOnce(Vector2 avail)
     {
         if (_fitted || avail.X < 16f || avail.Y < 16f) return;
+        float want = _aspect;
+        if (want <= Hle.GpuHle.BaseAspect + 0.01f) return;
+
         _fitted = true;
-
-        if (Hle.GpuHle.WideAspect <= Hle.GpuHle.BaseAspect) return;
-
-        float want = Hle.GpuHle.WideAspect;
         int dx = (int)MathF.Round(avail.Y * want - avail.X);
-        if (dx > 0) HostWindow.GrowWindow(dx, 0);
+        Console.WriteLine(
+            $"[Host] fitting window to {want:F3} output from {avail.X:F0}x{avail.Y:F0} panel");
+        if (dx != 0) HostWindow.GrowWindow(dx, 0);
     }
 
     static Vector2 FitAspect(Vector2 src, Vector2 dst)

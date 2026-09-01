@@ -13,7 +13,7 @@ public sealed partial class Gpu
     {
         ClipX0 = _drawAreaLeft, ClipY0 = _drawAreaTop, ClipX1 = _drawAreaRight, ClipY1 = _drawAreaBottom,
         TwMaskX = _texWinMaskX, TwMaskY = _texWinMaskY, TwOffX = _texWinOffX, TwOffY = _texWinOffY,
-        SetMask = _setMask, CheckMask = _checkMask, Dither = _dither,
+        SetMask = _setMask, CheckMask = _checkMask,
     };
 
     static HleVertex HV(in Vert v) => new()
@@ -21,33 +21,45 @@ public sealed partial class Gpu
         X = v.X, Y = v.Y, R = (byte)v.R, G = (byte)v.G, B = (byte)v.B, U = (short)v.U, V = (short)v.V,
     };
 
-    PrimFlags PrimOf(bool tex, bool semi, bool raw, int clut, bool gouraud = false) => new()
+    PrimFlags PrimOf(bool tex, bool semi, bool raw, int clut, bool gouraud = false,
+        bool world = false, bool hud = false, bool background = false,
+        bool ignoreCoverage = false) => new()
     {
-        Textured = tex, SemiTrans = semi, RawTexture = raw, Gouraud = gouraud, TPage = (ushort)CurTPage(), Clut = (ushort)clut,
+        Textured = tex, SemiTrans = semi, RawTexture = raw, Gouraud = gouraud,
+        World = world, Hud = hud, Background = background,
+        IgnoreCoverage = ignoreCoverage,
+        TPage = (ushort)CurTPage(), Clut = (ushort)clut,
     };
 
-    void HleTri(in Vert a, in Vert b, in Vert c, bool tex, bool gouraud, bool semi, bool raw, int clut)
+    void HleTri(in Vert a, in Vert b, in Vert c, bool tex, bool gouraud, bool semi,
+        bool raw, int clut, bool world, bool hud, bool background,
+        bool ignoreCoverage)
     {
         int spanX = Math.Max(a.X, Math.Max(b.X, c.X)) - Math.Min(a.X, Math.Min(b.X, c.X));
         int spanY = Math.Max(a.Y, Math.Max(b.Y, c.Y)) - Math.Min(a.Y, Math.Min(b.Y, c.Y));
-        if (spanX > Hle.GpuHle.MaxSpanX || spanY > 511) return;
+        if (RejectSpan(spanX, spanY)) return;
 
         var be = GpuHle.Backend!;
         be.SetDrawEnv(CurEnv());
-        be.DrawTri(HV(a), HV(b), HV(c), PrimOf(tex, semi, raw, clut, gouraud));
+        be.DrawTri(HV(a), HV(b), HV(c),
+            PrimOf(tex, semi, raw, clut, gouraud, world, hud, background,
+                ignoreCoverage));
     }
 
-    void HleRect(int x, int y, int w, int h, int u, int v, int clut, int r, int g, int b, bool tex, bool semi, bool raw)
+    void HleRect(int x, int y, int w, int h, int u, int v, int clut, int r,
+        int g, int b, bool tex, bool semi, bool raw, bool world, bool hud,
+        bool background, bool ignoreCoverage)
     {
         var be = GpuHle.Backend!;
         be.SetDrawEnv(CurEnv());
         be.DrawRect(new HleRect { X = x, Y = y, W = w, H = h, U = (short)u, V = (short)v, R = (byte)r, G = (byte)g, B = (byte)b },
-            PrimOf(tex, semi, raw, clut));
+            PrimOf(tex, semi, raw, clut, world: world, hud: hud,
+                background: background, ignoreCoverage: ignoreCoverage));
     }
 
     void HleLine(int x0, int y0, int r0, int g0, int b0, int x1, int y1, int r1, int g1, int b1, bool semi, bool gouraud)
     {
-        if (Math.Abs(x1 - x0) > Hle.GpuHle.MaxSpanX || Math.Abs(y1 - y0) > 511) return;
+        if (RejectSpan(Math.Abs(x1 - x0), Math.Abs(y1 - y0))) return;
 
         var be = GpuHle.Backend!;
         be.SetDrawEnv(CurEnv());

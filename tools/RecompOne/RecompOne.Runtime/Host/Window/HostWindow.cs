@@ -110,6 +110,7 @@ public static class HostWindow
         int h = Math.Clamp(size.Y + dy, 240, 4320);
         if (w == size.X && h == size.Y) return;
         _window.Size = new Vector2D<int>(w, h);
+        Console.WriteLine($"[Host] window resized {size.X}x{size.Y} -> {w}x{h}");
         ConfigManager.View.WindowWidth = w;
         ConfigManager.View.WindowHeight = h;
     }
@@ -378,6 +379,13 @@ public static class HostWindow
         if (int.TryParse(renderScaleOverride, out int requestedScale))
             renderScale = Math.Clamp(requestedScale, 1, 8);
         Hle.GlVram.Scale = renderScale;
+
+        bool fxaa = ConfigManager.View.Fxaa;
+        var fxaaOverride = Environment.GetEnvironmentVariable("RECOMP_FXAA");
+        if (fxaaOverride == "0") fxaa = false;
+        else if (fxaaOverride == "1") fxaa = true;
+        Hle.GpuHle.FxaaEnabled = fxaa;
+
         _glBackend = (Hle.GlCore)Hle.GpuBackendFactory.Create(_gl,
             Hle.GpuBackendFactory.Parse(ConfigManager.View.GpuBackend));
         _glBackend.InitGl();

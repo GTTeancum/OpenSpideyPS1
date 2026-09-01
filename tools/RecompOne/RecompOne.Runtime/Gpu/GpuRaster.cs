@@ -9,16 +9,32 @@ public sealed partial class Gpu
 
     static readonly RenderPrimEvent _primEvent = new();
 
-    static readonly int[,] Dither =
-    {
-        { -4,  0, -3,  1 },
-        {  2, -2,  3, -1 },
-        { -3,  1, -4,  0 },
-        {  3, -1,  2, -2 },
-    };
-
     /// <summary>How many vertices arrive pinned at the GTE's saturation limit.</summary>
     public static long ClampedVerts, TotalVerts, ProbeHits;
+
+    /// <summary>
+    /// Polygon/line span diagnostics. A projected primitive wider than 1023 pixels is
+    /// legal in the recompiler's widened draw space but the retail GPU would reject it.
+    /// Keeping separate accepted and rejected counts makes widescreen coverage failures
+    /// measurable instead of judging them only from a screenshot.
+    /// </summary>
+    public static long WideSpanAccepted, SpanXRejected, SpanYRejected;
+
+    static bool RejectSpan(int spanX, int spanY)
+    {
+        if (spanY > Hle.GpuHle.MaxSpanY)
+        {
+            SpanYRejected++;
+            return true;
+        }
+        if (spanX > Hle.GpuHle.MaxSpanX)
+        {
+            SpanXRejected++;
+            return true;
+        }
+        if (spanX > 1023) WideSpanAccepted++;
+        return false;
+    }
 
     /// <summary>Draw-space point inside the left margin, low down -- where it tears.</summary>
     const int ProbeX = -46, ProbeY = 210;
@@ -41,6 +57,8 @@ public sealed partial class Gpu
         Span<Vert> v = stackalloc Vert[4];
         int idx = 1;
         int clut = 0;
+        bool world = false, hud = false, ignoreCoverage = false;
+        bool background = Hle.GpuHle.SubmittingBackground;
         int cr = (int)(cmd & 0xFF), cg = (int)((cmd >> 8) & 0xFF), cb = (int)((cmd >> 16) & 0xFF);
 
         for (int i = 0; i < n; i++)
@@ -73,9 +91,16 @@ public sealed partial class Gpu
             e.Count = n;
             for (int i = 0; i < n; i++) { e.X[i] = v[i].X; e.Y[i] = v[i].Y; }
             e.DrawLeft = _drawAreaLeft; e.DrawRight = _drawAreaRight; e.DrawTop = _drawAreaTop; e.DrawBottom = _drawAreaBottom;
-            e.Textured = tex; e.SemiTransparent = semi; e.Gouraud = gouraud; e.Raw = raw; e.Clut = clut; e.TexPage = 0; e.Skip = false;
+            e.DrawOffsetX = _drawOffsetX; e.DrawOffsetY = _drawOffsetY;
+            e.Textured = tex; e.SemiTransparent = semi; e.Gouraud = gouraud; e.Raw = raw;
+            e.World = false; e.Hud = false; e.IgnoreCoverage = false;
+            e.Background = background;
+            e.Clut = clut; e.TexPage = 0; e.Skip = false;
             Event.Dispatch(e);
             if (e.Skip) return;
+            world = e.World;
+            hud = e.Hud;
+            ignoreCoverage = e.IgnoreCoverage;
             for (int i = 0; i < n; i++) { v[i].X = e.X[i]; v[i].Y = e.Y[i]; }
         }
 
@@ -107,8 +132,10 @@ public sealed partial class Gpu
 
         if (HleOn)
         {
-            HleTri(v[0], v[1], v[2], tex, gouraud, semi, raw, clut);
-            if (quad) HleTri(v[1], v[2], v[3], tex, gouraud, semi, raw, clut);
+            HleTri(v[0], v[1], v[2], tex, gouraud, semi, raw, clut,
+                world, hud, background, ignoreCoverage);
+            if (quad) HleTri(v[1], v[2], v[3], tex, gouraud, semi, raw, clut,
+                world, hud, background, ignoreCoverage);
         }
         else
         {
@@ -121,7 +148,7 @@ public sealed partial class Gpu
     {
         int spanX = Math.Max(a.X, Math.Max(b.X, c.X)) - Math.Min(a.X, Math.Min(b.X, c.X));
         int spanY = Math.Max(a.Y, Math.Max(b.Y, c.Y)) - Math.Min(a.Y, Math.Min(b.Y, c.Y));
-        if (spanX > Hle.GpuHle.MaxSpanX || spanY > 511) return;
+        if (RejectSpan(spanX, spanY)) return;
 
         long area = (long)(b.X - a.X) * (c.Y - a.Y) - (long)(b.Y - a.Y) * (c.X - a.X);
         if (area == 0) return;
@@ -136,8 +163,6 @@ public sealed partial class Gpu
         int bias0 = IsTopLeft(b, c) ? 0 : -1;
         int bias1 = IsTopLeft(c, a) ? 0 : -1;
         int bias2 = IsTopLeft(a, b) ? 0 : -1;
-        bool ditherTex = _dither && !raw;
-
         int sx0 = b.Y - c.Y, sy0 = c.X - b.X;
         int sx1 = c.Y - a.Y, sy1 = a.X - c.X;
         int sx2 = a.Y - b.Y, sy2 = b.X - a.X;
@@ -171,9 +196,9 @@ public sealed partial class Gpu
                     bool stp = (texel & 0x8000) != 0;
                     int tr = (texel & 0x1F) << 3, tg = ((texel >> 5) & 0x1F) << 3, tb = ((texel >> 10) & 0x1F) << 3;
                     if (!raw) { tr = tr * r >> 7; tg = tg * g >> 7; tb = tb * bl >> 7; }
-                    Plot(x, y, tr, tg, tb, semi && stp, ditherTex, stp);
+                    Plot(x, y, tr, tg, tb, semi && stp, stp);
                 }
-                else Plot(x, y, r, g, bl, semi, _dither && gouraud);
+                else Plot(x, y, r, g, bl, semi);
             }
         }
     }
@@ -194,6 +219,8 @@ public sealed partial class Gpu
         int cr = (int)(cmd & 0xFF), cg = (int)((cmd >> 8) & 0xFF), cb = (int)((cmd >> 16) & 0xFF);
 
         int idx = 1;
+        bool world = false, hud = false, ignoreCoverage = false;
+        bool background = Hle.GpuHle.SubmittingBackground;
         uint vw = _fifo[idx++];
         int x = _drawOffsetX + CoordX(vw);
         int y = _drawOffsetY + CoordY(vw);
@@ -217,12 +244,20 @@ public sealed partial class Gpu
             e.Count = 2;
             e.X[0] = x; e.X[1] = x + w; e.Y[0] = y; e.Y[1] = y + h;
             e.DrawLeft = _drawAreaLeft; e.DrawRight = _drawAreaRight; e.DrawTop = _drawAreaTop; e.DrawBottom = _drawAreaBottom;
-            e.Textured = tex; e.SemiTransparent = semi; e.Gouraud = false; e.Raw = raw; e.Clut = clut; e.TexPage = 0; e.Skip = false;
+            e.DrawOffsetX = _drawOffsetX; e.DrawOffsetY = _drawOffsetY;
+            e.Textured = tex; e.SemiTransparent = semi; e.Gouraud = false; e.Raw = raw;
+            e.World = false; e.Hud = false; e.IgnoreCoverage = false;
+            e.Background = background;
+            e.Clut = clut; e.TexPage = 0; e.Skip = false;
             Event.Dispatch(e);
             if (e.Skip) return;
+            world = e.World;
+            hud = e.Hud;
+            ignoreCoverage = e.IgnoreCoverage;
             x = e.X[0]; w = e.X[1] - e.X[0];
         }
-        if (HleOn) { HleRect(x, y, w, h, u0, v0, clut, cr, cg, cb, tex, semi, raw); return; }
+        if (HleOn) { HleRect(x, y, w, h, u0, v0, clut, cr, cg, cb, tex,
+            semi, raw, world, hud, background, ignoreCoverage); return; }
 
         for (int dy = 0; dy < h; dy++)
             for (int dx = 0; dx < w; dx++)
@@ -236,9 +271,9 @@ public sealed partial class Gpu
                     bool stp = (texel & 0x8000) != 0;
                     int tr = (texel & 0x1F) << 3, tg = ((texel >> 5) & 0x1F) << 3, tb = ((texel >> 10) & 0x1F) << 3;
                     if (!raw) { tr = tr * cr >> 7; tg = tg * cg >> 7; tb = tb * cb >> 7; }
-                    Plot(px, py, tr, tg, tb, semi && stp, false, stp);
+                    Plot(px, py, tr, tg, tb, semi && stp, stp);
                 }
-                else Plot(px, py, cr, cg, cb, semi, false);
+                else Plot(px, py, cr, cg, cb, semi);
             }
     }
 
@@ -289,7 +324,7 @@ public sealed partial class Gpu
         if (HleOn) { HleLine(x0, y0, r0, g0, b0, x1, y1, r1, g1, b1, semi, gouraud); return; }
         int dx = Math.Abs(x1 - x0), dy = Math.Abs(y1 - y0);
         int steps = Math.Max(dx, dy);
-        if (steps == 0) { Plot(x0, y0, r0, g0, b0, semi, _dither); return; }
+        if (steps == 0) { Plot(x0, y0, r0, g0, b0, semi); return; }
         for (int i = 0; i <= steps; i++)
         {
             double t = (double)i / steps;
@@ -299,7 +334,7 @@ public sealed partial class Gpu
             int g = (int)(g0 + (g1 - g0) * t);
             int b = (int)(b0 + (b1 - b0) * t);
             if (x < _drawAreaLeft || x > _drawAreaRight || y < _drawAreaTop || y > _drawAreaBottom) continue;
-            Plot(x, y, r, g, b, semi, _dither);
+            Plot(x, y, r, g, b, semi);
         }
     }
 
@@ -329,7 +364,7 @@ public sealed partial class Gpu
         return Vram[(clutY & (VramHeight - 1)) * VramWidth + ((clutX + index) & (VramWidth - 1))];
     }
 
-    void Plot(int x, int y, int r, int g, int b, bool semi, bool dither, bool maskBit = false)
+    void Plot(int x, int y, int r, int g, int b, bool semi, bool maskBit = false)
     {
         if (x < _drawAreaLeft || x > _drawAreaRight || y < _drawAreaTop || y > _drawAreaBottom) return;
         if (x < 0 || x >= VramWidth || y < 0 || y >= VramHeight) return;
@@ -337,12 +372,6 @@ public sealed partial class Gpu
         int idx = y * VramWidth + x;
         ushort bg = Vram[idx];
         if (_checkMask && (bg & 0x8000) != 0) return;
-
-        if (dither)
-        {
-            int d = Dither[y & 3, x & 3];
-            r = Clamp255(r + d); g = Clamp255(g + d); b = Clamp255(b + d);
-        }
 
         int fr = Math.Min(31, r >> 3), fg = Math.Min(31, g >> 3), fb = Math.Min(31, b >> 3);
 

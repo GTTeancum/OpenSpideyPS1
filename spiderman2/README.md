@@ -4,11 +4,11 @@ A [RecompOne](https://github.com/BlackLabelHQ/RecompOne) port of the PlayStation
 Spider-Man 2: Enter Electro (Vicarious Visions, 2001), built from the retail USA
 Rev 1 disc following `../RECOMP-PLAYBOOK.md`.
 
-**State: boots and plays through to the first level.** Logos, both intro movies, the
-title screen, the main menu, difficulty select, the level cinematic and the Daily Bugle
-headline all render; NEW GAME reaches episode 1 mission 0 and holds live gameplay for
-over ten thousand frames with the HUD, pickups, physics and working controls. See
-[TO_DO.md](TO_DO.md) for what is not verified.
+**State: boots, plays, and has automated coverage of the story-level set.** Logos, both
+intro movies, menus, cinematics and gameplay render. Twenty of the 24 story prefixes
+reach in-game automated captures; four currently fail during pre-render model setup and
+are recorded as failures rather than passes. See [TO_DO.md](TO_DO.md) for the remaining
+gameplay and port-initialization work.
 
 ---
 
@@ -57,6 +57,26 @@ data after it — unreachable by any real path.
 ```bash
 ./port/bin/Release/net10.0/SpiderMan2.exe
 ```
+
+## Modern rendering
+
+Gameplay defaults to true 16:9 by widening the GTE projection, while menus and FMV keep
+their authored 4:3 presentation. `SPIDEY_WIDE=0` disables it; `SPIDEY_WIDE_ASPECT=` can
+select another aspect for testing. The host window follows the actual gameplay aspect,
+and the HUD is classified separately from GTE/world geometry so the left ammo display
+stays joined and both sides retain their intended edge anchors.
+
+The shared renderer permanently omits PS1 ordered color dithering and its 5-bit
+framebuffer quantization. FXAA runs after all user post-processing at host resolution
+and is enabled by default; it can be toggled in Display settings or overridden with
+`RECOMP_FXAA=0|1`. Render scale remains independent (`RECOMP_RENDER_SCALE=1..8`).
+
+`tools/audit_widescreen.py` is the repeatable non-interactive audit. It cold-boots each
+level through the real menus, runs exactly one game process at a time, captures four
+ordered stationary gameplay frames and writes a JSON report. The default diagnostic
+uses a magenta background clear to expose untouched pixels; `--no-magenta --fxaa
+--render-scale 4 --completed-view` produces clean final proofs. The magenta switch is
+never enabled by the game or production defaults.
 
 ---
 
