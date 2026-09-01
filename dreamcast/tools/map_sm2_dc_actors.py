@@ -173,11 +173,11 @@ def validate_mapping_proof(name: str) -> tuple[str, dict[str, Any] | None]:
         and costume_pack.get("environmentPolicy")
         == "retail PS1 SM2 environments are unchanged"
         and costume_runtime
-        and costume_runtime.get("status") == "evidence-valid"
+        and costume_runtime.get("status") == "menu-capture-valid"
         and costume_runtime.get("costumeCount") == 19
         and len(costume_runtime_results) == 19
         and all(
-            item.get("status") == "evidence-valid"
+            item.get("status") == "menu-capture-valid"
             and all(item.get("runtimeMarkers", {}).values())
             for item in costume_runtime_results
         )

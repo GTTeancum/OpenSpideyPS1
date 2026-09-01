@@ -29,15 +29,40 @@ DEFAULT_OUTPUT = DEFAULT_ASSETS / "runtime-menu-proof"
 COSTUME_COUNT = 19
 SPECIAL_ACTORS = {13: "spidey-slot13.psx", 17: "spidey-slot17.psx"}
 SPECIAL_TEXTURES = {13: "sp_tex13-dc.psx", 17: "sp_tex17-dc.psx"}
-# START leaves the title/FMV state. CROSS then enters the actual main menu, which
+# An explicit boot-frame START skips the intro movie.  The archive-anchored START
+# leaves the title screen, and CROSS then enters the actual main menu, which
 # loads charlite.dat and renders CONTINUE / NEW GAME / OPTIONS with live 3D Spidey.
 # Deliberately omit the later CROSS used by gameplay routes so the test stays there.
-INPUT_SCRIPT = "title.bmr+80:start:10;title.bmr+200:cross:10"
+INPUT_SCRIPT = "0:start:10;title.bmr+80:start:10;title.bmr+200:cross:10"
 SHOT_ANCHOR = "charlite.dat"
 SHOT_OFFSETS = (300, 400, 500, 600, 700)
 SHOT_SPECS = tuple(f"{SHOT_ANCHOR}+{offset}" for offset in SHOT_OFFSETS)
 SHOT_SPEC = ",".join(SHOT_SPECS)
-EXIT_FRAME = 3500
+EXIT_FRAME = 1800
+
+# Exact, actor-free regions of the retail main-menu chrome at the required 4x
+# rasterizer scale.  Resolution, dynamic range, and color count reject many bad
+# captures but do not positively identify a screen: a scaled FMV can satisfy all
+# three.  These four labels cannot be present in an intro/title movie, and keeping
+# them outside the center actor band makes the proof independent of costume/pose.
+MENU_REGION_SIGNATURES = {
+    "continueLabel": {
+        "bounds": (120, 100, 410, 235),
+        "sha256": "6eb22af08b4a54b8261cc0ec615ffee4e84830c1497b0878125f7ea250ccf04a",
+    },
+    "trainingLabel": {
+        "bounds": (875, 100, 1150, 235),
+        "sha256": "e84eace92c323d39324fbaa2a2f079b72901c4b97299142fa8502116a5945f8b",
+    },
+    "optionsLabel": {
+        "bounds": (150, 735, 420, 850),
+        "sha256": "a3048b48ba0dad95196aa7c58f5850f38444d5d9d50c2577915b4c49f8be71ca",
+    },
+    "galleryLabel": {
+        "bounds": (880, 735, 1140, 850),
+        "sha256": "d91729c9610cdd886062c9482ea30b387245bc56a5976707d2bbd737d97d24a9",
+    },
+}
 
 
 def parse_args() -> argparse.Namespace:
@@ -188,6 +213,33 @@ def validate_image(path: Path, render_scale: int) -> dict[str, Any]:
     }
 
 
+def validate_main_menu_signature(path: Path) -> list[dict[str, Any]]:
+    """Positively identify the live 3D main menu, failing closed on any mismatch."""
+    with Image.open(path) as opened:
+        opened.load()
+        image = opened.convert("RGB")
+        results = []
+        for name, expected in MENU_REGION_SIGNATURES.items():
+            bounds = expected["bounds"]
+            digest = hashlib.sha256(image.crop(bounds).tobytes()).hexdigest()
+            results.append(
+                {
+                    "name": name,
+                    "bounds": list(bounds),
+                    "sha256": digest,
+                    "expectedSha256": expected["sha256"],
+                    "matches": digest == expected["sha256"],
+                }
+            )
+    mismatches = [result["name"] for result in results if not result["matches"]]
+    if mismatches:
+        raise RuntimeError(
+            f"{path} is not the verified live 3D main menu; "
+            f"menu chrome mismatched at {', '.join(mismatches)}"
+        )
+    return results
+
+
 def validate_slot(
     assets: Path,
     slot_root: Path,
@@ -233,6 +285,13 @@ def validate_slot(
         "mainMenuAssets": "charlite.dat" in console,
         "cleanExit": f"[capture] exit at frame {exit_frame}" in console,
     }
+    title_load = re.search(
+        r"\[capture\] 'title\.bmr' load #1 at frame (\d+): step resolved",
+        console,
+    )
+    markers["introMovieSkipped"] = bool(
+        title_load and int(title_load.group(1)) < 1000
+    )
     runtime_log_path = slot_root / "spidey.log"
     runtime_log = (
         runtime_log_path.read_text(encoding="utf-8", errors="replace")
@@ -263,6 +322,12 @@ def validate_slot(
         validate_image(slot_root / f"frame_{frame:05d}.png", render_scale)
         for frame in frames
     ]
+    for capture in captures:
+        capture["mainMenuSignature"] = validate_main_menu_signature(Path(capture["path"]))
+    markers["mainMenuVisualSignature"] = all(
+        all(region["matches"] for region in capture["mainMenuSignature"])
+        for capture in captures
+    )
 
     closeups: list[dict[str, Any]] = []
     thumbnails: list[Image.Image] = []
@@ -305,7 +370,9 @@ def validate_slot(
     # the costume visually correct; geometry, weighting, and UV quality require
     # inspection of the captured frame.
     status = (
-        "evidence-valid" if all(markers.values()) and not bad_markers else "evidence-invalid"
+        "menu-capture-valid"
+        if all(markers.values()) and not bad_markers
+        else "menu-capture-invalid"
     )
     return {
         "slot": slot,
@@ -367,12 +434,12 @@ def main() -> None:
             f"{result['textureLibrary']} -> one sequential SpiderMan2 process",
             flush=True,
         )
-        if result["status"] != "evidence-valid":
+        if result["status"] != "menu-capture-valid":
             raise RuntimeError(f"slot {slot:02d} failed runtime validation")
 
     report = {
-        "schemaVersion": 1,
-        "status": "evidence-valid",
+        "schemaVersion": 2,
+        "status": "menu-capture-valid",
         "visualReview": "pending; every menu frame must be inspected before a costume passes",
         "scope": "SM2 Spider-Man costumes only; no NPC or enemy replacements",
         "assets": str(assets),
@@ -387,7 +454,7 @@ def main() -> None:
     report_path = output / "runtime-validation.json"
     report_path.write_text(json.dumps(report, indent=2) + "\n", encoding="utf-8")
     print(
-        f"CAPTURED: {len(results)}/{len(slots)} selected SM2 Spider-Man costume slots; "
+        f"MENU CAPTURED: {len(results)}/{len(slots)} selected SM2 Spider-Man costume slots; "
         "visual review still required"
     )
     print(f"report: {report_path}")
