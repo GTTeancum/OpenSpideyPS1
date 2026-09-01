@@ -267,8 +267,15 @@ python dreamcast/tools/validate_sm1_costume_models_runtime.py `
   --concurrency 1 --render-scale 4 --proof-mode menu
 ```
 
-Quick Change remains a deliberate manual-review hold for its reported feet and
-jacket deformation concerns; automated load/capture success does not clear it.
+Quick Change remains blocked. A separate 21-frame L1A1 gameplay sequence confirms
+hard triangular protrusions at the rear hip/jacket boundary during its deep crouch,
+plus suspect shoulder and ankle joins. Neutral source renders are clean, all 127
+stitch sources and 143 references parse correctly, and the same failing pose remains
+with the embedded Dreamcast animation bank, so load/capture success does not clear
+the deformation. Gameplay costume proofs now require the requested retail level
+L/O/G assets, a live gameplay HUD or active level frame, and a fresh slot-2 player
+head-geometry audit before every capture. GAME OVER, save-progress, FMV, menu, and
+later NPC geometry cannot satisfy those gates.
 
 The complete selectable Character Viewer roster is also exercised in one game
 process at 4x. SM1 exposes 26 entries, ending at Sub-Mariner; the extra J. James
@@ -334,8 +341,10 @@ python dreamcast/tools/audit_sm1_skeleton_adaptations.py
 The current audit passes JAMESON (58 checks), JJVIEWER (58), PARKER (52), and
 SCORPION (108). The one-process 4x L2A2 proof captures 11 consecutive gameplay
 frames from 4200 through 4450; the complete sequence keeps Scorpion's tube
-attached and blue/green-segmented throughout its swing while Jameson retains his
-neutral grey outfit.
+attached and blue/green-segmented throughout its swing. Jameson is partially
+visible at the far right in frames 4275-4325 with a grey/blue shirt, red tie, and
+beige trousers and no technicolor contamination; the unobstructed Character
+Viewer capture remains the primary appearance proof.
 
 ## SM2 costume texture-mapping proofs
 

@@ -76,7 +76,9 @@
       "status": "user-review-required",
       "blocksClearance": true,
       "evidenceDirectory": "dreamcast/converted/all-characters-costumes-runtime-current/08-quickchange",
-      "note": "The seven frames reach and remain on the live main menu, but the user explicitly held the feet and jacket for a more thorough weighting review; the ankle/cuff transitions and jacket edges remain visible in the fresh sequence and are not cleared by this capture-validity pass."
+      "gameplayEvidence": "dreamcast/converted/quickchange-gameplay-current/runtime-validation.json",
+      "hardenedPlayerGateEvidence": "dreamcast/converted/quickchange-player-head-gate-current/runtime-validation.json",
+      "note": "The seven menu frames reach and remain on the live main menu. The separate 21-frame L1A1 gameplay review confirms triangular rear hip/jacket protrusions during the deep crouch plus suspect shoulder and ankle joins, so Quick Change remains blocked. The focused hardened proof requires the retail L1A1 asset set, live gameplay, and a fresh slot-2 player-head audit before every capture; later NPC loads cannot satisfy that player audit."
     },
     {
       "slot": 9,

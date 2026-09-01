@@ -21,6 +21,12 @@ from typing import Any
 
 from PIL import Image
 
+from validate_character_runtime import (
+    game_over_signature,
+    gameplay_hud_signature,
+    save_progress_signature,
+)
+
 
 ROOT = Path(__file__).resolve().parents[2]
 DEFAULT_EXE = ROOT / "spiderman" / "port" / "bin" / "Release" / "net10.0" / "SpiderMan.exe"
@@ -224,6 +230,8 @@ def run_costume(
     )
     if level is not None:
         env["SPIDEY_LEVEL"] = level
+        # Idle proof runs must not die before the requested deformation window.
+        env["SPIDEY_CHEATS"] = "invuln"
     if dump_textures:
         dump_root = costume_dir / "texture-dump"
         env["SPIDEY_DUMP_TEXTURES"] = "pages"
@@ -307,6 +315,7 @@ def run_costume(
     expected_size = (320 * render_scale, 240 * render_scale)
     captures: dict[str, Any] = {}
     capture_error: str | None = None
+    level_asset_proofs: dict[str, str] = {}
     try:
         captures = {
             path.name: verify_capture(path, expected_size)
@@ -331,6 +340,104 @@ def run_costume(
             markers["mainMenuVisualSignature"] = all(
                 all(region["matches"] for region in capture["mainMenuSignature"])
                 for capture in captures.values()
+            )
+        else:
+            for capture_name, capture in captures.items():
+                if not re.search(
+                    rf"\[capture\].*{re.escape(capture_name)} .*"
+                    r"\(live-3d 16bpp display aspect\)",
+                    console,
+                ):
+                    raise ValueError(
+                        f"{capture_name} lacks the native live-3D 16bpp capture marker"
+                    )
+                state_match = re.search(
+                    rf"\[capture\].*{re.escape(capture_name)} .*"
+                    r"\(level-runframe-entered=(\d+)\)",
+                    console,
+                )
+                active_level_runframe = int(state_match.group(1)) if state_match else 0
+                with Image.open(costume_dir / capture_name) as opened:
+                    opened.load()
+                    image = opened.convert("RGB")
+                gameplay_hud = gameplay_hud_signature(image)
+                game_over = game_over_signature(image)
+                save_progress = save_progress_signature(image)
+                if game_over["matches"]:
+                    raise ValueError(
+                        f"{capture_name} is the retail GAME OVER screen "
+                        f"(signature distance={game_over['hammingDistance']})"
+                    )
+                if save_progress["matches"]:
+                    raise ValueError(
+                        f"{capture_name} is the retail SAVE GAME PROGRESS screen "
+                        f"(signature distance={save_progress['hammingDistance']})"
+                    )
+                live_gameplay_gate = active_level_runframe > 0 or gameplay_hud["matches"]
+                if not live_gameplay_gate:
+                    raise ValueError(
+                        f"{capture_name} has neither a non-zero level RunFrame entry nor "
+                        "the verified gameplay HUD signature "
+                        f"(HUD coverage={gameplay_hud['coverage']:.3f})"
+                    )
+                capture.update(
+                    {
+                        "activeLevelRunFrame": active_level_runframe,
+                        "gameplayHudSignature": gameplay_hud,
+                        "gameOverSignature": game_over,
+                        "saveProgressSignature": save_progress,
+                        "liveGameplayGate": live_gameplay_gate,
+                    }
+                )
+
+            assert level is not None
+            for suffix in ("L", "O", "G"):
+                stem = f"{level.upper()}_{suffix}"
+                if re.search(
+                    rf"(?m)^{re.escape(stem)}\.psx\[wad\]\s+"
+                    rf"{re.escape(stem)}\.psx\s+<-",
+                    console,
+                    re.IGNORECASE,
+                ):
+                    level_asset_proofs[suffix] = f"{stem}.psx"
+            markers["levelAssetsLoaded"] = len(level_asset_proofs) == 3
+            geometry_proof = level_asset_proofs.get("G")
+            geometry_log_position = (
+                console.lower().find(f"{geometry_proof.lower()}[wad]")
+                if geometry_proof
+                else -1
+            )
+            capture_log_positions = [
+                console.find(f"[capture] {costume_dir / capture_name}")
+                for capture_name in captures
+            ]
+            markers["levelGeometryCaptureGate"] = (
+                geometry_log_position >= 0
+                and all(position > geometry_log_position for position in capture_log_positions)
+            )
+            markers["liveGameplayGate"] = all(
+                capture["liveGameplayGate"] for capture in captures.values()
+            )
+            player_head_audit_positions = [
+                match.start()
+                for match in re.finditer(r"\[model-head-audit\]", console)
+                if match.start() > geometry_log_position
+            ]
+            previous_proof_position = geometry_log_position
+            per_capture_head_gates: list[bool] = []
+            for capture_position in capture_log_positions:
+                per_capture_head_gates.append(
+                    capture_position >= 0
+                    and any(
+                        previous_proof_position < audit_position < capture_position
+                        for audit_position in player_head_audit_positions
+                    )
+                )
+                previous_proof_position = capture_position
+            markers["levelPlayerHeadGeometryGate"] = (
+                geometry_log_position >= 0
+                and bool(per_capture_head_gates)
+                and all(per_capture_head_gates)
             )
     except (OSError, ValueError) as error:
         capture_error = str(error)
@@ -371,6 +478,7 @@ def run_costume(
         },
         "badMarkers": bad_markers,
         "captureError": capture_error,
+        "levelAssetProofs": level_asset_proofs,
         "captures": captures,
         "consoleLog": str(console_path),
     }
@@ -445,6 +553,10 @@ def main() -> None:
         "captureGate": (
             "title.bmr followed by LoadPsx(spidey), native live-3D 16bpp readback, "
             "and four exact main-menu chrome regions"
+            if args.proof_mode == "menu"
+            else "requested retail level L/O/G assets loaded before every capture, native "
+            "live-3D 16bpp readback, non-zero level RunFrame or exact gameplay-HUD "
+            "signature, and explicit GAME OVER and SAVE GAME PROGRESS rejection"
         ),
         "processPolicy": "strictly sequential; never more than one SpiderMan process",
     }

@@ -5,7 +5,7 @@
   "actors": {
     "SPQUICK": {
       "costume": "quickchange",
-      "status": "user-review-required",
+      "status": "technical-defect-confirmed",
       "blocksClearance": true,
       "concerns": [
         {
@@ -22,17 +22,44 @@
       "evidence": {
         "currentMenuReport": "dreamcast/converted/all-characters-costumes-runtime-current/runtime-validation.json",
         "currentMenuSequence": [
-          "dreamcast/converted/all-characters-costumes-runtime-current/08-quickchange/frame_00600.png",
-          "dreamcast/converted/all-characters-costumes-runtime-current/08-quickchange/frame_00750.png",
-          "dreamcast/converted/all-characters-costumes-runtime-current/08-quickchange/frame_00900.png",
-          "dreamcast/converted/all-characters-costumes-runtime-current/08-quickchange/frame_01050.png",
-          "dreamcast/converted/all-characters-costumes-runtime-current/08-quickchange/frame_01200.png",
-          "dreamcast/converted/all-characters-costumes-runtime-current/08-quickchange/frame_01350.png",
-          "dreamcast/converted/all-characters-costumes-runtime-current/08-quickchange/frame_01500.png"
+          "dreamcast/converted/all-characters-costumes-runtime-current/08-quickchange/frame_00713.png",
+          "dreamcast/converted/all-characters-costumes-runtime-current/08-quickchange/frame_00863.png",
+          "dreamcast/converted/all-characters-costumes-runtime-current/08-quickchange/frame_01013.png",
+          "dreamcast/converted/all-characters-costumes-runtime-current/08-quickchange/frame_01163.png",
+          "dreamcast/converted/all-characters-costumes-runtime-current/08-quickchange/frame_01313.png",
+          "dreamcast/converted/all-characters-costumes-runtime-current/08-quickchange/frame_01463.png",
+          "dreamcast/converted/all-characters-costumes-runtime-current/08-quickchange/frame_01613.png"
         ],
+        "gameplayReport": "dreamcast/converted/quickchange-gameplay-current/runtime-validation.json",
+        "gameplaySequence": [
+          "dreamcast/converted/quickchange-gameplay-current/08-quickchange/frame_04100.png",
+          "dreamcast/converted/quickchange-gameplay-current/08-quickchange/frame_04125.png",
+          "dreamcast/converted/quickchange-gameplay-current/08-quickchange/frame_04150.png",
+          "dreamcast/converted/quickchange-gameplay-current/08-quickchange/frame_04175.png",
+          "dreamcast/converted/quickchange-gameplay-current/08-quickchange/frame_04200.png",
+          "dreamcast/converted/quickchange-gameplay-current/08-quickchange/frame_04225.png",
+          "dreamcast/converted/quickchange-gameplay-current/08-quickchange/frame_04250.png",
+          "dreamcast/converted/quickchange-gameplay-current/08-quickchange/frame_04275.png",
+          "dreamcast/converted/quickchange-gameplay-current/08-quickchange/frame_04300.png",
+          "dreamcast/converted/quickchange-gameplay-current/08-quickchange/frame_04325.png",
+          "dreamcast/converted/quickchange-gameplay-current/08-quickchange/frame_04350.png",
+          "dreamcast/converted/quickchange-gameplay-current/08-quickchange/frame_04375.png",
+          "dreamcast/converted/quickchange-gameplay-current/08-quickchange/frame_04400.png",
+          "dreamcast/converted/quickchange-gameplay-current/08-quickchange/frame_04425.png",
+          "dreamcast/converted/quickchange-gameplay-current/08-quickchange/frame_04450.png",
+          "dreamcast/converted/quickchange-gameplay-current/08-quickchange/frame_04475.png",
+          "dreamcast/converted/quickchange-gameplay-current/08-quickchange/frame_04500.png",
+          "dreamcast/converted/quickchange-gameplay-current/08-quickchange/frame_04525.png",
+          "dreamcast/converted/quickchange-gameplay-current/08-quickchange/frame_04550.png",
+          "dreamcast/converted/quickchange-gameplay-current/08-quickchange/frame_04575.png",
+          "dreamcast/converted/quickchange-gameplay-current/08-quickchange/frame_04600.png"
+        ],
+        "hardenedPlayerGateReport": "dreamcast/converted/quickchange-player-head-gate-current/runtime-validation.json",
+        "hardenedPlayerGateCapture": "dreamcast/converted/quickchange-player-head-gate-current/08-quickchange/frame_04450.png",
+        "nativeDreamcastAnimationComparison": "dreamcast/converted/quickchange-dc-animation-diagnostic/08-quickchange/frame_04450.png",
         "dreamcastVideoReference": "https://www.youtube.com/watch?v=QDu_hYTLFHM"
       },
-      "note": "All seven current 4x main-menu frames were inspected sequentially. The black sock/shoe transitions and jacket flaps remain coherent and match the native Dreamcast footage, but the projected-face-span audit still validates head topology only and cannot clear limb or garment weighting. Preserve this item for the user's more thorough in-game review."
+      "note": "All seven current 4x main-menu frames and all 21 L1A1 gameplay frames from 4100 through 4600 were inspected individually and sequentially. The gameplay sequence confirms hard triangular protrusions at the rear hip/jacket boundary during the deep crouch (most clearly 4350-4500), bright shoulder seams, and broken-looking pant/ankle joins. Neutral source renders are clean, the native stitch parser reports all 127 sources and 143 references as valid, and the same failing pose persists with Quick Change's embedded Dreamcast animation bank, so the defect is not cleared or papered over. The hardened focused proof additionally binds every gameplay capture to a fresh slot-2 player-head audit after L1A1 geometry loads; the later slot-9 NPC can no longer substitute for the player geometry audit. Keep this item blocked pending a proper deformation fix and user review."
     },
     "BLACKCAT": {
       "status": "runtime-validated-awaiting-user-review",
@@ -78,11 +105,16 @@
         "currentViewerReport": "dreamcast/converted/all-characters-viewer-runtime-current/runtime-validation.json",
         "currentViewerCapture": "dreamcast/converted/all-characters-viewer-runtime-current/frame_04130.png",
         "levelResourceProofReport": "dreamcast/converted/jameson-scorpion-runtime-alias-gameplay-proof/runtime-validation.json",
-        "levelResourceProofCapture": "dreamcast/converted/jameson-scorpion-runtime-alias-gameplay-proof/l2a2/frame_04375.png"
+        "levelResourceProofCapture": "dreamcast/converted/jameson-scorpion-runtime-alias-gameplay-proof/l2a2/frame_04375.png",
+        "levelResourceProofPartialJamesonCaptures": [
+          "dreamcast/converted/jameson-scorpion-runtime-alias-gameplay-proof/l2a2/frame_04275.png",
+          "dreamcast/converted/jameson-scorpion-runtime-alias-gameplay-proof/l2a2/frame_04300.png",
+          "dreamcast/converted/jameson-scorpion-runtime-alias-gameplay-proof/l2a2/frame_04325.png"
+        ]
       },
       "rootCause": "Both Dreamcast Jameson containers set face flag 0x0800, so the three bytes at face+8 are indices into Dreamcast's animated RGBs table rather than literal colors. SM1 interpreted those indices through its v4 path, producing the technicolor suit. Retail PS1 SM1 jameson.psx and jjviewer.psx use neutral literal (110,110,110) face lighting and their own v4 animation metadata. The decoded Dreamcast texture images themselves are correct.",
       "resolvedAdaptation": "Keep the high-detail Dreamcast meshes, UVs, material hashes, and original-resolution texture pixels; clear indexed-RGB flag 0x0800, write the retail SM1 neutral face-lighting packet, remove the incompatible RGBs channel, and pair each variant with its matching retail SM1 object order, hierarchy, and animation metadata by stable mesh name.",
-      "note": "The fresh schema-3 one-instance 4x Character Viewer matrix passed 26/26 model-load-anchored live-3D captures; frame_04130.png shows Jameson in a neutral grey outfit with no technicolor gradients. The independent skeleton audit verifies neutral lighting and a cleared 0x0800 flag on every face. Jameson's body is not visible in the dense L2A2 sequence, so that run proves resource/runtime presence only and is not claimed as appearance evidence. Await user visual acceptance before clearing the reported failure."
+      "note": "The fresh schema-3 one-instance 4x Character Viewer matrix passed 26/26 model-load-anchored live-3D captures; frame_04130.png shows Jameson in a neutral grey outfit with no technicolor gradients. The independent skeleton audit verifies neutral lighting and a cleared 0x0800 flag on every face. All 11 genuine L2A2 gameplay frames were inspected individually and sequentially: Jameson is partially visible at the far right in frames 4275-4325 with a grey/blue shirt, red tie, and beige trousers and no technicolor contamination. The partial gameplay view supplements but does not replace the unobstructed viewer evidence. Await user visual acceptance before clearing the reported failure."
     },
     "SCORPION": {
       "status": "runtime-validated-awaiting-user-review",

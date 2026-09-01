@@ -126,7 +126,7 @@ def digest(path: Path) -> dict[str, Any]:
 
 
 def audit_sm1_review_queue() -> dict[str, Any]:
-    """Keep technical success distinct from unresolved user visual review."""
+    """Keep confirmed defects distinct from unresolved user visual review."""
     payload = json.loads(SM1_REVIEW_QUEUE.read_text(encoding="utf-8"))
     actors = payload.get("actors")
     if not isinstance(actors, dict) or not actors:
@@ -147,12 +147,23 @@ def audit_sm1_review_queue() -> dict[str, Any]:
     blocked = sorted(
         actor for actor, review in actors.items() if review["blocksClearance"]
     )
+    technical_defects = sorted(
+        actor
+        for actor, review in actors.items()
+        if review["blocksClearance"]
+        and review.get("status") == "technical-defect-confirmed"
+    )
     return {
-        "status": "user-review-required" if blocked else "pass",
+        "status": (
+            "technical-defect-confirmed"
+            if technical_defects
+            else ("user-review-required" if blocked else "pass")
+        ),
         "manifest": str(SM1_REVIEW_QUEUE.resolve()),
         "actorCount": len(actors),
         "blockerCount": len(blocked),
         "blockedActors": blocked,
+        "technicalDefects": technical_defects,
         "policy": (
             "Automated conversion/runtime success cannot clear a user-reported "
             "visual failure or an explicit user-review hold."
@@ -938,6 +949,7 @@ def main() -> None:
     stages["auditRuntimeEvidence"] = runtime_gate
 
     runtime_blockers = runtime_gate["completionBlockers"]
+    technical_defects = review_gate["technicalDefects"]
     review_blockers = (
         review_gate["blockedActors"]
         + sm1_costume_review["completionBlockers"]
@@ -949,6 +961,8 @@ def main() -> None:
         pipeline_status = "incomplete-runtime-validation"
     elif runtime_gate["status"] != "pass":
         pipeline_status = "runtime-validation-failed"
+    elif technical_defects:
+        pipeline_status = "technical-defect-confirmed"
     elif review_blockers:
         pipeline_status = "technical-pass-user-review-required"
     else:
@@ -1002,13 +1016,15 @@ def main() -> None:
         summary = "INCOMPLETE: runtime validation was skipped"
     elif pipeline_status == "runtime-validation-failed":
         summary = "FAIL: required runtime evidence is missing, stale, or invalid"
+    elif pipeline_status == "technical-defect-confirmed":
+        summary = "FAIL: CONFIRMED TECHNICAL DEFECT: " + ", ".join(technical_defects)
     else:
         summary = (
             "TECHNICAL PASS; USER REVIEW REQUIRED: "
             + ", ".join(review_blockers)
         )
     print(f"\n{summary}\nreport: {report_path}")
-    if pipeline_status == "runtime-validation-failed":
+    if pipeline_status in {"runtime-validation-failed", "technical-defect-confirmed"}:
         raise SystemExit(1)
 
 

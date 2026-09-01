@@ -57,7 +57,11 @@ public static class ModelDiagnostics
         {
             uint model = m.ReadU32(pointerTable + mesh * 4u);
             uint vertexCount = m.ReadU16(model + 2u);
-            if (mesh == 7 && meshCount == 18)
+            // Slot 2 is the active player model in both the title-shell costume
+            // preview and normal gameplay.  Other 18-part actors can load later
+            // (notably into slot 9); they must not replace the pointer used by
+            // the player geometry audit.
+            if (_parseSlot == 2 && mesh == 7 && meshCount == 18)
             {
                 _headMeshPointer = model;
                 if (TraceEnabled)
