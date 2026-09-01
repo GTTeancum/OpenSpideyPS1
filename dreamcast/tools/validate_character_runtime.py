@@ -64,6 +64,50 @@ LEVEL_ASSET_ALIASES = {
     ("l1a2a", "O"): ("L1A2_O",),
 }
 
+# Fixed red-letter mask for the retail GAME OVER heading at the required 4x
+# capture size. The background is deliberately ignored: this signature detects
+# the overlay over any level scene and prevents a dead player from satisfying a
+# weak "16-bit image exists" test.
+GAME_OVER_CROP = (480, 180, 800, 320)
+GAME_OVER_SAMPLE_SIZE = (64, 28)
+GAME_OVER_REFERENCE = bytes.fromhex(
+    "0000000000000000000000000000000000000000000000000000000000000000"
+    "0000000000000000000000000000000000000000000000000000000000000000"
+    "03ce667c1f44f9f0064e66601b4cc1b0061e6e78114cf1b006da7e783378f9e0"
+    "06defec03378c36006feb6f83f70f36003f2b4f81e70f3200000000000000000"
+    "0000000000000000000000000000000000000000000000000000000000000000"
+    "0000000000000000000000000000000000000000000000000000000000000000"
+    "0000000000000000000000000000000000000000000000000000000000000000"
+)
+GAME_OVER_MAX_HAMMING = 32
+
+
+def game_over_signature(image: Image.Image) -> dict[str, Any]:
+    sampled = image.convert("RGB").crop(GAME_OVER_CROP).resize(
+        GAME_OVER_SAMPLE_SIZE,
+        Image.Resampling.BOX,
+    )
+    bits = [
+        red > 135 and red > green * 1.45 and red > blue * 1.45
+        for red, green, blue in sampled.get_flattened_data()
+    ]
+    packed = bytes(
+        sum((1 if bits[index + bit] else 0) << (7 - bit) for bit in range(8))
+        for index in range(0, len(bits), 8)
+    )
+    distance = sum(
+        (actual ^ expected).bit_count()
+        for actual, expected in zip(packed, GAME_OVER_REFERENCE)
+    )
+    matches = distance <= GAME_OVER_MAX_HAMMING
+    return {
+        "crop": list(GAME_OVER_CROP),
+        "sampleSize": list(GAME_OVER_SAMPLE_SIZE),
+        "hammingDistance": distance,
+        "maximumHammingDistance": GAME_OVER_MAX_HAMMING,
+        "matches": matches,
+    }
+
 
 def parse_args() -> argparse.Namespace:
     parser = argparse.ArgumentParser()
@@ -173,10 +217,25 @@ def summarize_level(
                 text,
             ):
                 raise ValueError("capture lacks native live-3D 16bpp marker")
+            state_match = re.search(
+                rf"\[capture\].*{re.escape(path.name)} .*"
+                r"\(level-runframe-entered=(\d+)\)",
+                text,
+            )
+            if not state_match:
+                raise ValueError("capture occurred before a non-zero level RunFrame entry")
+            game_over = game_over_signature(image)
+            if game_over["matches"]:
+                raise ValueError(
+                    "capture is the retail GAME OVER screen "
+                    f"(signature distance={game_over['hammingDistance']})"
+                )
             capture_sizes[path.name] = {
                 "size": list(size),
                 "dynamicRange": dynamic_range,
                 "colorCount": color_count,
+                "activeLevelRunFrame": int(state_match.group(1)),
+                "gameOverSignature": game_over,
             }
         except Exception as error:
             capture_errors.append(f"{path.name}: {error}")
@@ -303,6 +362,7 @@ def run_level(
             "SPIDEY_STALL_EXIT": "1",
             "SPIDEY_TRACE_GAME": "1",
             "SPIDEY_TRACE_WAD": "1",
+            "SPIDEY_CHEATS": "invuln",
         }
     )
     if dump_textures:
@@ -396,7 +456,7 @@ def main() -> None:
     }
     missing = sorted(runtime_target - covered)
     report = {
-        "schemaVersion": 3,
+        "schemaVersion": 4,
         "manifest": str(manifest_path),
         "batch": str(batch),
         "inputMethod": "process-local SPIDEY_SCRIPT controller state",
@@ -412,8 +472,10 @@ def main() -> None:
         "results": results,
         "coveragePolicy": "requested-levels" if args.allow_partial_coverage else "all-story-actors",
         "captureGate": (
-            "boot FMV skip plus requested level-geometry load ordering and native "
-            "live-3D 16bpp readback"
+            "boot FMV skip plus requested level-geometry load ordering, native "
+            "live-3D 16bpp readback, non-zero level RunFrame entry, and explicit "
+            "GAME OVER rejection; the retail invulnerability flag prevents idle "
+            "validation runs from dying before capture"
         ),
         "status": "pass"
         if all(result["status"] == "pass" for result in results)

@@ -96,6 +96,7 @@ public static class GameTrace
         => Console.WriteLine($"[game]  Dispatch exit            s1=0x{c.S1:X8} fp=0x{c.FP:X8}");
 
     static uint _rfSp, _rfRa;
+    static uint _lastActiveRunFrameArg;
 
     /// <summary>
     /// Entries to the game's per-frame function. This -- not the host's present rate --
@@ -107,7 +108,28 @@ public static class GameTrace
     {
         Frames++;
         _rfSp = c.SP; _rfRa = c.RA;
+        // RunFrame(0) is the outer shell driver. A non-zero argument is the
+        // currently dispatched level loop. Remember that entry so a native capture
+        // can prove the requested level driver began, rather than accepting an FMV,
+        // title screen, or front-end menu that merely happens to be 16-bit.
+        if (c.A0 != 0)
+        {
+            _lastActiveRunFrameArg = c.A0;
+        }
         if (On) Console.WriteLine($"[game]    RunFrame({c.A0}) enter  sp=0x{c.SP:X8} ra=0x{c.RA:X8} s1=0x{c.S1:X8} fp=0x{c.FP:X8}");
+    }
+
+    /// <summary>
+    /// Positive state marker attached to native screenshots. RunFrame enters once
+    /// and owns the persistent level loop, so a non-zero entry proves the requested
+    /// level has reached its runtime driver. Image gates separately reject terminal
+    /// overlays such as GAME OVER.
+    /// </summary>
+    public static string CaptureLevelState(long captureFrame)
+    {
+        if (_lastActiveRunFrameArg != 0)
+            return $"(level-runframe-entered={_lastActiveRunFrameArg})";
+        return "(no-level-runframe-entered)";
     }
 
     public static void RunFrameExit(CpuContext c, IMemory m)

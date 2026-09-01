@@ -424,7 +424,7 @@ def audit_runtime_evidence(runtime_executed: bool) -> dict[str, Any]:
             "SM1 story actor matrix",
             story_path,
             "pass",
-            3,
+            4,
             actor_manifest,
             (
                 ("renderScale is not 4", story.get("renderScale") == 4),
@@ -445,6 +445,19 @@ def audit_runtime_evidence(runtime_executed: bool) -> dict[str, Any]:
                         for result in story.get("results", [])
                     )
                     and len(story.get("results", [])) == SM1_STORY_LEVEL_COUNT,
+                ),
+                (
+                    "one or more story captures is not positively gated as live gameplay",
+                    all(
+                        capture.get("activeLevelRunFrame", 0) > 0
+                        and capture.get("gameOverSignature", {}).get("matches") is False
+                        for result in story.get("results", [])
+                        for capture in result.get("captures", {}).values()
+                    )
+                    and sum(
+                        len(result.get("captures", {}))
+                        for result in story.get("results", [])
+                    ) == SM1_STORY_LEVEL_COUNT * 2,
                 ),
             ),
         ),
@@ -534,7 +547,7 @@ def audit_runtime_evidence(runtime_executed: bool) -> dict[str, Any]:
             "SM1 Jameson/Scorpion gameplay",
             jameson_scorpion_path,
             "pass",
-            3,
+            4,
             actor_manifest,
             (
                 ("renderScale is not 4", jameson_scorpion.get("renderScale") == 4),
@@ -546,6 +559,16 @@ def audit_runtime_evidence(runtime_executed: bool) -> dict[str, Any]:
                         for result in jameson_scorpion.get("results", [])
                     )
                     and len(jameson_scorpion.get("results", [])) == 1,
+                ),
+                (
+                    "focused gameplay is not positively gated as live gameplay",
+                    all(
+                        capture.get("activeLevelRunFrame", 0) > 0
+                        and capture.get("gameOverSignature", {}).get("matches") is False
+                        for result in jameson_scorpion.get("results", [])
+                        for capture in result.get("captures", {}).values()
+                    )
+                    and bool(jameson_scorpion.get("results")),
                 ),
             ),
         ),

@@ -313,7 +313,7 @@ public static class Capture
 
         string path = Path.Combine(_dir, $"frame_{frame:D5}.png");
         PngWriter.WriteRgba(path, rgba, w, h);
-        Console.WriteLine($"[capture] {path} {w}x{h} (live-3d 16bpp display aspect)");
+        Console.WriteLine($"[capture] {path} {w}x{h} (live-3d 16bpp display aspect) {GameTrace.CaptureLevelState(frame)}");
         SaveCloseup(frame, rgba, w, h);
     }
 
@@ -458,7 +458,7 @@ public static class Capture
         (rgba, w) = ToDisplayAspect(rgba, w, h);
         string path = Path.Combine(_dir, $"frame_{frame:D5}.png");
         PngWriter.WriteRgba(path, rgba, w, h);
-        Console.WriteLine($"[capture] {path} {w}x{h}{(gpu.Display24Bit ? " (24bpp)" : "")}");
+        Console.WriteLine($"[capture] {path} {w}x{h}{(gpu.Display24Bit ? " (24bpp)" : "")} {GameTrace.CaptureLevelState(frame)}");
         SaveCloseup(frame, rgba, w, h);
     }
 }
