@@ -125,7 +125,9 @@ are audit artifacts only; both games continue to use `.psx` runtime assets.
 
 The complete automated build/capture/validation entry point is
 `tools/run_port_pipeline.py`; its aggregate result is written to
-`converted/port-pipeline-report.json`.
+`converted/port-pipeline-report.json`. The aggregate completion gate also reads
+`manifests/sm1-model-review.json`: technical tests cannot report the port complete
+while a user-reported visual failure or explicit user-review hold remains open.
 The generated models remain private/ignored game data; the committed
 `manifests/winged-spidey-lock.json` and `tools/verify_wing_build_lock.py` secure
 the exact default-Spidey reconstruction by input/output hashes.

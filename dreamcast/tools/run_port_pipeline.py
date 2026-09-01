@@ -25,6 +25,7 @@ SYMBIOTE_PROOF = CONVERTED / "symbiote-compatible-viewer-probe"
 COSTUME_ROOT = CONVERTED / "sm2-costume-tests"
 SM2_DEFAULT_RUNTIME = COSTUME_ROOT / "runtime" / "default"
 SM2_COSTUME_RUNTIME = CONVERTED / "sm2-spider-man-runtime"
+SM1_REVIEW_QUEUE = ROOT / "dreamcast" / "manifests" / "sm1-model-review.json"
 COSTUMES = {
     "default": ("sp_tex00.glb", "DEFAULT_DC_WINGED_TPOSE.glb"),
     "dusk": ("sp_tex03.glb", "DUSK_DC_WINGED_TPOSE.glb"),
@@ -109,6 +110,41 @@ def digest(path: Path) -> dict[str, Any]:
         "path": str(path.resolve()),
         "bytes": len(data),
         "sha256": hashlib.sha256(data).hexdigest(),
+    }
+
+
+def audit_sm1_review_queue() -> dict[str, Any]:
+    """Keep technical success distinct from unresolved user visual review."""
+    payload = json.loads(SM1_REVIEW_QUEUE.read_text(encoding="utf-8"))
+    actors = payload.get("actors")
+    if not isinstance(actors, dict) or not actors:
+        raise ValueError(f"{SM1_REVIEW_QUEUE} has no actor review records")
+
+    invalid = [
+        actor
+        for actor, review in actors.items()
+        if not isinstance(review, dict)
+        or not isinstance(review.get("blocksClearance"), bool)
+    ]
+    if invalid:
+        raise ValueError(
+            "SM1 review records need an explicit boolean blocksClearance: "
+            + ", ".join(sorted(invalid))
+        )
+
+    blocked = sorted(
+        actor for actor, review in actors.items() if review["blocksClearance"]
+    )
+    return {
+        "status": "user-review-required" if blocked else "pass",
+        "manifest": str(SM1_REVIEW_QUEUE.resolve()),
+        "actorCount": len(actors),
+        "blockerCount": len(blocked),
+        "blockedActors": blocked,
+        "policy": (
+            "Automated conversion/runtime success cannot clear a user-reported "
+            "visual failure or an explicit user-review hold."
+        ),
     }
 
 
@@ -406,9 +442,17 @@ def main() -> None:
         [python, str(TOOLS / "map_sm2_dc_actors.py")],
     )
 
+    review_gate = audit_sm1_review_queue()
+    stages["auditSm1ReviewQueue"] = review_gate
+
     report = {
         "schemaVersion": 1,
-        "status": "pass",
+        "status": (
+            "pass"
+            if review_gate["status"] == "pass"
+            else "technical-pass-user-review-required"
+        ),
+        "completionBlockers": review_gate["blockedActors"],
         "stages": stages,
         "artifacts": {
             "visibleModel": digest(VISIBLE / "spidey.psx"),
@@ -438,11 +482,19 @@ def main() -> None:
             "sm2SpiderManCostumePack": str((SM2_COSTUME_RUNTIME / "costume-pack.json").resolve()),
             "sm2SpiderManCostumeRuntimeValidation": str((SM2_COSTUME_RUNTIME / "runtime-menu-proof" / "runtime-validation.json").resolve()),
             "sm2SpiderManCostumeReview": str((ROOT / "dreamcast" / "manifests" / "sm2-spider-man-costume-review.json").resolve()),
+            "sm1ModelReview": str(SM1_REVIEW_QUEUE.resolve()),
         },
     }
     report_path = CONVERTED / "port-pipeline-report.json"
     report_path.write_text(json.dumps(report, indent=2) + "\n", encoding="utf-8")
-    print(f"\nPASS: complete Dreamcast character port pipeline\nreport: {report_path}")
+    if review_gate["status"] == "pass":
+        summary = "PASS: complete Dreamcast character port pipeline"
+    else:
+        summary = (
+            "TECHNICAL PASS; USER REVIEW REQUIRED: "
+            + ", ".join(review_gate["blockedActors"])
+        )
+    print(f"\n{summary}\nreport: {report_path}")
 
 
 if __name__ == "__main__":

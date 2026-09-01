@@ -461,7 +461,10 @@ python dreamcast/tools/run_port_pipeline.py `
   --resume-runtime --reuse-wing-captures
 ```
 
-The aggregate report is `dreamcast/converted/port-pipeline-report.json`.
+The aggregate report is `dreamcast/converted/port-pipeline-report.json`. Its
+final status is `technical-pass-user-review-required` while any actor in
+`dreamcast/manifests/sm1-model-review.json` has `blocksClearance: true`; automated
+conversion and runtime checks never silently clear user-reported visual failures.
 
 ## Runtime allocation required by high-detail overrides
 
