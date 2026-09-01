@@ -712,7 +712,7 @@ def main() -> None:
             ],
         )
     stages["verifyVisibleWingParity"] = run(
-        "verify visible wing parity",
+        "verify proof-only SM1 visible-wing parity",
         [python, str(TOOLS / "verify_wing_parity.py"), "--ported", str(VISIBLE / "spidey.psx")],
     )
     capture_command = [
@@ -725,7 +725,10 @@ def main() -> None:
     ]
     if args.reuse_wing_captures:
         capture_command.append("--reuse-captures")
-    stages["captureVisibleWings"] = run("capture default wings in game", capture_command)
+    stages["captureVisibleWings"] = run(
+        "capture proof-only visible wings in the SM1 diagnostic harness",
+        capture_command,
+    )
 
     if not args.skip_build:
         stages["buildProductionWings"] = run(
@@ -744,11 +747,11 @@ def main() -> None:
         [python, str(TOOLS / "verify_wing_build_lock.py")],
     )
     stages["verifyProductionWingParity"] = run(
-        "verify production wing parity",
+        "verify shipping SM1 zero-alpha wing-capable geometry parity",
         [python, str(TOOLS / "verify_wing_parity.py"), "--ported", str(PRODUCTION / "spidey.psx")],
     )
     stages["validateWingTextures"] = run(
-        "validate visible and production wing textures",
+        "validate proof-only visible and shipping SM1 transparent wing textures",
         [python, str(TOOLS / "validate_wing_textures.py")],
     )
 
@@ -1041,6 +1044,16 @@ def main() -> None:
         "completionBlockers": completion_blockers,
         "runtimeValidationExecuted": execute_runtime,
         "existingRuntimeEvidenceAudited": args.use_existing_runtime_evidence,
+        "wingOwnershipPolicy": {
+            "sm1Shipping": (
+                "wing-capable geometry retained with a magenta/all-zero-alpha "
+                "texture; visually wingless"
+            ),
+            "sm1VisibleHarness": (
+                "diagnostic seam/UV/weighting proof only; not a shipping appearance"
+            ),
+            "sm2Shipping": "visible black/white web wings in menu and gameplay",
+        },
         "stages": stages,
         "artifacts": {
             "visibleModel": digest(VISIBLE / "spidey.psx"),

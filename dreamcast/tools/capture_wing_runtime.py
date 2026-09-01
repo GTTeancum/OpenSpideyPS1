@@ -1,5 +1,10 @@
 #!/usr/bin/env python3
-"""Capture and author close in-game proof of the default DC Spider-Man wings.
+"""Capture proof-only SM1 renders of normally transparent wing geometry.
+
+SM1 does not ship with visible wings: its production texture is the magenta,
+zero-alpha paint-out. This diagnostic variant makes the retained geometry
+visible only to audit seams, UVs, winding, and animation ownership. Visible
+production wings belong to SM2 and are captured by capture_sm2_default_runtime.
 
 Input is injected only through the recompilation's process-local controller
 script.  This tool never generates host keyboard, mouse, or window input.

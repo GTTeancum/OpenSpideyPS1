@@ -141,6 +141,13 @@ python dreamcast/tools/verify_wing_build_lock.py
 
 ## Visible SM1 runtime parity proof
 
+This is a non-shipping diagnostic harness. SM1 production remains visually
+wingless because its retained wing-capable geometry uses the all-magenta,
+all-zero-alpha paint-out described above. Do not present these diagnostic SM1
+captures as the shipping SM1 appearance. Visible production wings belong to
+SM2, whose native menu and gameplay proofs are recorded separately by
+`capture_sm2_default_runtime.py`.
+
 Structural verification is necessary but is not sufficient to lock wing parity.
 The same binary must be rendered by SM1 with the wings visible while the native
 animation system moves their owner parts.
