@@ -589,9 +589,48 @@ def audit_runtime_evidence(runtime_executed: bool) -> dict[str, Any]:
             "SM2 default Spider-Man wings",
             sm2_default_path,
             "pass",
-            1,
+            2,
             sm2_default_pack,
-            (("renderScale is below 4", int(sm2_default.get("renderScale", 0)) >= 4),),
+            (
+                ("renderScale is not the authored 8x proof", sm2_default.get("renderScale") == 8),
+                (
+                    "SM2 Default menu frame lacks the exact live-menu gate",
+                    len(
+                        sm2_default.get("frames", {})
+                        .get("menu", {})
+                        .get("mainMenuSignature", [])
+                    )
+                    == 4
+                    and all(
+                        region.get("matches") is True
+                        and region.get("sha256") == region.get("expectedSha256")
+                        for region in sm2_default.get("frames", {})
+                        .get("menu", {})
+                        .get("mainMenuSignature", [])
+                    ),
+                ),
+                (
+                    "SM2 Default gameplay frame lacks the exact active-HUD gate",
+                    len(
+                        sm2_default.get("frames", {})
+                        .get("gameplay_deployed", {})
+                        .get("gameplayHudSignature", [])
+                    )
+                    == 4
+                    and all(
+                        region.get("matches") is True
+                        and region.get("sha256") == region.get("expectedSha256")
+                        for region in sm2_default.get("frames", {})
+                        .get("gameplay_deployed", {})
+                        .get("gameplayHudSignature", [])
+                    ),
+                ),
+                (
+                    "SM2 Default proof includes an ungated scene frame",
+                    set(sm2_default.get("frames", {}))
+                    == {"menu", "gameplay_deployed"},
+                ),
+            ),
         ),
         audit_runtime_report(
             "SM2 Spider-Man costume menu",
@@ -798,6 +837,11 @@ def main() -> None:
             ],
         )
 
+    stages["auditSm1ActorCoverage"] = run(
+        "audit complete Dreamcast-to-SM1 actor coverage",
+        [python, str(TOOLS / "audit_sm1_actor_coverage.py")],
+    )
+
     base_glb = COSTUME_ROOT / "base" / "glb" / "spidey_dc_winged_hd.glb"
     for name, (source_file, output_file) in COSTUMES.items():
         port_root = COSTUME_ROOT / "ports" / name
@@ -924,6 +968,10 @@ def main() -> None:
         "map PS1 SM2 character actors to compatible Dreamcast SM1 actors",
         [python, str(TOOLS / "map_sm2_dc_actors.py")],
     )
+    stages["auditSm2PlayerPortCoverage"] = run(
+        "audit complete SM2 player port and explicit retail fallbacks",
+        [python, str(TOOLS / "audit_sm2_player_port_coverage.py")],
+    )
 
     review_gate = audit_sm1_review_queue()
     stages["auditSm1ReviewQueue"] = review_gate
@@ -986,6 +1034,7 @@ def main() -> None:
             "actorTexturePackAudit": str((CONVERTED / "all-characters" / "packs" / "dreamcast-sm1-actors" / "texture-audit.json").resolve()),
             "skeletonAdaptationAudit": str((CONVERTED / "all-characters" / "skeleton-adaptation-audit.json").resolve()),
             "allCharacterValidation": str((CONVERTED / "all-characters-validation-current" / "validation.json").resolve()),
+            "sm1ActorCoverageAudit": str((CONVERTED / "sm1-dc-actor-coverage.json").resolve()),
             "runtimeValidation": str((CONVERTED / "all-characters-runtime-current" / "runtime-validation.json").resolve()),
             "sm1CostumeRuntimeValidation": str((CONVERTED / "all-characters-costumes-runtime-current" / "runtime-validation.json").resolve()),
             "characterViewerRuntimeValidation": str((CONVERTED / "all-characters-viewer-runtime-current" / "runtime-validation.json").resolve()),
@@ -993,6 +1042,7 @@ def main() -> None:
             "symbioteViewerProbe": str((SYMBIOTE_PROOF / "runtime-validation.json").resolve()),
             "jamesonScorpionGameplayValidation": str((JAMESON_SCORPION_PROOF / "runtime-validation.json").resolve()),
             "sm2DcActorMap": str((CONVERTED / "sm2-dc-actor-map.json").resolve()),
+            "sm2PlayerPortCoverageAudit": str((CONVERTED / "sm2-player-port-coverage.json").resolve()),
             "costumeValidation": str((COSTUME_ROOT / "validation.json").resolve()),
             "sm2DefaultRuntimeModel": digest(SM2_DEFAULT_RUNTIME / "spidey.psx"),
             "sm2DefaultRuntimeTextures": digest(SM2_DEFAULT_RUNTIME / "sp_tex00.psx"),

@@ -295,6 +295,19 @@ supplemental components, so they remain in the exhaustive source census but are
 not installed as invented SM1 resource aliases. This actor-only batch never
 replaces level geometry, collision, lighting, or object archives.
 
+The coverage audit independently rescans the Dreamcast containers instead of
+trusting the generated manifest as its own census. It locks the 52 naturally
+routed actors to the reviewed story, viewer, and costume report hashes; verifies
+the two compatible probes; hashes Dreamcast, retail SM1, and output `CLAW` for
+byte identity; and proves that each of the ten supplemental names is absent from
+retail SM1. Any unclassified actor fails the pipeline:
+
+```powershell
+python dreamcast/tools/audit_sm1_actor_coverage.py
+```
+
+Its report is `dreamcast/converted/sm1-dc-actor-coverage.json`.
+
 The viewer validator's recorded probe mode covers complete converted actors that
 SM1 owns but does not expose through its normal viewer/story proof routes. It
 temporarily aliases the source through a real viewer slot, keeps the original
@@ -359,13 +372,18 @@ and material hashes:
 python dreamcast/tools/map_sm2_dc_actors.py
 ```
 
-The current census contains 30 SM2 character actors. Its structural audit finds
-ten same-name DC candidates, one exact known alias (`HOSTAGE2` -> `HOSTAGE`), and
-nineteen actors with no confirmed counterpart. Structural resemblance is kept as
-evidence only: the current upgrade scope selects Spider-Man and records all 29
-NPC/enemy actors as explicit fallbacks retaining their original SM2 models and
-textures. Almost none of the structural candidates share material hashes, so a
-same-name model is not treated as texture compatible.
+The complete animated/hierarchical census contains 81 retail SM2 assets. Thirty
+are primary character actors; the other 51 are explicitly named secondary actor
+parts, weapons, vehicles, menu models, generators, shields, projectiles, effects,
+or level mechanisms. The character audit finds ten same-name DC candidates, one
+exact known alias (`HOSTAGE2` -> `HOSTAGE`), and nineteen actors with no confirmed
+counterpart. Structural resemblance is kept as evidence only: the current upgrade
+scope selects Spider-Man, records all 29 NPC/enemy actors as explicit retail-SM2
+fallbacks, and records all 51 animated non-player components as explicit retail-
+SM2 fallbacks. The source rescan must equal those 81 classified names exactly, so
+a new or missing animated container fails the map. Almost none of the structural
+candidates share material hashes, so a same-name model is not treated as texture
+compatible.
 
 Default (`sp_tex00`), Prodigy (`sp_tex02`), Dusk (`sp_tex03`), and Ricochet
 (`sp_tex08`) retain static T-pose GLB audits of the texture transfer onto the
@@ -442,10 +460,25 @@ locked to the exact aggregate runtime-report SHA-256 in
 requires a new visual review before `map_sm2_dc_actors.py` promotes the mapping.
 
 `capture_sm2_default_runtime.py` remains the separate 8x Default menu/gameplay
-wing proof. Together these results prove that native `.psx` assets—not the audit
-GLBs—render the mapped suits and connected wings. Every non-player structural
-candidate remains an explicit retail-SM2 fallback under the player-only upgrade
-policy.
+wing proof. It accepts only the exact actor-free live-menu chrome and exact active
+gameplay HUD regions; its earlier HUD-less in-engine scene is no longer counted as
+gameplay evidence. Together these results prove that native `.psx` assets—not the
+audit GLBs—render the mapped suits and connected wings. Every non-player
+structural candidate remains an explicit retail-SM2 fallback under the player-
+only upgrade policy.
+
+The final player-port audit rehashes the staged actor, all nineteen byte-exact
+retail texture libraries, all nineteen merged parse models, both dedicated
+topology actors, all 21 original-resolution special-costume host textures, all
+95 exact-menu-gated captures, the manual-review lock, the 30-actor map, and all
+51 animated non-player fallback files. It also rejects any level L/O/G archive
+inside the player asset pack:
+
+```powershell
+python dreamcast/tools/audit_sm2_player_port_coverage.py
+```
+
+Its report is `dreamcast/converted/sm2-player-port-coverage.json`.
 
 ## One-command pipeline
 

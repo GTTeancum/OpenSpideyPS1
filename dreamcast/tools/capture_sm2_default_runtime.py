@@ -34,10 +34,49 @@ INPUT_SCRIPT = (
 )
 SHOT_SPECS = (
     ("menu", "title.bmr", 450),
-    ("gameplay_motion", "e1m0_t.trg", 1568),
     ("gameplay_deployed", "e1m0_t.trg", 1968),
 )
 EXIT_FRAME = 6000
+
+# Exact actor-free chrome from the authored 8x proof.  These regions positively
+# identify the live 3D main menu and active gameplay UI; archive timing, output
+# dimensions, and dynamic range are not accepted as substitutes.
+MENU_REGION_SIGNATURES = {
+    "continueLabel": {
+        "bounds": (240, 200, 820, 470),
+        "sha256": "4bb6b2f971303c044b26de5131fb64dce43dfbb9134ab12d40b47e01f48233e3",
+    },
+    "trainingLabel": {
+        "bounds": (1750, 200, 2300, 470),
+        "sha256": "218af4ab4f35ca1c7b4daa5bb90599b801f3c251024015b0e53a04d47f076549",
+    },
+    "optionsLabel": {
+        "bounds": (300, 1470, 840, 1700),
+        "sha256": "b95c398c11f9908e56e7f49d5592449feb75ebc9060279190edf2fb3feb02359",
+    },
+    "galleryLabel": {
+        "bounds": (1760, 1470, 2280, 1700),
+        "sha256": "7ceb07dad9087656150b3daa437efe44dc84fe10367ca730477bd465f8ff4436",
+    },
+}
+GAMEPLAY_HUD_REGION_SIGNATURES = {
+    "healthIcon": {
+        "bounds": (40, 40, 300, 300),
+        "sha256": "ced4752623615246be0bbd31d907d7ff9dce193c83524caec5a148a4f8f9f444",
+    },
+    "healthBar": {
+        "bounds": (275, 155, 580, 250),
+        "sha256": "afe7451cb967d745ba77a7bf5f65b4fe65374bf65668970e8b5c249925be4dab",
+    },
+    "webCounter": {
+        "bounds": (190, 265, 600, 430),
+        "sha256": "8b42359d884aca674552742476395c35e5f3de5e9a73c23c4c78a06503418ec8",
+    },
+    "compassFrame": {
+        "bounds": (1900, 1450, 2520, 1910),
+        "sha256": "adef944897aa9aa0d569da6b248109e45f5ea77d3766d1d274d46999524376f9",
+    },
+}
 
 # Canonical scale-8 display-aspect coordinates.  Cropping never modifies source
 # pixels; these proofs retain the native 2560x1920 capture density.
@@ -166,10 +205,42 @@ def validate_frame(path: Path, expected_size: tuple[int, int]) -> dict[str, Any]
     }
 
 
+def validate_exact_regions(
+    path: Path,
+    expected_regions: dict[str, dict[str, Any]],
+    screen_name: str,
+) -> list[dict[str, Any]]:
+    with Image.open(path) as opened:
+        opened.load()
+        image = opened.convert("RGB")
+        results = []
+        for name, expected in expected_regions.items():
+            bounds = expected["bounds"]
+            actual = hashlib.sha256(image.crop(bounds).tobytes()).hexdigest()
+            results.append(
+                {
+                    "name": name,
+                    "bounds": list(bounds),
+                    "sha256": actual,
+                    "expectedSha256": expected["sha256"],
+                    "matches": actual == expected["sha256"],
+                }
+            )
+    mismatches = [result["name"] for result in results if not result["matches"]]
+    if mismatches:
+        raise RuntimeError(
+            f"{path} is not the verified {screen_name}; exact regions mismatched at "
+            + ", ".join(mismatches)
+        )
+    return results
+
+
 def main() -> None:
     args = parse_args()
-    if args.render_scale < 1 or args.render_scale > 8:
-        raise ValueError("--render-scale must be between 1 and 8")
+    if args.render_scale != 8:
+        raise ValueError(
+            "--render-scale must be 8; the authored proof uses exact 8x menu and HUD gates"
+        )
     exe = args.exe.resolve()
     assets = args.assets.resolve()
     output = args.output.resolve()
@@ -207,6 +278,16 @@ def main() -> None:
         label: validate_frame(output / f"frame_{frame:05d}.png", expected_size)
         for label, frame in frames.items()
     }
+    frame_records["menu"]["mainMenuSignature"] = validate_exact_regions(
+        Path(frame_records["menu"]["path"]),
+        MENU_REGION_SIGNATURES,
+        "live 3D main menu",
+    )
+    frame_records["gameplay_deployed"]["gameplayHudSignature"] = validate_exact_regions(
+        Path(frame_records["gameplay_deployed"]["path"]),
+        GAMEPLAY_HUD_REGION_SIGNATURES,
+        "active SM2 gameplay HUD",
+    )
 
     scale = args.render_scale / 8.0
     proofs: dict[str, dict[str, Any]] = {}
@@ -228,13 +309,17 @@ def main() -> None:
         }
 
     report = {
-        "schemaVersion": 1,
+        "schemaVersion": 2,
         "status": "pass",
         "inputMethod": "process-local SPIDEY_SCRIPT controller state",
         "shotTiming": "archive-anchored SPIDEY_SHOTS",
         "assets": str(assets),
         "renderScale": args.render_scale,
         "runtimeMarkers": required_markers,
+        "captureGate": (
+            "exact actor-free 8x main-menu chrome plus exact 8x active-gameplay HUD; "
+            "FMV/title/archive timing and image heuristics cannot satisfy the proof"
+        ),
         "frames": frame_records,
         "authoredProofs": proofs,
     }

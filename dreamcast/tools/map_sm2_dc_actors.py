@@ -60,6 +60,66 @@ SM2_ACTORS = (
     "yrdguard",
 )
 
+# These are the remaining retail SM2 containers that carry both a hierarchy and
+# an animation bank.  They are secondary actor parts, weapons, vehicles, menu
+# models, generators, shields, projectiles, effects, or level mechanisms rather
+# than independently mapped character actors.  Listing every name makes the
+# player-only policy fail closed: a newly discovered animated container cannot
+# disappear behind the broad word "props".
+SM2_ANIMATED_NON_PLAYER_COMPONENTS = (
+    "chopper",
+    "control",
+    "control2",
+    "cpanel",
+    "e2m1bmb1",
+    "e2m1bmb2",
+    "e2m1bmb3",
+    "e2m1bmb4",
+    "e2m1bmb5",
+    "engine01",
+    "engine02",
+    "eshield",
+    "eshield2",
+    "etaunt",
+    "fblst",
+    "fire",
+    "flydrone",
+    "gen641",
+    "gen642",
+    "gen643",
+    "gencover",
+    "genp",
+    "hamgun",
+    "lturret",
+    "mgun",
+    "plane",
+    "plane01",
+    "plnshadw",
+    "rlldrn2",
+    "rlldrone",
+    "rocket",
+    "sbase2",
+    "sblast2",
+    "sburst",
+    "sburst3",
+    "scout",
+    "sgrbhnd2",
+    "shglove",
+    "slhammer",
+    "slhmmer2",
+    "srhammer",
+    "srhmmer2",
+    "sring",
+    "sspike",
+    "swall",
+    "swall1",
+    "sym_base",
+    "sym_gen",
+    "tail01",
+    "turret",
+    "webs",
+)
+
 # A different retail name is only promoted to a candidate when the relationship
 # is semantically known.  Structural ranking is still recorded for every actor,
 # but never silently turns a coincidental score into a replacement decision.
@@ -157,9 +217,37 @@ def validate_mapping_proof(name: str) -> tuple[str, dict[str, Any] | None]:
     )
     runtime_valid = bool(
         runtime_report
+        and runtime_report.get("schemaVersion") == 2
         and all(runtime_report.get("runtimeMarkers", {}).values())
         and runtime_report.get("inputMethod")
         == "process-local SPIDEY_SCRIPT controller state"
+        and set(runtime_report.get("frames", {})) == {"menu", "gameplay_deployed"}
+        and all(
+            region.get("matches") is True
+            and region.get("sha256") == region.get("expectedSha256")
+            for region in runtime_report.get("frames", {})
+            .get("menu", {})
+            .get("mainMenuSignature", [])
+        )
+        and len(
+            runtime_report.get("frames", {})
+            .get("menu", {})
+            .get("mainMenuSignature", [])
+        )
+        == 4
+        and all(
+            region.get("matches") is True
+            and region.get("sha256") == region.get("expectedSha256")
+            for region in runtime_report.get("frames", {})
+            .get("gameplay_deployed", {})
+            .get("gameplayHudSignature", [])
+        )
+        and len(
+            runtime_report.get("frames", {})
+            .get("gameplay_deployed", {})
+            .get("gameplayHudSignature", [])
+        )
+        == 4
     )
     costume_runtime_results = (
         costume_runtime.get("results", []) if costume_runtime else []
@@ -295,6 +383,18 @@ def comparison(sm2: dict[str, Any], dc: dict[str, Any]) -> dict[str, Any]:
     }
 
 
+def animated_hierarchy_inventory(root: Path) -> set[str]:
+    inventory: set[str] = set()
+    for path in sorted(root.glob("*.psx")):
+        try:
+            parsed = parse_actor(path)
+        except (OSError, ValueError, struct.error):
+            continue
+        if parsed["hierarchySha256"] and parsed["animationTags"]:
+            inventory.add(path.stem.lower())
+    return inventory
+
+
 def parse_args() -> argparse.Namespace:
     parser = argparse.ArgumentParser()
     parser.add_argument("--sm2-wad", type=Path, default=DEFAULT_SM2_WAD)
@@ -307,6 +407,21 @@ def main() -> None:
     args = parse_args()
     sm2_wad = args.sm2_wad.resolve()
     dc_batch = args.dc_batch.resolve()
+    animated_inventory = animated_hierarchy_inventory(sm2_wad)
+    classified_animated_inventory = set(SM2_ACTORS) | set(
+        SM2_ANIMATED_NON_PLAYER_COMPONENTS
+    )
+    unclassified_animated = sorted(
+        animated_inventory - classified_animated_inventory
+    )
+    missing_animated = sorted(
+        classified_animated_inventory - animated_inventory
+    )
+    if unclassified_animated or missing_animated:
+        raise ValueError(
+            "SM2 animated-container classification changed; "
+            f"unclassified={unclassified_animated}, missing={missing_animated}"
+        )
     manifest = json.loads((dc_batch / "manifest.json").read_text(encoding="utf-8"))
     dc_actors: dict[str, dict[str, Any]] = {}
     for item in manifest["entries"]:
@@ -385,11 +500,12 @@ def main() -> None:
 
     report = {
         "schemaVersion": 1,
-        "scope": "character actors only; no environments or animated props",
+        "scope": "complete animated/hierarchical SM2 inventory; no environment replacement",
         "sm2Wad": str(sm2_wad),
         "dcBatch": str(dc_batch),
+        "animatedHierarchyAssetCount": len(animated_inventory),
         "actorCount": len(entries),
-        "policy": "Dreamcast upgrade is Spider-Man-only; every NPC and enemy retains its retail SM2 assets",
+        "policy": "Dreamcast upgrade is Spider-Man-only; every NPC, enemy, support component, prop, effect, and mechanism retains its retail SM2 asset",
         "dreamcastPortCount": sum(
             item["mappingType"] == "dreamcast-texture-port" for item in entries
         ),
@@ -400,6 +516,23 @@ def main() -> None:
             item["structuralMatchType"] == "known-alias" for item in entries
         ),
         "fallbackCount": sum(item["mappingType"] == "fallback-sm2-model" for item in entries),
+        "animatedNonPlayerComponentFallbackCount": len(
+            SM2_ANIMATED_NON_PLAYER_COMPONENTS
+        ),
+        "totalRetailAnimatedFallbackCount": (
+            sum(item["mappingType"] == "fallback-sm2-model" for item in entries)
+            + len(SM2_ANIMATED_NON_PLAYER_COMPONENTS)
+        ),
+        "animatedNonPlayerComponentFallbacks": [
+            {
+                "sm2Asset": name,
+                "path": str((sm2_wad / f"{name}.psx").resolve()),
+                "sha256": sha256(sm2_wad / f"{name}.psx"),
+                "status": "original-sm2-asset-explicit-fallback",
+                "policy": "retain the original retail SM2 animated component",
+            }
+            for name in SM2_ANIMATED_NON_PLAYER_COMPONENTS
+        ],
         "entries": entries,
     }
     args.output.parent.mkdir(parents=True, exist_ok=True)
@@ -407,7 +540,8 @@ def main() -> None:
     print(
         f"SM2 actor map: {report['actorCount']} actors; "
         f"{report['dreamcastPortCount']} Dreamcast player port; "
-        f"{report['fallbackCount']} explicit SM2 fallbacks"
+        f"{report['fallbackCount']} character fallbacks; "
+        f"{report['animatedNonPlayerComponentFallbackCount']} animated component fallbacks"
     )
     print(f"report: {args.output.resolve()}")
 
