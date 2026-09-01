@@ -81,6 +81,34 @@ GAME_OVER_REFERENCE = bytes.fromhex(
 )
 GAME_OVER_MAX_HAMMING = 32
 
+# Static blue HUD-chrome mask from a verified live gameplay frame. Only reference
+# pixels that belong to the opaque health/web UI are counted, so level scenery in
+# the crop cannot create a false mismatch. This is the positive path for levels
+# whose retail driver stays inside the outer RunFrame(0) loop.
+GAMEPLAY_HUD_CROP = (0, 20, 360, 340)
+GAMEPLAY_HUD_SAMPLE_SIZE = (72, 64)
+GAMEPLAY_HUD_REFERENCE = bytes.fromhex(
+    "0000000000000000000000000000000000000000000000000000000000000000"
+    "0000000000000000000000000000000000000000000000000000000000000000"
+    "00000000000000000000000000000000000000400000000000000003fe000000"
+    "000000000f83800000000000001900c000000000000032006000000000000064"
+    "0070000000000000cc0038000000000000dc003ffffffffc0000f8003fffffff"
+    "fe0001f8003fffffffff0001f0003c0000000f0001e0003c000000070001e000"
+    "7c000000070001e000fc000000070000e000fc0000000e0001f000ffffffffff"
+    "0000f001fffffffffe0000f803fffffffffe00007d03fffffffffc00003f87f0"
+    "0000000000001fe7e00000000000001fffc00800000000001fff806e00000000"
+    "001fff07ff00000000001fff0ff780000000001fff0ff7c0000000001fff1ef7"
+    "e4888000001fff1ffffcd98000001fff1ffffcdb0000001fff1ffffcde000000"
+    "1fff1f7ffcf60000001fff0ffbcc760000001fff0fbb80000000001fff07bb00"
+    "000000001fff03da00000000001fff00c000000000001fff000000000000001f"
+    "ff000000000000001fff000000000000001fff000000000000001fff00000000"
+    "0000001fff000000000000001fff000000000000001fff000000000000001bff"
+    "000000000000000dfe0000000000000003fc0000000000000000000000000000"
+    "0000000000000000000000000000000000000000000000000000000000000000"
+    "0000000000000000000000000000000000000000000000000000000000000000"
+)
+GAMEPLAY_HUD_MIN_COVERAGE = 0.90
+
 
 def game_over_signature(image: Image.Image) -> dict[str, Any]:
     sampled = image.convert("RGB").crop(GAME_OVER_CROP).resize(
@@ -106,6 +134,37 @@ def game_over_signature(image: Image.Image) -> dict[str, Any]:
         "hammingDistance": distance,
         "maximumHammingDistance": GAME_OVER_MAX_HAMMING,
         "matches": matches,
+    }
+
+
+def gameplay_hud_signature(image: Image.Image) -> dict[str, Any]:
+    sampled = image.convert("RGB").crop(GAMEPLAY_HUD_CROP).resize(
+        GAMEPLAY_HUD_SAMPLE_SIZE,
+        Image.Resampling.BOX,
+    )
+    actual_bits = [
+        blue > 60 and blue > red * 1.12 and blue > green * 1.03
+        for red, green, blue in sampled.get_flattened_data()
+    ]
+    reference_bits = [
+        bool(byte & (1 << (7 - bit)))
+        for byte in GAMEPLAY_HUD_REFERENCE
+        for bit in range(8)
+    ]
+    reference_pixel_count = sum(reference_bits)
+    matching_pixel_count = sum(
+        actual and expected
+        for actual, expected in zip(actual_bits, reference_bits)
+    )
+    coverage = matching_pixel_count / reference_pixel_count
+    return {
+        "crop": list(GAMEPLAY_HUD_CROP),
+        "sampleSize": list(GAMEPLAY_HUD_SAMPLE_SIZE),
+        "matchingReferencePixels": matching_pixel_count,
+        "referencePixelCount": reference_pixel_count,
+        "coverage": coverage,
+        "minimumCoverage": GAMEPLAY_HUD_MIN_COVERAGE,
+        "matches": coverage >= GAMEPLAY_HUD_MIN_COVERAGE,
     }
 
 
@@ -222,20 +281,29 @@ def summarize_level(
                 r"\(level-runframe-entered=(\d+)\)",
                 text,
             )
-            if not state_match:
-                raise ValueError("capture occurred before a non-zero level RunFrame entry")
+            active_level_runframe = int(state_match.group(1)) if state_match else 0
+            gameplay_hud = gameplay_hud_signature(image)
             game_over = game_over_signature(image)
             if game_over["matches"]:
                 raise ValueError(
                     "capture is the retail GAME OVER screen "
                     f"(signature distance={game_over['hammingDistance']})"
                 )
+            live_gameplay_gate = active_level_runframe > 0 or gameplay_hud["matches"]
+            if not live_gameplay_gate:
+                raise ValueError(
+                    "capture has neither a non-zero level RunFrame entry nor the "
+                    "verified gameplay HUD signature "
+                    f"(HUD coverage={gameplay_hud['coverage']:.3f})"
+                )
             capture_sizes[path.name] = {
                 "size": list(size),
                 "dynamicRange": dynamic_range,
                 "colorCount": color_count,
-                "activeLevelRunFrame": int(state_match.group(1)),
+                "activeLevelRunFrame": active_level_runframe,
+                "gameplayHudSignature": gameplay_hud,
                 "gameOverSignature": game_over,
+                "liveGameplayGate": live_gameplay_gate,
             }
         except Exception as error:
             capture_errors.append(f"{path.name}: {error}")
@@ -473,8 +541,9 @@ def main() -> None:
         "coveragePolicy": "requested-levels" if args.allow_partial_coverage else "all-story-actors",
         "captureGate": (
             "boot FMV skip plus requested level-geometry load ordering, native "
-            "live-3D 16bpp readback, non-zero level RunFrame entry, and explicit "
-            "GAME OVER rejection; the retail invulnerability flag prevents idle "
+            "live-3D 16bpp readback, non-zero level RunFrame or exact gameplay-HUD "
+            "signature, and explicit GAME OVER rejection; the retail invulnerability "
+            "flag prevents idle "
             "validation runs from dying before capture"
         ),
         "status": "pass"

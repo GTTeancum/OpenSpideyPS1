@@ -449,7 +449,7 @@ def audit_runtime_evidence(runtime_executed: bool) -> dict[str, Any]:
                 (
                     "one or more story captures is not positively gated as live gameplay",
                     all(
-                        capture.get("activeLevelRunFrame", 0) > 0
+                        capture.get("liveGameplayGate") is True
                         and capture.get("gameOverSignature", {}).get("matches") is False
                         for result in story.get("results", [])
                         for capture in result.get("captures", {}).values()
@@ -563,7 +563,7 @@ def audit_runtime_evidence(runtime_executed: bool) -> dict[str, Any]:
                 (
                     "focused gameplay is not positively gated as live gameplay",
                     all(
-                        capture.get("activeLevelRunFrame", 0) > 0
+                        capture.get("liveGameplayGate") is True
                         and capture.get("gameOverSignature", {}).get("matches") is False
                         for result in jameson_scorpion.get("results", [])
                         for capture in result.get("captures", {}).values()
