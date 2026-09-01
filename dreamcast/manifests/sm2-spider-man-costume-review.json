@@ -1,6 +1,6 @@
 {
-  "schemaVersion": 2,
-  "status": "invalidated; fresh exclusive menu recapture and review required",
+  "schemaVersion": 3,
+  "status": "runtime-validated-and-manually-reviewed",
   "scope": "SM2 Spider-Man costumes only; retail environments, NPCs, and enemies are unchanged",
   "capturePolicy": {
     "anchor": "charlite.dat",
@@ -10,10 +10,10 @@
     "introSkip": "Process-local START pulses stop at the title.bmr boundary; no host input",
     "processPolicy": "a game-level named mutex permits only one OpenSpidey game process"
   },
-  "reviewPolicy": "Previous review is void. Fresh schema-3 frames must be inspected individually in slot and frame order after the exclusive-process, boot-boundary, native-3D, and exact-menu gates pass.",
+  "reviewPolicy": "All 95 fresh schema-3 frames were inspected individually in slot and frame order after the exclusive-process, boot-boundary, native-3D, and exact-menu gates passed.",
   "evidencePolicy": "Each costume entry points to its evidence directory; the locked runtimeReport captureSequence is the authoritative list of five individually reviewed frames. Contact sheets are summaries only.",
   "runtimeReport": "dreamcast/converted/sm2-spider-man-runtime/runtime-menu-proof/runtime-validation.json",
-  "runtimeReportSha256": "",
+  "runtimeReportSha256": "83ecdacedf9f787ccacbfcf2184a8cd1512a106f052fbfde2a3ec9c76ea5da1e",
   "textureProvenance": {
     "packReport": "dreamcast/converted/sm2-spider-man-runtime/costume-pack.json",
     "dreamcastActor": "dreamcast/converted/sm2-spider-man-runtime/spidey.psx",
@@ -33,40 +33,46 @@
     "environmentPolicy": "No PS1 SM2 environment replacement."
   },
   "costumes": [
-    {"slot": 0, "status": "invalidated-stale-runtime-evidence", "evidenceDirectory": "dreamcast/converted/sm2-spider-man-runtime/runtime-menu-proof/slot-00"},
-    {"slot": 1, "status": "invalidated-stale-runtime-evidence", "evidenceDirectory": "dreamcast/converted/sm2-spider-man-runtime/runtime-menu-proof/slot-01"},
-    {"slot": 2, "status": "invalidated-stale-runtime-evidence", "evidenceDirectory": "dreamcast/converted/sm2-spider-man-runtime/runtime-menu-proof/slot-02"},
-    {"slot": 3, "status": "invalidated-stale-runtime-evidence", "evidenceDirectory": "dreamcast/converted/sm2-spider-man-runtime/runtime-menu-proof/slot-03"},
-    {"slot": 4, "status": "invalidated-stale-runtime-evidence", "evidenceDirectory": "dreamcast/converted/sm2-spider-man-runtime/runtime-menu-proof/slot-04"},
-    {"slot": 5, "status": "invalidated-stale-runtime-evidence", "evidenceDirectory": "dreamcast/converted/sm2-spider-man-runtime/runtime-menu-proof/slot-05"},
-    {"slot": 6, "status": "invalidated-stale-runtime-evidence", "evidenceDirectory": "dreamcast/converted/sm2-spider-man-runtime/runtime-menu-proof/slot-06"},
-    {"slot": 7, "status": "invalidated-stale-runtime-evidence", "evidenceDirectory": "dreamcast/converted/sm2-spider-man-runtime/runtime-menu-proof/slot-07"},
-    {"slot": 8, "status": "invalidated-stale-runtime-evidence", "evidenceDirectory": "dreamcast/converted/sm2-spider-man-runtime/runtime-menu-proof/slot-08"},
-    {"slot": 9, "status": "invalidated-stale-runtime-evidence", "evidenceDirectory": "dreamcast/converted/sm2-spider-man-runtime/runtime-menu-proof/slot-09"},
-    {"slot": 10, "status": "invalidated-stale-runtime-evidence", "evidenceDirectory": "dreamcast/converted/sm2-spider-man-runtime/runtime-menu-proof/slot-10"},
-    {"slot": 11, "status": "invalidated-stale-runtime-evidence", "evidenceDirectory": "dreamcast/converted/sm2-spider-man-runtime/runtime-menu-proof/slot-11"},
-    {"slot": 12, "status": "invalidated-stale-runtime-evidence", "evidenceDirectory": "dreamcast/converted/sm2-spider-man-runtime/runtime-menu-proof/slot-12"},
+    {"slot": 0, "status": "manual-visual-pass", "evidenceDirectory": "dreamcast/converted/sm2-spider-man-runtime/runtime-menu-proof/slot-00"},
+    {"slot": 1, "status": "manual-visual-pass", "evidenceDirectory": "dreamcast/converted/sm2-spider-man-runtime/runtime-menu-proof/slot-01"},
+    {"slot": 2, "status": "manual-visual-pass", "evidenceDirectory": "dreamcast/converted/sm2-spider-man-runtime/runtime-menu-proof/slot-02"},
+    {"slot": 3, "status": "manual-visual-pass", "evidenceDirectory": "dreamcast/converted/sm2-spider-man-runtime/runtime-menu-proof/slot-03"},
+    {"slot": 4, "status": "manual-visual-pass", "evidenceDirectory": "dreamcast/converted/sm2-spider-man-runtime/runtime-menu-proof/slot-04"},
+    {"slot": 5, "status": "manual-visual-pass", "evidenceDirectory": "dreamcast/converted/sm2-spider-man-runtime/runtime-menu-proof/slot-05"},
+    {"slot": 6, "status": "manual-visual-pass", "evidenceDirectory": "dreamcast/converted/sm2-spider-man-runtime/runtime-menu-proof/slot-06"},
+    {"slot": 7, "status": "manual-visual-pass", "evidenceDirectory": "dreamcast/converted/sm2-spider-man-runtime/runtime-menu-proof/slot-07"},
+    {"slot": 8, "status": "manual-visual-pass", "evidenceDirectory": "dreamcast/converted/sm2-spider-man-runtime/runtime-menu-proof/slot-08"},
+    {"slot": 9, "status": "manual-visual-pass", "evidenceDirectory": "dreamcast/converted/sm2-spider-man-runtime/runtime-menu-proof/slot-09"},
+    {"slot": 10, "status": "manual-visual-pass", "evidenceDirectory": "dreamcast/converted/sm2-spider-man-runtime/runtime-menu-proof/slot-10"},
+    {"slot": 11, "status": "manual-visual-pass", "evidenceDirectory": "dreamcast/converted/sm2-spider-man-runtime/runtime-menu-proof/slot-11"},
+    {"slot": 12, "status": "manual-visual-pass", "evidenceDirectory": "dreamcast/converted/sm2-spider-man-runtime/runtime-menu-proof/slot-12"},
     {
       "slot": 13,
-      "status": "invalidated-stale-runtime-evidence",
+      "status": "manual-visual-pass",
       "evidenceDirectory": "dreamcast/converted/sm2-spider-man-runtime/runtime-menu-proof/slot-13",
       "adaptation": "Dedicated Dreamcast Bag-Man geometry and textures on the complete SM2 skeleton; interactive selection swaps the complete processed actor binding rather than relying on a test-time spidey.psx alias; no fabricated generic wings; topology-guarded nested-shell depth ordering; compact VRAM pages plus original-resolution host replacements."
     },
     {
       "slot": 14,
-      "status": "invalidated-stale-runtime-evidence",
+      "status": "manual-visual-pass",
       "evidenceDirectory": "dreamcast/converted/sm2-spider-man-runtime/runtime-menu-proof/slot-14",
       "retailComparison": "dreamcast/converted/sm2-spider-man-runtime/retail-menu-proof-slot14/slot-14/menu_sequence_contact.png",
       "finding": "The cyan torso and broad white eye/visor treatment match the untouched retail PS1 actor across the complete five-frame pose sequence; sp_tex14.psx is byte-exact retail data."
     },
-    {"slot": 15, "status": "invalidated-stale-runtime-evidence", "evidenceDirectory": "dreamcast/converted/sm2-spider-man-runtime/runtime-menu-proof/slot-15"},
-    {"slot": 16, "status": "invalidated-stale-runtime-evidence", "evidenceDirectory": "dreamcast/converted/sm2-spider-man-runtime/runtime-menu-proof/slot-16"},
+    {"slot": 15, "status": "manual-visual-pass", "evidenceDirectory": "dreamcast/converted/sm2-spider-man-runtime/runtime-menu-proof/slot-15"},
+    {"slot": 16, "status": "manual-visual-pass", "evidenceDirectory": "dreamcast/converted/sm2-spider-man-runtime/runtime-menu-proof/slot-16"},
     {
       "slot": 17,
-      "status": "invalidated-stale-runtime-evidence",
+      "status": "manual-visual-pass",
       "evidenceDirectory": "dreamcast/converted/sm2-spider-man-runtime/runtime-menu-proof/slot-17",
       "adaptation": "Dedicated Dreamcast Peter Parker geometry and textures on the complete SM2 skeleton; interactive selection swaps the complete processed actor binding rather than relying on a test-time spidey.psx alias; no fabricated generic wings; compact VRAM pages plus original-resolution host replacements."
     },
-    {"slot": 18, "status": "invalidated-stale-runtime-evidence", "evidenceDirectory": "dreamcast/converted/sm2-spider-man-runtime/runtime-menu-proof/slot-18"}
+    {
+      "slot": 18,
+      "status": "manual-visual-pass",
+      "evidenceDirectory": "dreamcast/converted/sm2-spider-man-runtime/runtime-menu-proof/slot-18",
+      "retailComparison": "dreamcast/converted/sm2-spider-man-runtime/retail-comparison-proof/slot-18/frame_02972.png",
+      "finding": "The pale chest, thigh, shin, and exposed lower-face regions match the untouched retail PS1 SM2 actor; sp_tex18.psx is byte-exact retail data rather than a UV-transfer artifact."
+    }
   ]
 }

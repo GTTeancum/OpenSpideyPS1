@@ -74,9 +74,12 @@ GAMEPLAY_HUD_REGION_SIGNATURES = {
         "bounds": (190, 265, 600, 430),
         "sha256": "8b42359d884aca674552742476395c35e5f3de5e9a73c23c4c78a06503418ec8",
     },
-    "compassFrame": {
-        "bounds": (1900, 1450, 2520, 1910),
-        "sha256": "adef944897aa9aa0d569da6b248109e45f5ea77d3766d1d274d46999524376f9",
+    # The compass arrow rotates with player heading, so hashing its large bounding
+    # box rejected genuine gameplay. The web-meter body is opaque, actor-free HUD
+    # chrome and remains exact for this no-web-use capture route.
+    "webMeterFrame": {
+        "bounds": (105, 390, 220, 700),
+        "sha256": "9cd6d2d37742c2e54085b285ea499c015fe39ce5878cc2c37ddb747f42adf57c",
     },
 }
 
