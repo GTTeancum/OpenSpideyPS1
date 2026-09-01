@@ -2,10 +2,22 @@
   "schemaVersion": 1,
   "lastUpdated": "2026-09-01",
   "runtimeReport": "dreamcast/converted/all-characters-costumes-runtime-current/runtime-validation.json",
-  "runtimeReportSha256": "4ed37005aeadda2660e65de769c5f03a848287fa33a8c54ece17e816baaea427",
-  "captureGate": "schema-2 exact main-menu signatures at 4x; FMV/title frames fail closed",
+  "runtimeReportSha256": "cef07282b7ccdcf2a847fa5e19ea5566a86637c7b20386aee87868ad0c4c22d9",
+  "captureGate": "schema-3 exact main-menu signatures at 4x plus the native live-menu 3D-model gate; FMV/title/non-menu frames fail closed",
   "reviewMethod": "Every one of the seven frames for each costume was inspected individually and sequentially; contact sheets and image metrics were not substituted for visual review.",
-  "frameNumbers": [600, 750, 900, 1050, 1200, 1350, 1500],
+  "reviewedFrameCount": 70,
+  "captureFramesByCostume": {
+    "spiderman": [693, 843, 993, 1143, 1293, 1443, 1593],
+    "2099": [708, 858, 1008, 1158, 1308, 1458, 1608],
+    "symbiote": [719, 869, 1019, 1169, 1319, 1469, 1619],
+    "captain": [694, 844, 994, 1144, 1294, 1444, 1594],
+    "unlimited": [692, 842, 992, 1142, 1292, 1442, 1592],
+    "bagman": [690, 840, 990, 1140, 1290, 1440, 1590],
+    "scarlet": [692, 842, 992, 1142, 1292, 1442, 1592],
+    "benreilly": [694, 844, 994, 1144, 1294, 1444, 1594],
+    "quickchange": [713, 863, 1013, 1163, 1313, 1463, 1613],
+    "peterparker": [694, 844, 994, 1144, 1294, 1444, 1594]
+  },
   "costumes": [
     {
       "slot": 0,
@@ -64,7 +76,7 @@
       "status": "user-review-required",
       "blocksClearance": true,
       "evidenceDirectory": "dreamcast/converted/all-characters-costumes-runtime-current/08-quickchange",
-      "note": "The seven frames are coherent and source-parity evidence supports the black sock/shoe transitions and jacket flaps, but the user explicitly held the feet and jacket for a more thorough review."
+      "note": "The seven frames reach and remain on the live main menu, but the user explicitly held the feet and jacket for a more thorough weighting review; the ankle/cuff transitions and jacket edges remain visible in the fresh sequence and are not cleared by this capture-validity pass."
     },
     {
       "slot": 9,

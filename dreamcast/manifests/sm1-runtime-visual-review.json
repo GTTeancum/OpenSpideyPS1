@@ -82,25 +82,27 @@
     },
     "hostagef": {
       "runtimeReport": "dreamcast/converted/hostagef-viewer-probe/runtime-validation.json",
-      "runtimeReportSha256": "8420a54ec34902fe371c227ef9531a0ed7407893cf5c7d91bcb17b9038d29be0",
+      "runtimeReportSha256": "1e4969c297db48fe003f315c3b81fc026c12bcd941657358f4a061de3f834ef0",
       "reviewedFrameCount": 2,
+      "frameNumbers": [1795, 2349],
       "status": "manual-probe-review-complete",
-      "finding": "Both captures were inspected; the HOSTAGEF alias is complete and coherent in the Parker viewer slot."
+      "finding": "Both fresh schema-3 captures were inspected individually after their exact model loads passed the native live-3D 16bpp and CHARACTER VIEWER gates. The target frame shows the complete HOSTAGEF kneeling/surrender pose with intact head, limbs, and light-colored clothing in the Parker viewer slot."
     },
     "symbiote": {
       "runtimeReport": "dreamcast/converted/symbiote-compatible-viewer-probe/runtime-validation.json",
-      "runtimeReportSha256": "84807ecc899d7c7b2726d892d503ec4c8f626360ee264082fcd49988d9185550",
+      "runtimeReportSha256": "dca5790e29192b2040f748c12149363cc47fc0bfcce27ceb35b68555faa0a7fa",
       "reviewedFrameCount": 19,
+      "frameNumbers": [1777, 2333, 2633, 2933, 3233, 3533, 3833, 4133, 4433, 4733, 5033, 5333, 5633, 5933, 6233, 6533, 6833, 7133, 7433],
       "status": "manual-probe-review-complete",
-      "finding": "All 19 sequential roster captures were inspected. The final target capture confirms that the otherwise unrouted SYMBIOTE alias matches the authored translucent goo form used by the compatible SYMBI_02 slot."
+      "finding": "All 19 fresh schema-3 captures were inspected individually in exact roster order after their model-load-anchored native live-3D 16bpp and CHARACTER VIEWER gates passed. The final target frame confirms that the otherwise unrouted SYMBIOTE alias is the complete authored translucent magenta goo form used by the compatible SYMBI_02 slot."
     },
     "jamesonScorpion": {
       "runtimeReport": "dreamcast/converted/jameson-scorpion-runtime-alias-gameplay-proof/runtime-validation.json",
-      "runtimeReportSha256": "a4f10fd128674d6f700360670fd681773ac36f770b41fae3cf89f2c916f29244",
+      "runtimeReportSha256": "c16ab517fac9f2679473543bc2482606c381d7cd30850c5177a9ff7adec86a72",
       "reviewedFrameCount": 11,
       "frameNumbers": [4200, 4225, 4250, 4275, 4300, 4325, 4350, 4375, 4400, 4425, 4450],
       "status": "manual-gameplay-review-complete-user-review-required",
-      "finding": "Scorpion's tail remains attached, continuously articulated, blue/green textured, and hook-aligned through all 11 frames. Jameson's body is not visible in this sequence, so these frames prove his resource/runtime presence but not his appearance; his current neutral-grey visual evidence is the schema-3 Character Viewer frame_04130.png. Both actors remain held for user acceptance."
+      "finding": "All 11 fresh schema-4 frames passed the positive gameplay gate and explicit GAME OVER plus SAVE GAME PROGRESS exclusions, then were inspected individually in sequence. Scorpion's blue/green tail remains connected and continuously articulated through its curl, sweep, and extension. Jameson's body is partially visible at the far right in frames 4275 through 4325 with a stable gray/blue shirt, red tie, and beige trousers rather than the earlier technicolor corruption; his clearest full-body evidence remains the neutral-gray schema-3 Character Viewer capture. Both actors remain held for user acceptance."
     }
   }
 }
