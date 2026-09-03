@@ -43,6 +43,8 @@ public static class HostWindow
     static float _dpiScale = 1f;
 
     public static float DpiScale => _dpiScale;
+    public static bool IsHeadless => _headless;
+    public static bool SuppressAutomaticDiscPicker { get; set; }
 
     static unsafe float QueryDpiScale()
     {
@@ -427,8 +429,9 @@ public static class HostWindow
         ConfigManager.ApplyViewToPanels(PanelManager.Panels);
 
         var cdPath = ConfigManager.Game.CdPath;
-        if (string.IsNullOrWhiteSpace(cdPath) || (!File.Exists(cdPath) && !Directory.Exists(cdPath)) ||
-            Runtime.ValidateDisc(cdPath) != null)
+        if (!SuppressAutomaticDiscPicker &&
+            (string.IsNullOrWhiteSpace(cdPath) || (!File.Exists(cdPath) && !Directory.Exists(cdPath)) ||
+             Runtime.ValidateDisc(cdPath) != null))
             PopupManager.Open<DiscPickerPopup>();
     }
 
@@ -514,6 +517,7 @@ public static class HostWindow
         DrawDockspace();
         PanelManager.DrawPanels();
         PopupManager.Draw();
+        Cdrom.FirstRunDiscInstaller.Draw();
         gl.BindFramebuffer(FramebufferTarget.Framebuffer, 0);
         gl.Viewport(0, 0, (uint)fbDef.X, (uint)fbDef.Y);
         _imgui.Render();

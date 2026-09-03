@@ -50,6 +50,13 @@ port all read `extracted/` afterward; BIN/CUE is not a runtime dependency and ca
 removed or archived after this first import. At runtime, CD.WAD lookups are served from
 the individual files under `extracted/wad/` as well.
 
+`dotnet publish port/SpiderMan2.csproj -c Release` produces one windowed executable.
+On its first launch it requests **Spider-Man 2: Enter Electro (USA) (Rev 1),
+SLUS-01378**, validates that exact revision, and performs the loose extraction with
+elapsed time and a progress bar inside the game window. The Dreamcast player upgrade
+and texture pack are embedded and require no supplemental disc. See
+[`../docs/first-run-installation.md`](../docs/first-run-installation.md).
+
 `tools/build.py` converges at **3,262 functions** across 29 modules with **9 residual
 targets**, which are jump-table analysis running off the end of a real table into the
 data after it — unreachable by any real path.

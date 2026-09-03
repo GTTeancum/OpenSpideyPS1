@@ -64,11 +64,16 @@ falling. It currently converges at **3,314 functions** across 31 modules with
 **17 residual targets**, which are jump-table analysis running off the end of a real
 table into the data after it — unreachable by any real path.
 
-Run it:
+Run the development build:
 
 ```bash
 ./port/bin/Release/net10.0/SpiderMan.exe
 ```
+
+`dotnet publish port/SpiderMan.csproj -c Release` produces one windowed executable.
+On its first launch it requests **Spider-Man (USA), SLUS-00875**, validates the exact
+revision, and extracts loose runtime data with elapsed time and a progress bar inside
+the game window. See [`../docs/first-run-installation.md`](../docs/first-run-installation.md).
 
 ---
 
@@ -235,29 +240,12 @@ The recompiler has two matching switches: `"spAudit": true` in `config/spiderman
 checks that every function restores the stack pointer and the callee-saved registers,
 and `"callRing": true` keeps the ring the watchdog prints.
 
-## Using Spider-Man 2's default suit
+## Bundled Dreamcast models and imported suits
 
-SM2's `spidey.psx` model is compatible with SM1, but its default texture library uses
-different texture-name hashes and is one disc sector larger than SM1's slot. Prepare an
-override from legally extracted SM2 assets, then point the SM1 port at it:
-
-```bash
-python spiderman/tools/port_sm2_default_suit.py
-SPIDEY_ASSET_DIR=spiderman/extracted/asset-overrides/sm2-default \
-  spiderman/port/bin/Release/net10.0/SpiderMan.exe
-```
-
-Run those commands from the repository root. The converter copies the SM2 model
-unchanged and rewrites only the fourteen-entry texture-name table in `sp_tex00.psx`.
-The runtime serves every archive entry from SM1's `extracted/wad/` directory. Files in
-`SPIDEY_ASSET_DIR` take precedence by name, so this two-file output replaces
-`spidey.psx` and `sp_tex00.psx` without editing SM1's extraction. The SM2 mesh
-intentionally includes underarm web-wing polygons that SM1's mesh does not; the current
-result leaves them in place. Source and converted assets remain under the gitignored
-`extracted/` directories.
-
-The full binary investigation, failed raw-swap diagnosis, index mapping, validation
-hashes, loose-file route, and repeatable capture procedure are documented in
+The published executable embeds the approved Dreamcast SM1 cast, all imported SM2
+suits, and their host-resolution texture pack. They materialize automatically under
+`assets/builtin`; players do not run a converter, set `SPIDEY_ASSET_DIR`, or supply a
+Dreamcast/SM2 disc. The conversion and audit workflow remains documented in
 [`../docs/ports/sm2-default-suit-in-sm1.md`](../docs/ports/sm2-default-suit-in-sm1.md).
 
 ## Verifying

@@ -1,6 +1,6 @@
 using System;
 using System.IO;
-using System.Linq;
+using System.Reflection;
 using RecompOne.Runtime.Memory;
 using Recompiled;
 using Capture = Recompiled.Capture;
@@ -11,6 +11,16 @@ public static class Program
 {
     const string Title = "Spider-Man";
     const string BootFile = "SLUS_008.75";
+    static readonly RecompOne.Runtime.Cdrom.DiscInstallProfile InstallProfile = new(
+        Title,
+        "Spider-Man (USA)",
+        "SLUS-00875",
+        BootFile,
+        749568,
+        "D2270E35581BA083D9441166E9A45EAD4F869AB07E890F9A512AD7EE4CC0B15B",
+        "527804F26A9E9B459E2BD378D2AA36FA3EA5DDE18C6EC9456BF58772EEDEB9D2",
+        310262,
+        "OpenSpidey.BundledAssets.zip");
 
     /// <summary>
     /// 8 MB rather than the retail 2 MB. The extra space is not for the game -- its own
@@ -36,14 +46,38 @@ public static class Program
         }
         catch { }
 
-        string gameData = ResolveGameData(args);
-        if (gameData == null)
+        string installRoot = ExeDirectory() ?? AppContext.BaseDirectory;
+        string installOutput = InstallOutput(installRoot);
+        string gameData;
+        try
         {
-            Console.Error.WriteLine("[SpiderMan] no loose game data; pass BIN/CUE once to import it");
+            gameData = RecompOne.Runtime.Cdrom.FirstRunDiscInstaller.EnsureInstalled(
+                InstallProfile,
+                installOutput,
+                ResolveExistingGameData(args),
+                RequestedImage(args),
+                Assembly.GetExecutingAssembly());
+        }
+        catch (Exception e)
+        {
+            Console.Error.WriteLine("[SpiderMan] setup failed: " + e.Message);
+            RecompOne.Runtime.Runtime.Shutdown();
             return 2;
         }
         SeedSettings(gameData);
+        RecompOne.Runtime.Config.ConfigManager.Game.CdPath = gameData;
+        if (string.IsNullOrWhiteSpace(Environment.GetEnvironmentVariable("SPIDEY_ASSET_DIR")))
+            Environment.SetEnvironmentVariable(
+                "SPIDEY_ASSET_DIR",
+                Path.Combine(Path.GetDirectoryName(installOutput)!, "assets", "builtin"));
         RecompOne.Runtime.Assets.LooseWadOverrides.Initialize(gameData);
+        if (string.Equals(
+            Environment.GetEnvironmentVariable("RECOMP_INSTALL_ONLY"), "1",
+            StringComparison.Ordinal))
+        {
+            RecompOne.Runtime.Runtime.Shutdown();
+            return 0;
+        }
 
         // A generated loose-actor batch may carry its matching host-resolution
         // texture pack beside the PSX compatibility assets. Keep the batch
@@ -215,15 +249,15 @@ public static class Program
         return string.IsNullOrEmpty(exe) ? AppContext.BaseDirectory : Path.GetDirectoryName(exe);
     }
 
-    // Runtime media is a loose-file directory. A BIN/CUE or CHD is accepted only as
-    // one-time import media; once the manifest exists, it is never opened again.
-    static string ResolveGameData(string[] args)
+    // Development builds may reuse a known loose tree. Shipped builds naturally fall
+    // through to the executable-relative game directory managed by the installer.
+    static string ResolveExistingGameData(string[] args)
     {
         if (args.Length > 0)
         {
             string requested = Path.GetFullPath(args[0]);
             if (RecompOne.Runtime.Cdrom.LooseDiscImage.IsLooseDirectory(requested)) return requested;
-            if (File.Exists(requested)) return ImportImage(requested);
+            return null;
         }
 
         foreach (var dir in CandidateDirs())
@@ -239,29 +273,22 @@ public static class Program
                     return Path.GetFullPath(candidate);
         }
 
-        foreach (var dir in CandidateDirs())
-        {
-            if (!Directory.Exists(dir)) continue;
-            // Two games share this repository; take the one this port is built for.
-            var hit = Directory.GetFiles(dir, "*.cue")
-                               .FirstOrDefault(f => Path.GetFileName(f).StartsWith("Spider-Man (", StringComparison.OrdinalIgnoreCase));
-            if (hit != null) return ImportImage(hit);
-        }
         return null;
     }
 
-    static string ImportImage(string image)
+    static string RequestedImage(string[] args)
+    {
+        if (args.Length == 0) return null;
+        string path = Path.GetFullPath(args[0]);
+        return File.Exists(path) ? path : null;
+    }
+
+    static string InstallOutput(string installRoot)
     {
         string output = Environment.GetEnvironmentVariable("SPIDEY_DATA");
-        if (string.IsNullOrWhiteSpace(output))
-        {
-            output = CandidateDirs()
-                .Select(dir => Path.Combine(dir, "spiderman", "extracted"))
-                .FirstOrDefault(Directory.Exists);
-        }
-        if (string.IsNullOrWhiteSpace(output))
-            output = Path.Combine(ExeDirectory() ?? AppContext.BaseDirectory, "game");
-        return RecompOne.Runtime.Cdrom.LooseDiscImporter.Import(image, output, BootFile);
+        return string.IsNullOrWhiteSpace(output)
+            ? Path.Combine(installRoot, "game")
+            : Path.GetFullPath(output);
     }
 
     static System.Collections.Generic.IEnumerable<string> CandidateDirs()
@@ -308,16 +335,6 @@ public static class Program
     /// </summary>
     static string ValidateDisc(string path)
     {
-        try
-        {
-            using var fs = RecompOne.Runtime.Cdrom.DiscFs.Open(path);
-            if (!fs.Locate(BootFile, out _, out _))
-                return $"expected {BootFile} (Spider-Man, USA) on the disc; not found";
-            return null;
-        }
-        catch (Exception e)
-        {
-            return e.Message;
-        }
+        return RecompOne.Runtime.Cdrom.DiscRevisionValidator.Validate(path, InstallProfile);
     }
 }

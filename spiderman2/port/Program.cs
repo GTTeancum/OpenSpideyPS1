@@ -1,6 +1,6 @@
 using System;
 using System.IO;
-using System.Linq;
+using System.Reflection;
 using RecompOne.Runtime.Memory;
 using Recompiled;
 using Capture = Recompiled.Capture;
@@ -11,6 +11,16 @@ public static class Program
 {
     const string Title = "Spider-Man 2: Enter Electro";
     const string BootFile = "SLUS_013.78";
+    static readonly RecompOne.Runtime.Cdrom.DiscInstallProfile InstallProfile = new(
+        Title,
+        "Spider-Man 2: Enter Electro (USA) (Rev 1)",
+        "SLUS-01378",
+        BootFile,
+        786432,
+        "C121FD42DBA9DC0694A83033DD17683149072C086C671DB3B9139CCD38F232EC",
+        "324BF4A37F78AE931AD3BD1F4930DCFCFEF39C0E8DEAB28F089B3315D9BB4D93",
+        305023,
+        "OpenSpidey.BundledAssets.zip");
 
     /// <summary>
     /// 8 MB rather than the retail 2 MB. The extra space is not for the game -- its own
@@ -36,14 +46,38 @@ public static class Program
         }
         catch { }
 
-        string gameData = ResolveGameData(args);
-        if (gameData == null)
+        string installRoot = ExeDirectory() ?? AppContext.BaseDirectory;
+        string installOutput = InstallOutput(installRoot);
+        string gameData;
+        try
         {
-            Console.Error.WriteLine("[SpiderMan2] no loose game data; pass BIN/CUE once to import it");
+            gameData = RecompOne.Runtime.Cdrom.FirstRunDiscInstaller.EnsureInstalled(
+                InstallProfile,
+                installOutput,
+                ResolveExistingGameData(args),
+                RequestedImage(args),
+                Assembly.GetExecutingAssembly());
+        }
+        catch (Exception e)
+        {
+            Console.Error.WriteLine("[SpiderMan2] setup failed: " + e.Message);
+            RecompOne.Runtime.Runtime.Shutdown();
             return 2;
         }
         SeedSettings(gameData);
+        RecompOne.Runtime.Config.ConfigManager.Game.CdPath = gameData;
+        if (string.IsNullOrWhiteSpace(Environment.GetEnvironmentVariable("SPIDEY_ASSET_DIR")))
+            Environment.SetEnvironmentVariable(
+                "SPIDEY_ASSET_DIR",
+                Path.Combine(Path.GetDirectoryName(installOutput)!, "assets", "builtin"));
         RecompOne.Runtime.Assets.LooseWadOverrides.Initialize(gameData);
+        if (string.Equals(
+            Environment.GetEnvironmentVariable("RECOMP_INSTALL_ONLY"), "1",
+            StringComparison.Ordinal))
+        {
+            RecompOne.Runtime.Runtime.Shutdown();
+            return 0;
+        }
 
         // A generated Dreamcast actor batch can carry original-resolution host
         // textures beside its compact PS1-VRAM compatibility pages. Keep that
@@ -200,15 +234,13 @@ public static class Program
         return string.IsNullOrEmpty(exe) ? AppContext.BaseDirectory : Path.GetDirectoryName(exe);
     }
 
-    // Runtime media is a loose-file directory. A BIN/CUE or CHD is accepted only as
-    // one-time import media; once the manifest exists, it is never opened again.
-    static string ResolveGameData(string[] args)
+    static string ResolveExistingGameData(string[] args)
     {
         if (args.Length > 0)
         {
             string requested = Path.GetFullPath(args[0]);
             if (RecompOne.Runtime.Cdrom.LooseDiscImage.IsLooseDirectory(requested)) return requested;
-            if (File.Exists(requested)) return ImportImage(requested);
+            return null;
         }
 
         foreach (var dir in CandidateDirs())
@@ -224,30 +256,22 @@ public static class Program
                     return Path.GetFullPath(candidate);
         }
 
-        foreach (var dir in CandidateDirs())
-        {
-            if (!Directory.Exists(dir)) continue;
-            // Two games share this repository, and their cue sheets sit side by side in
-            // the same folder. Match this game's and never the other's: "Spider-Man 2".
-            var hit = Directory.GetFiles(dir, "*.cue")
-                               .FirstOrDefault(f => Path.GetFileName(f).StartsWith("Spider-Man 2", StringComparison.OrdinalIgnoreCase));
-            if (hit != null) return ImportImage(hit);
-        }
         return null;
     }
 
-    static string ImportImage(string image)
+    static string RequestedImage(string[] args)
+    {
+        if (args.Length == 0) return null;
+        string path = Path.GetFullPath(args[0]);
+        return File.Exists(path) ? path : null;
+    }
+
+    static string InstallOutput(string installRoot)
     {
         string output = Environment.GetEnvironmentVariable("SPIDEY_DATA");
-        if (string.IsNullOrWhiteSpace(output))
-        {
-            output = CandidateDirs()
-                .Select(dir => Path.Combine(dir, "spiderman2", "extracted"))
-                .FirstOrDefault(Directory.Exists);
-        }
-        if (string.IsNullOrWhiteSpace(output))
-            output = Path.Combine(ExeDirectory() ?? AppContext.BaseDirectory, "game");
-        return RecompOne.Runtime.Cdrom.LooseDiscImporter.Import(image, output, BootFile);
+        return string.IsNullOrWhiteSpace(output)
+            ? Path.Combine(installRoot, "game")
+            : Path.GetFullPath(output);
     }
 
     static System.Collections.Generic.IEnumerable<string> CandidateDirs()
@@ -295,16 +319,6 @@ public static class Program
     /// </summary>
     static string ValidateDisc(string path)
     {
-        try
-        {
-            using var fs = RecompOne.Runtime.Cdrom.DiscFs.Open(path);
-            if (!fs.Locate(BootFile, out _, out _))
-                return "expected " + BootFile + " (Spider-Man 2: Enter Electro, USA) on the disc; not found";
-            return null;
-        }
-        catch (Exception e)
-        {
-            return e.Message;
-        }
+        return RecompOne.Runtime.Cdrom.DiscRevisionValidator.Validate(path, InstallProfile);
     }
 }

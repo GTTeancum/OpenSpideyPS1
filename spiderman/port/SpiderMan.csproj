@@ -1,7 +1,7 @@
 <Project Sdk="Microsoft.NET.Sdk">
 
     <PropertyGroup>
-        <OutputType>Exe</OutputType>
+        <OutputType>WinExe</OutputType>
         <TargetFramework>net10.0</TargetFramework>
         <ImplicitUsings>enable</ImplicitUsings>
         <Nullable>disable</Nullable>
@@ -64,6 +64,13 @@
         -->
         <EmbeddedResource Include="..\config\funcmaps\*.json" Exclude="..\config\funcmaps\*_sweep.json">
             <LogicalName>funcmaps.%(Filename)%(Extension)</LogicalName>
+        </EmbeddedResource>
+    </ItemGroup>
+
+    <ItemGroup>
+        <!-- Deterministic ship payload; materialized beside the executable on first run. -->
+        <EmbeddedResource Include="bundled\runtime-assets.zip">
+            <LogicalName>OpenSpidey.BundledAssets.zip</LogicalName>
         </EmbeddedResource>
     </ItemGroup>
 

@@ -222,20 +222,45 @@ public sealed class LooseDiscImage : IDiscImage
 /// <summary>One-time importer from BIN/CUE or CHD to the loose runtime layout.</summary>
 public static class LooseDiscImporter
 {
+    public readonly record struct Progress(
+        string Stage,
+        string CurrentFile,
+        int FilesCompleted,
+        int TotalFiles,
+        long BytesCompleted,
+        long TotalBytes);
+
     public static string Import(string imagePath, string outputDirectory, string gameId)
+        => Import(imagePath, outputDirectory, gameId, null, CancellationToken.None);
+
+    public static string Import(
+        string imagePath,
+        string outputDirectory,
+        string gameId,
+        IProgress<Progress>? progress,
+        CancellationToken cancellationToken)
     {
         string output = Path.GetFullPath(outputDirectory);
         Directory.CreateDirectory(output);
         string manifestPath = Path.Combine(output, LooseDiscImage.ManifestName);
         if (File.Exists(manifestPath))
         {
-            EnsureWad(output);
+            EnsureWad(output, progress, cancellationToken);
             return output;
         }
 
         Console.WriteLine($"[import] extracting {gameId} to loose files: {output}");
         using var fs = DiscFs.Open(imagePath);
         var files = fs.EnumerateFiles().ToList();
+        long discBytes = files.Sum(file =>
+            IsRaw2336(file.Path)
+                ? ((file.Size + 2047L) / 2048L) * 2336L
+                : file.Size);
+        long wadBytes = WadPayloadSize(fs, files);
+        long totalBytes = discBytes + wadBytes;
+        long completedBytes = 0;
+        int completedFiles = 0;
+        int totalFiles = files.Count + (wadBytes > 0 ? WadEntryCount(fs, files) : 0);
         var manifest = new LooseDiscImage.Manifest
         {
             GameId = gameId,
@@ -252,28 +277,39 @@ public static class LooseDiscImporter
 
         foreach (var file in files)
         {
+            cancellationToken.ThrowIfCancellationRequested();
             string relative = file.Path.Replace('\\', '/');
-            bool raw2336 = relative.EndsWith(".XA", StringComparison.OrdinalIgnoreCase) ||
-                           relative.EndsWith(".STR", StringComparison.OrdinalIgnoreCase);
+            bool raw2336 = IsRaw2336(relative);
             string destination = Path.Combine(output, relative.Replace('/', Path.DirectorySeparatorChar));
             Directory.CreateDirectory(Path.GetDirectoryName(destination)!);
-            long expected = raw2336 ? ((file.Size + 2047L) / 2048L) * 2336L : file.Size;
-
-            if (!File.Exists(destination) || new FileInfo(destination).Length != expected)
+            // The manifest is the commit marker. If it does not exist, rewrite every
+            // file through a .partial path; size alone cannot prove an interrupted or
+            // externally modified file contains the right bytes.
+            Console.WriteLine($"[import] {relative}");
+            string temporaryFile = destination + ".partial";
+            using (var stream = File.Create(temporaryFile))
             {
-                Console.WriteLine($"[import] {relative}");
-                if (raw2336)
+                int sectors = checked((int)((file.Size + 2047) / 2048));
+                for (int i = 0; i < sectors; i++)
                 {
-                    using var stream = File.Create(destination);
-                    int sectors = checked((int)((file.Size + 2047) / 2048));
-                    for (int i = 0; i < sectors; i++)
-                        stream.Write(fs.ReadSectorData(file.Lba + i, 2336));
-                }
-                else
-                {
-                    File.WriteAllBytes(destination, fs.ReadFile(relative));
+                    cancellationToken.ThrowIfCancellationRequested();
+                    byte[] sector = fs.ReadSectorData(file.Lba + i, raw2336 ? 2336 : 2048);
+                    int count = raw2336
+                        ? sector.Length
+                        : checked((int)Math.Min(2048L, file.Size - (long)i * 2048L));
+                    stream.Write(sector, 0, count);
+                    completedBytes += count;
+                    progress?.Report(new(
+                        "Extracting game files", relative, completedFiles, totalFiles,
+                        completedBytes, totalBytes));
                 }
             }
+            File.Move(temporaryFile, destination, true);
+
+            completedFiles++;
+            progress?.Report(new(
+                "Extracting game files", relative, completedFiles, totalFiles,
+                completedBytes, totalBytes));
 
             manifest.Files.Add(new LooseDiscImage.ManifestFile
             {
@@ -286,13 +322,26 @@ public static class LooseDiscImporter
 
         string temporary = manifestPath + ".tmp";
         File.WriteAllText(temporary, JsonSerializer.Serialize(manifest, LooseDiscImage.JsonOptions()));
-        EnsureWad(output);
+        EnsureWad(
+            output,
+            new ForwardProgress(progress, completedFiles, totalFiles, completedBytes, totalBytes),
+            cancellationToken,
+            force: true);
         File.Move(temporary, manifestPath, true);
+        progress?.Report(new(
+            "Complete", "", totalFiles, totalFiles, totalBytes, totalBytes));
         Console.WriteLine("[import] complete; the original image is no longer needed");
         return output;
     }
 
     public static void EnsureWad(string root)
+        => EnsureWad(root, null, CancellationToken.None);
+
+    public static void EnsureWad(
+        string root,
+        IProgress<Progress>? progress,
+        CancellationToken cancellationToken,
+        bool force = false)
     {
         string hedPath = Path.Combine(root, "CD.HED");
         string wadPath = Path.Combine(root, "CD.WAD");
@@ -302,10 +351,61 @@ public static class LooseDiscImporter
         using var wad = File.OpenRead(wadPath);
         string output = Path.Combine(root, "wad");
         Directory.CreateDirectory(output);
-        int cursor = 0;
         int extracted = 0;
+        int total = CountWadEntries(hed);
+        long totalBytes = WadEntries(hed).Sum(entry => (long)entry.Size);
+        long completedBytes = 0;
         // Retail HED tables use either a zero byte or 0xFF as the end marker.
         // SM1's final record is followed immediately by 0xFF at EOF.
+        foreach (var entry in WadEntries(hed))
+        {
+            cancellationToken.ThrowIfCancellationRequested();
+            if ((ulong)entry.Offset + entry.Size > (ulong)wad.Length)
+                throw new InvalidDataException($"CD.HED entry outside CD.WAD: {entry.Name}");
+            if (!Path.GetFileName(entry.Name).Equals(entry.Name, StringComparison.Ordinal))
+                throw new InvalidDataException($"unsafe CD.HED name: {entry.Name}");
+
+            string destination = Path.Combine(output, entry.Name);
+            if (force || !File.Exists(destination) || new FileInfo(destination).Length != entry.Size)
+            {
+                string temporaryFile = destination + ".partial";
+                using var destinationStream = File.Create(temporaryFile);
+                wad.Position = entry.Offset;
+                long remaining = entry.Size;
+                byte[] buffer = new byte[128 * 1024];
+                while (remaining > 0)
+                {
+                    cancellationToken.ThrowIfCancellationRequested();
+                    int count = checked((int)Math.Min(buffer.Length, remaining));
+                    wad.ReadExactly(buffer, 0, count);
+                    destinationStream.Write(buffer, 0, count);
+                    remaining -= count;
+                    completedBytes += count;
+                    progress?.Report(new(
+                        "Unpacking game archive", entry.Name, extracted, total,
+                        completedBytes, totalBytes));
+                }
+                destinationStream.Close();
+                File.Move(temporaryFile, destination, true);
+            }
+            else completedBytes += entry.Size;
+            extracted++;
+            progress?.Report(new(
+                "Unpacking game archive", entry.Name, extracted, total,
+                completedBytes, totalBytes));
+        }
+        Console.WriteLine($"[import] {extracted} CD.WAD entries available as loose files");
+    }
+
+    static bool IsRaw2336(string path) =>
+        path.EndsWith(".XA", StringComparison.OrdinalIgnoreCase) ||
+        path.EndsWith(".STR", StringComparison.OrdinalIgnoreCase);
+
+    readonly record struct WadEntry(string Name, uint Offset, uint Size);
+
+    static IEnumerable<WadEntry> WadEntries(byte[] hed)
+    {
+        int cursor = 0;
         while (cursor < hed.Length && hed[cursor] != 0 && hed[cursor] != 0xFF)
         {
             int end = Array.IndexOf(hed, (byte)0, cursor);
@@ -316,21 +416,40 @@ public static class LooseDiscImporter
             uint offset = BitConverter.ToUInt32(hed, cursor);
             uint size = BitConverter.ToUInt32(hed, cursor + 4);
             cursor += 8;
-            if ((ulong)offset + size > (ulong)wad.Length)
-                throw new InvalidDataException($"CD.HED entry outside CD.WAD: {name}");
-            if (!Path.GetFileName(name).Equals(name, StringComparison.Ordinal))
-                throw new InvalidDataException($"unsafe CD.HED name: {name}");
-
-            string destination = Path.Combine(output, name);
-            if (!File.Exists(destination) || new FileInfo(destination).Length != size)
-            {
-                byte[] data = new byte[size];
-                wad.Position = offset;
-                wad.ReadExactly(data);
-                File.WriteAllBytes(destination, data);
-            }
-            extracted++;
+            yield return new(name, offset, size);
         }
-        Console.WriteLine($"[import] {extracted} CD.WAD entries available as loose files");
+    }
+
+    static int CountWadEntries(byte[] hed) => WadEntries(hed).Count();
+
+    static long WadPayloadSize(DiscFs fs, List<DiscFs.DiscFile> files)
+    {
+        var hed = files.FirstOrDefault(file =>
+            file.Path.Equals("CD.HED", StringComparison.OrdinalIgnoreCase));
+        if (hed.Path == null) return 0;
+        return WadEntries(fs.ReadFile(hed.Path)).Sum(entry => (long)entry.Size);
+    }
+
+    static int WadEntryCount(DiscFs fs, List<DiscFs.DiscFile> files)
+    {
+        var hed = files.FirstOrDefault(file =>
+            file.Path.Equals("CD.HED", StringComparison.OrdinalIgnoreCase));
+        return hed.Path == null ? 0 : CountWadEntries(fs.ReadFile(hed.Path));
+    }
+
+    sealed class ForwardProgress(
+        IProgress<Progress>? target,
+        int baseFiles,
+        int totalFiles,
+        long baseBytes,
+        long totalBytes) : IProgress<Progress>
+    {
+        public void Report(Progress value) => target?.Report(value with
+        {
+            FilesCompleted = baseFiles + value.FilesCompleted,
+            TotalFiles = totalFiles,
+            BytesCompleted = baseBytes + value.BytesCompleted,
+            TotalBytes = totalBytes,
+        });
     }
 }
