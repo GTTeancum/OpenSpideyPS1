@@ -78,6 +78,12 @@ uses a magenta background clear to expose untouched pixels; `--no-magenta --fxaa
 --render-scale 4 --completed-view` produces clean final proofs. The magenta switch is
 never enabled by the game or production defaults.
 
+The completed view does not invent missing level polygons. Untouched side pixels can
+continue only the exact GTE-proven world color at the original 4:3 boundary, copied
+before any HUD draw. This prevents health bars or other screen-space art from smearing
+across the widened view; the visual suitability of that continuation remains part of
+the level-by-level audit.
+
 ---
 
 ## It is the same engine as Spider-Man, and that is the whole story of this port

@@ -115,6 +115,7 @@ public static class Program
                 : Math.Max(1, (int)Math.Round(60.0 / hz));
 
         Diag.Install();
+        GameTrace.Install();
         RecompOne.Runtime.Runtime.DiscValidator = ValidateDisc;
         EnableLogs(Environment.GetEnvironmentVariable("SPIDEY_LOG"));
         Capture.Install();
@@ -126,7 +127,7 @@ public static class Program
         Costume.Install();
         Rates.Install();
 
-        Wide.Install();
+        Wide.Install(completeBackdrop: true);
         Replay.Install();
         Harness.Install();
 

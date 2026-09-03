@@ -9,8 +9,6 @@ internal sealed class DisplaySettingsSection : ISettingsSection
     public string TitleKey => "settings.display";
     public int Order => 5;
 
-    static readonly string[] Backends = ["auto", "gl45", "gl33", "gl21"];
-
     public void Draw()
     {
         bool fullscreen = ConfigManager.View.Fullscreen;
@@ -58,15 +56,6 @@ internal sealed class DisplaySettingsSection : ISettingsSection
             ImGui.TextDisabled(Localization.T("settings.display.restart_pending"));
 
         ImGui.Separator();
-
-        int index = Array.IndexOf(Backends, ConfigManager.View.GpuBackend);
-        if (index < 0) index = 0;
-        if (ImGui.Combo(Localization.T("settings.display.backend"), ref index, Backends, Backends.Length))
-        {
-            ConfigManager.View.GpuBackend = Backends[index];
-            ConfigManager.SaveView(PanelManager.Panels);
-            NoticePopup.Show(Localization.T("common.restart_required"));
-        }
         ImGui.TextDisabled(Localization.T("settings.display.backend_running", Hle.GpuBackendFactory.Selected));
     }
 }

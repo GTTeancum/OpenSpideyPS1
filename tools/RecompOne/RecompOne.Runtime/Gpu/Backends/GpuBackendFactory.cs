@@ -2,7 +2,15 @@ using Silk.NET.OpenGL;
 
 namespace RecompOne.Runtime.Hle;
 //the idea is to drop gl45 is gl33 is stable enought, in the future maybe add vulkan and dx backend?
-public enum GlBackendKind { Auto, Gl45, Gl33, Gl21 }
+public enum GlBackendKind
+{
+    Auto,
+    Gl45,
+    Gl33,
+#if RECOMPONE_LEGACY_RENDERER
+    Gl21,
+#endif
+}
 
 public static class GpuBackendFactory //fkn hate these factories
 {
@@ -14,7 +22,7 @@ public static class GpuBackendFactory //fkn hate these factories
         bool has33 = ContextAtLeast(gl, 3, 3);
 
         GlBackendKind kind = requested == GlBackendKind.Auto
-            ? (has45 ? GlBackendKind.Gl45 : has33 ? GlBackendKind.Gl33 : GlBackendKind.Gl21)
+            ? (has45 ? GlBackendKind.Gl45 : GlBackendKind.Gl33)
             : requested;
 
         if (kind == GlBackendKind.Gl45 && !has45)
@@ -24,21 +32,30 @@ public static class GpuBackendFactory //fkn hate these factories
         }
         if (kind == GlBackendKind.Gl33 && !has33)
         {
-            Console.WriteLine("[Gpu] gl33 requested but the context is below 3.3, falling back to gl21");
-            kind = GlBackendKind.Gl21;
+            throw new NotSupportedException(
+                "The modern renderer requires OpenGL 3.3 or newer; the legacy renderer is not part of this build.");
         }
 
+#if RECOMPONE_LEGACY_RENDERER
         if (kind == GlBackendKind.Gl21) ClampScaleToLimit(gl);
+#endif
 
         Selected = kind;
         IGlVram vram = kind switch
         {
             GlBackendKind.Gl45 => new Gl45Vram(gl),
             GlBackendKind.Gl33 => new Gl33Vram(gl),
-            _ => new Gl21Vram(gl),
+#if RECOMPONE_LEGACY_RENDERER
+            GlBackendKind.Gl21 => new Gl21Vram(gl),
+#endif
+            _ => throw new InvalidOperationException($"Unsupported renderer backend: {kind}"),
         };
         Console.WriteLine($"[Gpu] backend: {kind}");
+#if RECOMPONE_LEGACY_RENDERER
         return new GlCore(gl, vram, kind == GlBackendKind.Gl21);
+#else
+        return new GlCore(gl, vram, legacy: false);
+#endif
     }
 
     static bool ContextAtLeast(GL gl, int wantMajor, int wantMinor)
@@ -58,7 +75,8 @@ public static class GpuBackendFactory //fkn hate these factories
         return false;
     }
 
-    //old gpus limit at 2048 so the 4x vram texture would not fit, im too tired to think about a better solutino so for now capping it to the limit
+#if RECOMPONE_LEGACY_RENDERER
+    // Reference renderer support. This code is absent from normal and shipping builds.
     static void ClampScaleToLimit(GL gl)
     {
         int max;
@@ -73,6 +91,7 @@ public static class GpuBackendFactory //fkn hate these factories
             Console.WriteLine($"[Gpu] max texture size support is {max}, dropping the vram scale to {GlVram.Scale}");
         }
     }
+#endif
 
     static bool Supports45(GL gl)
     {
@@ -123,11 +142,16 @@ public static class GpuBackendFactory //fkn hate these factories
         catch { return "?"; }
     }
 
-    public static GlBackendKind Parse(string? s) => s?.ToLowerInvariant() switch
+    /// <summary>
+    /// Normal builds always choose the best modern backend. A source-only reference
+    /// build can deliberately opt into GL 2.1; no user setting exposes this path.
+    /// </summary>
+    public static GlBackendKind RequestedBackend()
     {
-        "gl45" => GlBackendKind.Gl45,
-        "gl33" => GlBackendKind.Gl33,
-        "gl21" => GlBackendKind.Gl21,
-        _ => GlBackendKind.Auto,
-    };
+#if RECOMPONE_LEGACY_RENDERER
+        if (Environment.GetEnvironmentVariable("RECOMPONE_REFERENCE_RENDERER") == "gl21")
+            return GlBackendKind.Gl21;
+#endif
+        return GlBackendKind.Auto;
+    }
 }

@@ -1,6 +1,7 @@
 using System;
 using RecompOne.Runtime;
 using RecompOne.Runtime.Context;
+using RecompOne.Runtime.Events;
 using RecompOne.Runtime.Memory;
 
 namespace Recompiled;
@@ -27,6 +28,32 @@ public static class GameTrace
 
     static string _spawnName;
     static bool _spawnResident;
+
+    // Proof-only trigger activation for authored states that require more progress
+    // than a stationary audit makes. This switch asks the game's own trigger parser
+    // to construct one real record after the level overlay and player are live:
+    //
+    //     SPIDEY_PROOF_TRIGGER=4
+    //
+    // No record bytes are replaced and no HUD is synthesized. The normal parser,
+    // actor constructor, update loop, and draw callback all run unchanged.
+    static readonly int _proofTrigger = ReadProofTrigger();
+    static bool _proofTriggerRan;
+    static int _proofWaitLogs;
+    static uint _proofGp;
+    static long _proofLastStateFrame;
+
+    public static void Install()
+    {
+        if (_proofTrigger >= 0)
+            Event.AddListener<VSyncEvent>(OnProofFrame);
+    }
+
+    static int ReadProofTrigger()
+    {
+        string raw = Environment.GetEnvironmentVariable("SPIDEY_PROOF_TRIGGER");
+        return int.TryParse(raw, out int index) && index >= 0 ? index : -1;
+    }
 
     static string Str(IMemory m, uint addr, int max = 32)
     {
@@ -284,7 +311,103 @@ public static class GameTrace
     public static void TriggerPass(CpuContext c, IMemory m)
     {
         LogicFrames++;
+        if (_proofTrigger >= 0 && _proofGp == 0) _proofGp = c.GP;
         if (On) Console.WriteLine("[game] TriggerPass");
+    }
+
+    static void OnProofFrame(VSyncEvent e)
+    {
+        var mem = Runtime.Mem;
+        if (_proofTrigger < 0 || _proofGp == 0 || mem == null) return;
+
+        if (_proofTriggerRan)
+        {
+            if (e.Frame - _proofLastStateFrame >= 120)
+            {
+                _proofLastStateFrame = e.Frame;
+                Console.WriteLine(
+                    $"[proof] state vblank={e.Frame}: actor0139=0x{FindActor(mem, 0x139):X8} " +
+                    $"player=0x{mem.ReadU32(0x800B5268u):X8} " +
+                    $"module=\"{Str(mem, mem.ReadU32(_proofGp + 0xA90u))}\" " +
+                    $"module-mask=0x{mem.ReadU32(_proofGp + 0xA94u):X8} " +
+                    $"save-level=\"{Str(mem, 0x800A568Cu, 8)}\" " +
+                    $"level-a=\"{Str(mem, 0x800B4FD8u, 8)}\" " +
+                    $"level-b=\"{Str(mem, 0x800B4FE0u, 8)}\" " +
+                    $"watched-call=0x{RecompOne.Runtime.Diagnostics.CallRing.WatchedAddress:X8} " +
+                    $"count={RecompOne.Runtime.Diagnostics.CallRing.WatchedCalls}");
+            }
+            return;
+        }
+
+        // TriggerPass supplies the game's gp once during level setup. VSync is the
+        // process-local frame boundary used by the rest of the harness; by this point
+        // it can wait until the player exists without depending on a second call to
+        // that setup routine. Keep the proof call's stack in unused extended RAM.
+        var c = new CpuContext { GP = _proofGp, SP = 0x807F0000u };
+        TryRunProofTrigger(c, mem);
+    }
+
+    static uint FindActor(IMemory m, ushort type)
+    {
+        uint actor = m.ReadU32(_proofGp + 0xA40u);
+        for (int i = 0; i < 4096 && actor != 0; i++)
+        {
+            if (m.ReadU16(actor + 0x34u) == type) return actor;
+            actor = m.ReadU32(actor + 0x1Cu);
+        }
+        return 0;
+    }
+
+    static void TryRunProofTrigger(CpuContext c, IMemory m)
+    {
+        if (_proofTriggerRan || _proofTrigger < 0) return;
+
+        // LoadTriggers stores the relocated record table and count relative to gp.
+        // The player pointer is created later, and actor overlays later still. Waiting
+        // for all three keeps this on the same safe side of initialization as ordinary
+        // proximity-trigger activation.
+        uint table = m.ReadU32(c.GP + 0xBCCu);
+        uint count = m.ReadU32(c.GP + 0xBD0u);
+        uint player = m.ReadU32(0x800B5268u);
+        if (table == 0 || player == 0 || (uint)_proofTrigger >= count)
+        {
+            ProofWait(c, table, count, player, 0, "level state");
+            return;
+        }
+
+        uint record = m.ReadU32(table + (uint)_proofTrigger * 4u);
+        if (record == 0 || m.ReadU16(record) != 1)
+        {
+            ProofWait(c, table, count, player, record, "type-1 record");
+            return;
+        }
+
+        // Type-1 records name an actor constructor. Do not run until its code overlay
+        // has entered the dispatcher; otherwise the retail parser would receive the
+        // same missing-constructor failure as an invalid level load.
+        ushort actorType = m.ReadU16(record + 2u);
+        if (actorType == 0x139 && !Resident("venom"))
+        {
+            ProofWait(c, table, count, player, record, "venom overlay");
+            return;
+        }
+
+        c.A0 = (uint)_proofTrigger;
+        SpiderMan.func_8005B014(c, m);
+        _proofTriggerRan = true;
+        Console.WriteLine(
+            $"[proof] activated real trigger {_proofTrigger} " +
+            $"(type=1 actor=0x{actorType:X4}) at vblank={Diag.Frame}");
+    }
+
+    static void ProofWait(
+        CpuContext c, uint table, uint count, uint player, uint record, string condition)
+    {
+        if (_proofWaitLogs++ >= 12) return;
+        Console.WriteLine(
+            $"[proof] waiting for {condition}: gp=0x{c.GP:X8} table=0x{table:X8} " +
+            $"count={count} player=0x{player:X8} record=0x{record:X8} " +
+            $"overlays={string.Join(',', RecompOne.Runtime.Dispatch.Dispatcher.ActiveNames)}");
     }
 
     /// <summary>pre-hook on TriggerType8 -- the resource entry handler.</summary>

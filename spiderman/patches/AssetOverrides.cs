@@ -12,7 +12,7 @@ public static class AssetOverrides
     public static void Find(string name, IMemory memory) =>
         RecompOne.Runtime.Assets.LooseWadOverrides.Find(
             name,
-            Costume.DreamcastModelFor(name, memory));
+            Costume.DreamcastAssetFor(name, memory));
     public static void FindExit(CpuContext c) => RecompOne.Runtime.Assets.LooseWadOverrides.FindExit(c);
     public static bool CdWadRead(CpuContext c, IMemory m) =>
         RecompOne.Runtime.Assets.LooseWadOverrides.Read(c, m);

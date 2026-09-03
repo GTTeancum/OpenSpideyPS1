@@ -41,6 +41,16 @@ def recompile():
     if p.returncode != 0:
         print(p.stdout[-2000:] + p.stderr[-2000:])
         raise SystemExit('recompile failed')
+    p = sh([sys.executable, 'tools/patch_costume_viewer.py'])
+    if p.returncode != 0:
+        print(p.stdout + p.stderr)
+        raise SystemExit('costume viewer transform failed')
+    print(p.stdout.strip())
+    p = sh([sys.executable, 'tools/patch_texture_registry.py'])
+    if p.returncode != 0:
+        print(p.stdout + p.stderr)
+        raise SystemExit('texture registry transform failed')
+    print(p.stdout.strip())
 
 
 def closure():

@@ -7,17 +7,16 @@ using RecompOne.Runtime.Memory;
 namespace Recompiled;
 
 /// <summary>
-/// Boots straight into a chosen level, by rewriting the archive lookup.
+/// Boots straight into a chosen level by selecting its retail level descriptor, then
+/// rewriting archive lookups as a fallback for alternate acts that have no descriptor.
 ///
-/// Every level in CD.WAD is six files sharing a prefix -- `l1a1.vab`, `l1a1.sfx`,
-/// `l1a1_t.trg`, `l1a1_l.psx`, `l1a1_o.psx`, `l1a1_g.psx` -- so which level the game
-/// loads is decided entirely by the name it asks the archive for. Swapping the prefix
-/// at that lookup puts any level behind the menu's normal "start playing" route, which
-/// is worth far more than driving the level-select UI: the UI still has to be found, and
-/// this works today for all 47 prefixes.
+/// Retail level descriptors carry state beyond the filenames, including which overlay
+/// callbacks and HUD elements a level enables.  Selecting l5a1 files while leaving the
+/// current descriptor at l1a1_t therefore produces an invalid hybrid level with no Venom
+/// chase HUD.  Descriptor-backed levels are selected before the game's table lookup so
+/// their complete retail state is retained.
 ///
 ///     SPIDEY_LEVEL=l5a3     start in level 5, act 3
-///     SPIDEY_LEVEL=list     print every prefix and exit
 ///
 /// The first level prefix the game asks for is the one that gets redirected -- normally
 /// `l1a1`, the level a new game starts on. Once bound, only that prefix is rewritten, so
@@ -30,11 +29,18 @@ public static class LevelSwitch
     // runs with, and never allocated from -- see OverlayPatches for why that space exists.
     const uint Scratch = 0x802B0000;
 
+    // The current trigger/descriptor name used by func_80018800.  The descriptor table
+    // contains 34 retail entries of 20 bytes each; +4 is the trigger-name pointer.
+    const uint CurrentLevelName = 0x800A568C;
+    const uint LevelDescriptors = 0x800974A4;
+    const int LevelDescriptorCount = 34;
+
     static readonly Regex LevelName = new(@"^(l\d+a\d+[a-z]?)(.*)$", RegexOptions.IgnoreCase);
     static readonly Regex AudioLevelName = new(@"^(l\d+a\d+)", RegexOptions.IgnoreCase);
 
     static string _target;
     static string _source;
+    static bool _descriptorSelected;
     public static int Rewrites { get; private set; }
 
     public static void Install()
@@ -46,6 +52,30 @@ public static class LevelSwitch
             Console.WriteLine($"[level] starting in '{_target}'");
         }
 
+    }
+
+    /// <summary>
+    /// Select the requested retail descriptor before func_80018800 searches for it.
+    /// This preserves level-specific flags and callbacks that cannot be reconstructed
+    /// by substituting archive filenames alone.
+    /// </summary>
+    public static void SelectDescriptor(CpuContext c, IMemory m)
+    {
+        if (_descriptorSelected || _target == null || c.A0 != CurrentLevelName) return;
+
+        string targetName = _target + "_t";
+        if (!HasDescriptor(m, targetName)) return;
+
+        string currentName = ReadCString(m, CurrentLevelName, 16);
+        if (!Regex.IsMatch(currentName, @"^l\d+a\d+_t$", RegexOptions.IgnoreCase)) return;
+
+        if (!string.Equals(currentName, targetName, StringComparison.OrdinalIgnoreCase))
+        {
+            WriteCString(m, CurrentLevelName, targetName);
+            Console.WriteLine($"[level] descriptor {currentName} -> {targetName}");
+        }
+
+        _descriptorSelected = true;
     }
 
     /// <summary>
@@ -83,7 +113,10 @@ public static class LevelSwitch
 
         // Follow the case the game used, in case the archive compare is case sensitive.
         string swapped = char.IsUpper(prefix[0]) ? target.ToUpperInvariant() : target;
-        return Rewrite(c, m, name, swapped + rest);
+        string redirected = swapped + rest;
+        return string.Equals(name, redirected, StringComparison.Ordinal)
+            ? name
+            : Rewrite(c, m, name, redirected);
     }
 
     static string Rewrite(CpuContext c, IMemory m, string from, string to)
@@ -96,5 +129,37 @@ public static class LevelSwitch
         Rewrites++;
         Console.WriteLine($"[level] {from} -> {to}");
         return to;
+    }
+
+    static bool HasDescriptor(IMemory m, string triggerName)
+    {
+        for (int i = 0; i < LevelDescriptorCount; i++)
+        {
+            uint nameAddress = m.ReadU32(LevelDescriptors + (uint)(i * 20 + 4));
+            if (nameAddress == 0) continue;
+            if (string.Equals(ReadCString(m, nameAddress, 16), triggerName,
+                              StringComparison.OrdinalIgnoreCase))
+                return true;
+        }
+        return false;
+    }
+
+    static string ReadCString(IMemory m, uint address, int max)
+    {
+        var text = new StringBuilder();
+        for (int i = 0; i < max; i++)
+        {
+            byte value = m.ReadU8(address + (uint)i);
+            if (value == 0) break;
+            text.Append((char)value);
+        }
+        return text.ToString();
+    }
+
+    static void WriteCString(IMemory m, uint address, string text)
+    {
+        byte[] bytes = Encoding.ASCII.GetBytes(text);
+        for (int i = 0; i < bytes.Length; i++) m.WriteU8(address + (uint)i, bytes[i]);
+        m.WriteU8(address + (uint)bytes.Length, 0);
     }
 }

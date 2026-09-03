@@ -40,7 +40,13 @@ public static class LibGpu
             uint header = m.ReadU32(addr);
             uint count = header >> 24;
             for (uint i = 0; i < count; i++)
-                gpu.WriteGp0(m.ReadU32(addr + 4u + i * 4u));
+            {
+                uint packetAddress = addr + 4u + i * 4u;
+                uint word = m.ReadU32(packetAddress);
+                Hardware.GteScreen.VertexTag tag = m is PSMemory ps &&
+                    ps.TryGetGteVertex(packetAddress, word, out var found) ? found : default;
+                gpu.WriteGp0(word, tag);
+            }
             uint next = header & 0xFFFFFFu;
             if (next == 0xFFFFFFu || (next & 0x800000u) != 0) break;
             addr = next & Runtime.RamWordMask;
@@ -109,13 +115,30 @@ public static class LibGpu
 
         if (isbg != 0 && !Diagnostics.DrawEnvWarn.SkipBackground)
         {
+            // Retain the authored clear separately. Diagnostic magenta is deliberately
+            // loud, but transparent grates and windows are supposed to reveal this
+            // original level backdrop rather than being reported as geometry holes.
+            GpuHle.BackgroundR = r0;
+            GpuHle.BackgroundG = g0;
+            GpuHle.BackgroundB = b0;
             int margin = GpuHle.WideMargin(clipW);
             int w = Math.Clamp(clipW + margin * 2, 0, VramShadow.Width - 1);
             int h = Math.Clamp((int)clipH, 0, VramShadow.Height - 1);
             int x = clipX - margin - ofsX, y = clipY - ofsY;
             // SPIDEY_WIDE_DEBUG=1 paints it magenta, so anything showing it is ground the
             // frame never covered, as distinct from geometry that was drawn.
-            if (Diagnostics.DrawEnvWarn.TintBackground) { r0 = 255; g0 = 0; b0 = 255; }
+            // Raw-gap audits tint the emulated clear directly. Coverage completion
+            // defers that visualization until presentation so semi-transparent grates
+            // blend with the authored background instead of contaminating the proof.
+            if (Diagnostics.DrawEnvWarn.TintBackground && !GpuHle.WideBackgroundCompletion)
+            {
+                r0 = 255;
+                g0 = 0;
+                b0 = 255;
+            }
+            GpuHle.DrawBackgroundR = r0;
+            GpuHle.DrawBackgroundG = g0;
+            GpuHle.DrawBackgroundB = b0;
             GpuHle.SubmittingBackground = true;
             try
             {
@@ -159,6 +182,10 @@ public static class LibGpu
     public static void PutDispEnv(CpuContext c, IMemory m)
     {
         DispCount++;
+        // Projection/depth provenance follows actual display-buffer swaps. Keeping the
+        // generations here makes perspective-correct texturing independent of a game's
+        // widescreen patch and therefore active in both 4:3 and 16:9 rendering.
+        Hardware.GteScreen.Roll();
         DispCallers.AddOrUpdate(c.RA, 1, (_, n) => n + 1);
         // One level further up. The swap routine that calls this saves its own return
         // address at 16(sp) in its prologue, so the caller's caller can be read out of

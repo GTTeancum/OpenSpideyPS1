@@ -84,12 +84,6 @@ public class ViewConfig
         set => SetInt("WindowHeight", Math.Clamp(value, 240, 4320));
     }
 
-    public string GpuBackend
-    {
-        get => GetString("GpuBackend", "auto");
-        set => SetString("GpuBackend", value);
-    }
-
     public string Language
     {
         get => GetString("Language");

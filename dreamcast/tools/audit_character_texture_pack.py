@@ -95,19 +95,24 @@ def parse_generated_textures(path: Path) -> dict[str, Any]:
 
     palette4_count = u32(data, cursor)
     cursor += 4
-    cursor += palette4_count * (4 + 16 * 2)
+    palettes: dict[tuple[int, int], tuple[int, ...]] = {}
+    for _ in range(palette4_count):
+        cache_id = u32(data, cursor)
+        cursor += 4
+        palette = struct.unpack_from("<16H", data, cursor)
+        cursor += 16 * 2
+        palettes[(16, cache_id)] = palette
 
     palette8_count = u32(data, cursor)
     cursor += 4
-    palettes: dict[int, tuple[int, ...]] = {}
     for _ in range(palette8_count):
         cache_id = u32(data, cursor)
         cursor += 4
         palette = struct.unpack_from("<256H", data, cursor)
         cursor += 256 * 2
-        if cache_id in palettes and palettes[cache_id] != palette:
+        if (256, cache_id) in palettes and palettes[(256, cache_id)] != palette:
             raise ValueError(f"conflicting palette declarations for 0x{cache_id:08X}")
-        palettes[cache_id] = palette
+        palettes[(256, cache_id)] = palette
 
     texture_count = u32(data, cursor)
     cursor += 4
@@ -121,32 +126,35 @@ def parse_generated_textures(path: Path) -> dict[str, Any]:
         _, palette_size, cache_id, texture_index, width, height = struct.unpack_from(
             "<IIIIHH", data, header_offset
         )
-        if palette_size != 256:
-            raise ValueError(
-                f"texture {texture_index} has unsupported palette size {palette_size}"
-            )
-        if cache_id not in palettes:
+        if palette_size not in (16, 256):
+            raise ValueError(f"texture {texture_index} has unsupported palette size {palette_size}")
+        if (palette_size, cache_id) not in palettes:
             raise ValueError(
                 f"texture {texture_index} references missing palette 0x{cache_id:08X}"
             )
         if texture_index in records:
             raise ValueError(f"duplicate texture index {texture_index}")
-        payload_size = width * height
+        payload_size = width * height if palette_size == 256 else ((width + 3) & ~3) // 2 * height
         payload = data[header_offset + 20 : header_offset + 20 + payload_size]
         if len(payload) != payload_size:
             raise ValueError(f"texture {texture_index} payload is truncated")
         records[texture_index] = {
             "cacheId": cache_id,
+            "paletteSize": palette_size,
             "size": (width, height),
-            "runtimeKey": replacement_key(width, height, palettes[cache_id], payload),
+            "runtimeKey": (
+                replacement_key(width, height, palettes[(palette_size, cache_id)], payload)
+                if palette_size == 256
+                else None
+            ),
         }
     if texture_count != texture_name_count:
         raise ValueError(
             f"texture-name count {texture_name_count} != record count {texture_count}"
         )
     return {
-        "paletteDeclarationCount": palette8_count,
-        "paletteIds": sorted(palettes),
+        "paletteDeclarationCount": palette4_count + palette8_count,
+        "paletteIds": sorted(cache_id for _, cache_id in palettes),
         "records": records,
     }
 
@@ -185,7 +193,23 @@ def main() -> None:
             records = parsed["records"]
             mappings = mappings_by_actor.get(actor, [])
             mapped_indices = {int(mapping["textureIndex"]) for mapping in mappings}
-            expected_unmapped = {max(records)} if actor == "SPIDEY" and records else set()
+            supplemental_count = int(entry.get("supplementalPlayerTextures", 0))
+            support_start = entry.get("playerSupportTextureStart")
+            support_start = int(support_start) if support_start is not None else 0
+            actor_texture_count = int(entry.get("actorTextureCount", len(mapped_indices)))
+            filler_count = int(entry.get("playerTextureFillers", 0))
+            expected_unmapped = set(
+                range(support_start, support_start + supplemental_count)
+            )
+            expected_unmapped.update(
+                range(actor_texture_count, actor_texture_count + filler_count)
+            )
+            if actor == "SPIDEY" and records:
+                expected_unmapped.add(
+                    actor_texture_count - 1
+                    if actor_texture_count <= support_start
+                    else actor_texture_count - 1 + supplemental_count
+                )
             if set(records) - mapped_indices != expected_unmapped:
                 raise ValueError(
                     f"unmapped compact records {sorted(set(records) - mapped_indices)}; "
@@ -199,7 +223,16 @@ def main() -> None:
             normal_ids = {
                 records[index]["cacheId"] for index in mapped_indices
             }
-            expected_declarations = int(bool(mapped_indices)) + int(bool(expected_unmapped))
+            supplemental_ids = {
+                (records[index]["paletteSize"], records[index]["cacheId"])
+                for index in range(support_start, support_start + supplemental_count)
+            }
+            expected_declarations = (
+                int(bool(mapped_indices))
+                + int(actor == "SPIDEY")
+                + len(supplemental_ids)
+                + filler_count
+            )
             if len(normal_ids) != int(bool(mapped_indices)):
                 raise ValueError(f"actor pages use {len(normal_ids)} compatibility CLUTs")
             if parsed["paletteDeclarationCount"] != expected_declarations:

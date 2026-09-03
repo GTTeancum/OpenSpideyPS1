@@ -13,6 +13,15 @@
         <DebugSymbols>false</DebugSymbols>
     </PropertyGroup>
 
+    <!--
+      The OpenGL 2.1 renderer is retained solely as a source-level reference and is
+      not compiled into ordinary developer or shipping builds.  A renderer developer
+      must opt into it deliberately with /p:EnableLegacyRenderer=true.
+    -->
+    <PropertyGroup Condition="'$(EnableLegacyRenderer)' == 'true'">
+        <DefineConstants>$(DefineConstants);RECOMPONE_LEGACY_RENDERER</DefineConstants>
+    </PropertyGroup>
+
     <ItemGroup>
       <EmbeddedResource Include="Bios\Fonts\font1.raw" />
       <EmbeddedResource Include="Bios\Fonts\font2.raw" />

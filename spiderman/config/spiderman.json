@@ -221,6 +221,12 @@
     },
     {
       "overlay": "main",
+      "function": "func_80018800",
+      "mode": "pre",
+      "target": "Recompiled.LevelSwitch.SelectDescriptor"
+    },
+    {
+      "overlay": "main",
       "function": "LoadOverlay",
       "mode": "pre",
       "target": "Recompiled.GameTrace.LoadOverlay"
@@ -476,6 +482,24 @@
       "function": "PadInitMtap",
       "mode": "post",
       "target": "Recompiled.PadPatches.PadInitMtapExit"
+    },
+    {
+      "overlay": "shell",
+      "function": "func_80261C70",
+      "mode": "pre",
+      "target": "Recompiled.Costume.PrepareViewer"
+    },
+    {
+      "overlay": "main",
+      "function": "func_80046B40",
+      "mode": "pre",
+      "target": "Recompiled.Costume.RunRetailTextureOverlay"
+    },
+    {
+      "overlay": "main",
+      "function": "func_80047DF8",
+      "mode": "post",
+      "target": "Recompiled.Costume.ApplyAbilityProfile"
     },
     {
       "overlay": "*",

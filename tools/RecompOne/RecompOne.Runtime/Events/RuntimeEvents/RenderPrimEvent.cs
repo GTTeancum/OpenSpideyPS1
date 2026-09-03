@@ -6,6 +6,10 @@ public sealed class RenderPrimEvent : GameEvent
     public int Count;
     public readonly int[] X = new int[4];
     public readonly int[] Y = new int[4];
+    public readonly int[] U = new int[4];
+    public readonly int[] V = new int[4];
+    public readonly float[] Depth = new float[4];
+    public readonly bool[] HasDepth = new bool[4];
     public int DrawLeft, DrawRight, DrawTop, DrawBottom;
     public int DrawOffsetX, DrawOffsetY;
     public bool Textured, SemiTransparent, Gouraud, Raw;

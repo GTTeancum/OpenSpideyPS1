@@ -26,6 +26,13 @@ public static class MemGuard
     public static bool WatchValue;
     public static int Reported;
     public static int Limit = 40;
+    public static readonly long AfterFrame = ReadAfterFrame();
+
+    static long ReadAfterFrame()
+    {
+        string? raw = Environment.GetEnvironmentVariable("SPIDEY_GUARD_AFTER_FRAME");
+        return long.TryParse(raw, out long frame) ? Math.Max(0, frame) : 0;
+    }
 
     /// <summary>Only report writes whose value is not a plausible pointer or zero.</summary>
     public static bool BadValuesOnly = System.Environment.GetEnvironmentVariable("SPIDEY_GUARD_ALL") == null;
@@ -58,8 +65,9 @@ public static class MemGuard
 
     public static void Hit(IMemory m)
     {
-        if (Reported >= Limit) return;
+        if (Reported >= Limit || Runtime.Presents < AfterFrame) return;
         uint v = m.ReadU32(Address | 0x80000000u);
+        if (WatchValue && v != Value) return;
         bool plausible = v == 0 || (v >= 0x80000000u && v < 0x80800000u && (v & 3) == 0);
         if (BadValuesOnly && plausible) return;
         Reported++;

@@ -78,7 +78,13 @@ public sealed class Dma
                 uint header = _mem.ReadU32(addr);
                 uint count = header >> 24;
                 for (uint i = 0; i < count; i++)
-                    _gpu.WriteGp0(_mem.ReadU32(addr + 4u + i * 4u));
+                {
+                    uint packetAddress = addr + 4u + i * 4u;
+                    uint word = _mem.ReadU32(packetAddress);
+                    Hardware.GteScreen.VertexTag tag = _mem is PSMemory ps &&
+                        ps.TryGetGteVertex(packetAddress, word, out var found) ? found : default;
+                    _gpu.WriteGp0(word, tag);
+                }
                 uint next = header & 0xFFFFFFu;
                 if (next == 0xFFFFFFu || (next & 0x800000u) != 0) break;
                 addr = next & Runtime.RamWordMask;
@@ -88,7 +94,13 @@ public sealed class Dma
         {
             uint words = WordCount(bcr);
             for (uint i = 0; i < words; i++)
-                _gpu.WriteGp0(_mem.ReadU32(madr + i * 4u));
+            {
+                uint packetAddress = madr + i * 4u;
+                uint word = _mem.ReadU32(packetAddress);
+                Hardware.GteScreen.VertexTag tag = _mem is PSMemory ps &&
+                    ps.TryGetGteVertex(packetAddress, word, out var found) ? found : default;
+                _gpu.WriteGp0(word, tag);
+            }
         }
         else
         {

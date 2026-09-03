@@ -5,12 +5,20 @@ namespace RecompOne.Runtime;
 //old soft raster
 public sealed partial class Gpu
 {
-    struct Vert { public int X, Y, R, G, B, U, V; }
+    struct Vert
+    {
+        public int X, Y, R, G, B, U, V;
+        public float Z;
+        public bool HasGteZ;
+        public float RenderX, RenderY;
+        public bool HasSubpixel;
+    }
 
     static readonly RenderPrimEvent _primEvent = new();
 
     /// <summary>How many vertices arrive pinned at the GTE's saturation limit.</summary>
     public static long ClampedVerts, TotalVerts, ProbeHits;
+    public static readonly long[] WorldDepthVertexCounts = new long[5];
 
     /// <summary>
     /// Polygon/line span diagnostics. A projected primitive wider than 1023 pixels is
@@ -57,6 +65,8 @@ public sealed partial class Gpu
         Span<Vert> v = stackalloc Vert[4];
         int idx = 1;
         int clut = 0;
+        bool directDepth = tex;
+        int directDepthVertices = 0;
         bool world = false, hud = false, ignoreCoverage = false;
         bool background = Hle.GpuHle.SubmittingBackground;
         int cr = (int)(cmd & 0xFF), cg = (int)((cmd >> 8) & 0xFF), cb = (int)((cmd >> 16) & 0xFF);
@@ -73,6 +83,21 @@ public sealed partial class Gpu
             uint vw = _fifo[idx++];
             v[i].X = _drawOffsetX + CoordX(vw);
             v[i].Y = _drawOffsetY + CoordY(vw);
+            Hardware.GteScreen.VertexTag packetVertex = _fifoGteVertex[idx - 1];
+            float packetDepth = packetVertex.Depth;
+            if (packetDepth > 0f)
+            {
+                v[i].Z = packetDepth;
+                v[i].HasGteZ = true;
+                directDepthVertices++;
+                if (packetVertex.HasSubpixel)
+                {
+                    v[i].RenderX = _drawOffsetX + packetVertex.ScreenX;
+                    v[i].RenderY = _drawOffsetY + packetVertex.ScreenY;
+                    v[i].HasSubpixel = true;
+                }
+            }
+            else directDepth = false;
 
             if (tex)
             {
@@ -83,19 +108,37 @@ public sealed partial class Gpu
                 else if (i == 1) SetTexpageFromWord((uvw >> 16) & 0xFFFF);
             }
         }
+
+        if (tex)
+        {
+            // Perspective correction uses only provenance carried from the exact GTE
+            // source register into the exact RAM packet word. Screen-coordinate reverse
+            // matching can attach another vertex's Z at a quantised collision and visibly
+            // bend building textures, so it is intentionally not a rendering fallback.
+            if (!directDepth)
+                for (int i = 0; i < n; i++)
+                {
+                    v[i].Z = 1f; v[i].HasGteZ = false; v[i].HasSubpixel = false;
+                }
+        }
         //dispatch the render event for prims
         if (Event.HasAnyListeners<RenderPrimEvent>())
         {
             var e = _primEvent;
             e.Context = Runtime.Cpu!; e.Memory = Runtime.Mem!;
             e.Count = n;
-            for (int i = 0; i < n; i++) { e.X[i] = v[i].X; e.Y[i] = v[i].Y; }
+            for (int i = 0; i < n; i++)
+            {
+                e.X[i] = v[i].X; e.Y[i] = v[i].Y;
+                e.U[i] = v[i].U; e.V[i] = v[i].V;
+                e.Depth[i] = v[i].Z; e.HasDepth[i] = v[i].HasGteZ;
+            }
             e.DrawLeft = _drawAreaLeft; e.DrawRight = _drawAreaRight; e.DrawTop = _drawAreaTop; e.DrawBottom = _drawAreaBottom;
             e.DrawOffsetX = _drawOffsetX; e.DrawOffsetY = _drawOffsetY;
             e.Textured = tex; e.SemiTransparent = semi; e.Gouraud = gouraud; e.Raw = raw;
             e.World = false; e.Hud = false; e.IgnoreCoverage = false;
             e.Background = background;
-            e.Clut = clut; e.TexPage = 0; e.Skip = false;
+            e.Clut = clut; e.TexPage = CurTPage(); e.Skip = false;
             Event.Dispatch(e);
             if (e.Skip) return;
             world = e.World;
@@ -103,6 +146,19 @@ public sealed partial class Gpu
             ignoreCoverage = e.IgnoreCoverage;
             for (int i = 0; i < n; i++) { v[i].X = e.X[i]; v[i].Y = e.Y[i]; }
         }
+
+        // Perspective depth is meaningful only for a primitive proven to have come
+        // through the GTE. Screen-space HUD and effect polygons routinely reuse world
+        // pixel coordinates; allowing those coincidental matches to reach clip-space W
+        // corrupts both their shape and texture sampling.
+        if (!world || hud)
+            for (int i = 0; i < n; i++)
+            {
+                v[i].Z = 1f; v[i].HasGteZ = false; v[i].HasSubpixel = false;
+            }
+
+        if (tex && world)
+            Interlocked.Increment(ref WorldDepthVertexCounts[Math.Clamp(directDepthVertices, 0, 4)]);
 
         if (Hle.GpuHle.WideAspect > 0f)
         {
@@ -160,6 +216,13 @@ public sealed partial class Gpu
         int maxY = Math.Min(_drawAreaBottom, Math.Max(a.Y, Math.Max(b.Y, c.Y)));
         if (minX > maxX || minY > maxY) return;
 
+        bool perspective = tex && a.HasGteZ && b.HasGteZ && c.HasGteZ &&
+            a.Z > 0f && b.Z > 0f && c.Z > 0f;
+        if (tex) Hle.GpuHle.NoteTextureTriangle(perspective, world: false);
+        double iz0 = perspective ? 1.0 / a.Z : 1.0;
+        double iz1 = perspective ? 1.0 / b.Z : 1.0;
+        double iz2 = perspective ? 1.0 / c.Z : 1.0;
+
         int bias0 = IsTopLeft(b, c) ? 0 : -1;
         int bias1 = IsTopLeft(c, a) ? 0 : -1;
         int bias2 = IsTopLeft(a, b) ? 0 : -1;
@@ -189,8 +252,13 @@ public sealed partial class Gpu
 
                 if (tex)
                 {
-                    int u = (int)((w0 * a.U + w1 * b.U + w2 * c.U) / area);
-                    int tv = (int)((w0 * a.V + w1 * b.V + w2 * c.V) / area);
+                    double denom = w0 * iz0 + w1 * iz1 + w2 * iz2;
+                    int u = perspective && Math.Abs(denom) > double.Epsilon
+                        ? (int)((w0 * a.U * iz0 + w1 * b.U * iz1 + w2 * c.U * iz2) / denom)
+                        : (int)((w0 * a.U + w1 * b.U + w2 * c.U) / area);
+                    int tv = perspective && Math.Abs(denom) > double.Epsilon
+                        ? (int)((w0 * a.V * iz0 + w1 * b.V * iz1 + w2 * c.V * iz2) / denom)
+                        : (int)((w0 * a.V + w1 * b.V + w2 * c.V) / area);
                     ushort texel = FetchTexel(u, tv, clut);
                     if (texel == 0) continue;
                     bool stp = (texel & 0x8000) != 0;
@@ -248,7 +316,7 @@ public sealed partial class Gpu
             e.Textured = tex; e.SemiTransparent = semi; e.Gouraud = false; e.Raw = raw;
             e.World = false; e.Hud = false; e.IgnoreCoverage = false;
             e.Background = background;
-            e.Clut = clut; e.TexPage = 0; e.Skip = false;
+            e.Clut = clut; e.TexPage = CurTPage(); e.Skip = false;
             Event.Dispatch(e);
             if (e.Skip) return;
             world = e.World;

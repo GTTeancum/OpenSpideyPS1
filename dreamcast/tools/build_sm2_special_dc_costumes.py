@@ -95,6 +95,8 @@ def main() -> None:
     converter = load_converter()
     donor_path = args.sm2_donor.resolve()
     donor = converter.parse_skeleton_donor(donor_path)
+    player_support_textures = converter.load_ps1_texture_records(donor_path)
+    supplemental_count = len(player_support_textures)
     output = args.output.resolve()
     output.mkdir(parents=True, exist_ok=True)
     pack_root = output / "packs" / "dreamcast-sm2-special-costumes"
@@ -118,6 +120,7 @@ def main() -> None:
             TEXTURE_SCALE,
             None,
             skeleton_donor=donor,
+            supplemental_textures=player_support_textures,
         )
         textures = converter.build_texture_library(
             model,
@@ -130,7 +133,12 @@ def main() -> None:
         actor_path.write_bytes(actor)
         texture_path.write_bytes(textures)
 
-        dimensions = converter.scaled_dimensions(model, TEXTURE_SCALE, False)
+        dimensions = converter.scaled_dimensions(
+            model,
+            TEXTURE_SCALE,
+            False,
+            fixed_player_layout=True,
+        )
         actor_assets = converter.quantize_actor_textures(
             model,
             texture_root,
@@ -153,7 +161,9 @@ def main() -> None:
                 {
                     "slot": slot,
                     "actor": stem,
-                    "textureIndex": texture.index,
+                    "textureIndex": converter.runtime_actor_texture_index(
+                        texture.index, supplemental_count
+                    ),
                     "source": str(source_png),
                     "compatibilitySize": [width, height],
                     "hostSize": [texture.width, texture.height],

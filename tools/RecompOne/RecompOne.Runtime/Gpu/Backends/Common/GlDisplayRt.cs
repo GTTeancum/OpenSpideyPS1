@@ -8,11 +8,15 @@ public sealed class GlDisplayRt
     public int Margin;
     public uint Tex, Fbo;
     /// <summary>
-    /// R = touched by any submitted primitive, G = touched by GTE/world geometry.
-    /// It is kept separate from the PS1 mask-bit alpha channel so mask semantics stay
-    /// exact while widescreen can distinguish an authored backdrop hole from HUD.
+    /// R = touched by a visible submitted primitive, G = visible GTE/world geometry,
+    /// B = visible HUD, A = an authored transparent texture cut-out. It is kept separate
+    /// from PS1 mask-bit alpha so coverage diagnostics do not change render semantics.
     /// </summary>
     public uint CoverageTex, CoverageFbo;
+    /// <summary>Latest rendered color for exact GTE/world geometry, before HUD overdraw.</summary>
+    public uint WorldTex, WorldFbo;
+    public byte ClearR, ClearG, ClearB;
+    public byte DrawClearR, DrawClearG, DrawClearB;
     public bool Dirty;
     public long Stamp;
     public long LastDrawFrame;
@@ -73,6 +77,24 @@ public sealed class GlDisplayRt
                 CoverageTex, 0);
             gl.ClearColor(0f, 0f, 0f, 0f);
             gl.Clear(ClearBufferMask.ColorBufferBit);
+
+            WorldTex = gl.GenTexture();
+            gl.BindTexture(TextureTarget.Texture2D, WorldTex);
+            gl.TexParameter(TextureTarget.Texture2D, TextureParameterName.TextureMinFilter, (int)GLEnum.Nearest);
+            gl.TexParameter(TextureTarget.Texture2D, TextureParameterName.TextureMagFilter, (int)GLEnum.Nearest);
+            gl.TexParameter(TextureTarget.Texture2D, TextureParameterName.TextureWrapS, (int)GLEnum.ClampToEdge);
+            gl.TexParameter(TextureTarget.Texture2D, TextureParameterName.TextureWrapT, (int)GLEnum.ClampToEdge);
+            gl.TexImage2D<byte>(TextureTarget.Texture2D, 0, InternalFormat.Rgba8,
+                (uint)TexW, (uint)TexH, 0, PixelFormat.Rgba, PixelType.UnsignedByte,
+                new byte[TexW * TexH * 4].AsSpan());
+
+            WorldFbo = gl.GenFramebuffer();
+            gl.BindFramebuffer(FramebufferTarget.Framebuffer, WorldFbo);
+            gl.FramebufferTexture2D(FramebufferTarget.Framebuffer,
+                FramebufferAttachment.ColorAttachment0, TextureTarget.Texture2D,
+                WorldTex, 0);
+            gl.ClearColor(0f, 0f, 0f, 0f);
+            gl.Clear(ClearBufferMask.ColorBufferBit);
         }
         gl.BindFramebuffer(FramebufferTarget.Framebuffer, 0);
     }
@@ -83,6 +105,8 @@ public sealed class GlDisplayRt
         if (Tex != 0) gl.DeleteTexture(Tex);
         if (CoverageFbo != 0) gl.DeleteFramebuffer(CoverageFbo);
         if (CoverageTex != 0) gl.DeleteTexture(CoverageTex);
-        Fbo = Tex = CoverageFbo = CoverageTex = 0;
+        if (WorldFbo != 0) gl.DeleteFramebuffer(WorldFbo);
+        if (WorldTex != 0) gl.DeleteTexture(WorldTex);
+        Fbo = Tex = CoverageFbo = CoverageTex = WorldFbo = WorldTex = 0;
     }
 }

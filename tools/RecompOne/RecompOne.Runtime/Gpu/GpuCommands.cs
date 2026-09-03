@@ -144,7 +144,7 @@ public sealed partial class Gpu
         _loadPx = 0;
         _loadImage = true;
         HleLoadBegin();
-        _fifo.Clear();
+        ClearFifo();
     }
 
     void StoreImageHalfword(ushort value)

@@ -58,6 +58,16 @@ public static class Program
                 Environment.SetEnvironmentVariable("RECOMP_ASSET_PACK_DIR", actorPacks);
         }
 
+        // Non-interactive texture-pack authoring. This observes only the emulated
+        // game's own texture uploads and never drives the host desktop or game input.
+        var dumpTextures = Environment.GetEnvironmentVariable("SPIDEY_DUMP_TEXTURES");
+        if (string.Equals(dumpTextures, "pages", StringComparison.OrdinalIgnoreCase))
+            RecompOne.Runtime.Assets.Textures.TextureDumper.SetPages(true);
+        else if (string.Equals(dumpTextures, "tiles", StringComparison.OrdinalIgnoreCase))
+            RecompOne.Runtime.Assets.Textures.TextureDumper.SetTiles(true);
+        else if (string.Equals(dumpTextures, "all", StringComparison.OrdinalIgnoreCase))
+            RecompOne.Runtime.Assets.Textures.TextureDumper.SetEnabled(true);
+
         var guard = Environment.GetEnvironmentVariable("SPIDEY_GUARD");
         if (!string.IsNullOrEmpty(guard))
             RecompOne.Runtime.Diagnostics.MemGuard.Address =

@@ -18,6 +18,48 @@ public static class GpuHle
     public static bool FxaaEnabled { get; set; } = true;
 
     /// <summary>
+    /// Textured triangles drawn with complete recovered GTE depth versus triangles for
+    /// which no complete camera-space depth exists (normally true screen-space art).
+    /// </summary>
+    public static long PerspectiveTriangles, NoDepthTextureTriangles;
+    public static long WorldPerspectiveTriangles, WorldNoDepthTextureTriangles;
+    public static long ScreenTextureTriangles;
+    static readonly bool TracePerspective =
+        Environment.GetEnvironmentVariable("RECOMP_PERSPECTIVE_TRACE") == "1";
+
+    internal static void NoteTextureTriangle(bool perspective, bool world)
+    {
+        if (world)
+        {
+            if (perspective) Interlocked.Increment(ref WorldPerspectiveTriangles);
+            else Interlocked.Increment(ref WorldNoDepthTextureTriangles);
+        }
+        else Interlocked.Increment(ref ScreenTextureTriangles);
+
+        long total;
+        if (perspective) total = Interlocked.Increment(ref PerspectiveTriangles) +
+                                 Volatile.Read(ref NoDepthTextureTriangles);
+        else total = Interlocked.Increment(ref NoDepthTextureTriangles) +
+                     Volatile.Read(ref PerspectiveTriangles);
+        if (TracePerspective && (total & 0x3FFF) == 0)
+            Console.WriteLine($"[perspective] corrected={Volatile.Read(ref PerspectiveTriangles)} " +
+                              $"no-depth={Volatile.Read(ref NoDepthTextureTriangles)} " +
+                              $"world={Volatile.Read(ref WorldPerspectiveTriangles)} " +
+                              $"world-missing={Volatile.Read(ref WorldNoDepthTextureTriangles)} " +
+                              $"screen={Volatile.Read(ref ScreenTextureTriangles)} " +
+                              $"gte-stores={Volatile.Read(ref Hardware.GteScreen.TaggedStores)} " +
+                              $"gte-loads={Volatile.Read(ref Hardware.GteScreen.TaggedLoads)} " +
+                              $"packet-reads={Volatile.Read(ref Hardware.GteScreen.PacketReads)} " +
+                              $"gp0-depth={Volatile.Read(ref Gpu.PacketWordsWithDepth)} " +
+                              $"world-depth-verts=" +
+                              $"{Volatile.Read(ref Gpu.WorldDepthVertexCounts[0])}/" +
+                              $"{Volatile.Read(ref Gpu.WorldDepthVertexCounts[1])}/" +
+                              $"{Volatile.Read(ref Gpu.WorldDepthVertexCounts[2])}/" +
+                              $"{Volatile.Read(ref Gpu.WorldDepthVertexCounts[3])}/" +
+                              $"{Volatile.Read(ref Gpu.WorldDepthVertexCounts[4])}");
+    }
+
+    /// <summary>
     /// Complete untouched pixels in a widened view from nearby world coverage. This is
     /// deliberately opt-in per title: it is for authored scene meshes that end just
     /// outside their original 4:3 camera, not a generic image filter.
@@ -30,6 +72,20 @@ public static class GpuHle
     /// GPU command itself is indistinguishable from an ordinary flat rectangle later.
     /// </summary>
     public static bool SubmittingBackground { get; set; }
+
+    /// <summary>
+    /// Authored draw-environment clear before diagnostics replace it with magenta.
+    /// Coverage completion uses this behind submitted transparent cut-outs, preserving
+    /// the level's intended backdrop without mistaking a grate or window for a missing
+    /// polygon.
+    /// </summary>
+    public static byte BackgroundR, BackgroundG, BackgroundB;
+
+    /// <summary>
+    /// Color actually submitted for the draw-environment clear. It differs from the
+    /// authored background only while the magenta coverage diagnostic is active.
+    /// </summary>
+    public static byte DrawBackgroundR, DrawBackgroundG, DrawBackgroundB;
 
     public struct DispRect { public int X, Y, W, H; public long Stamp; public bool Valid; }
 

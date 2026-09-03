@@ -70,15 +70,6 @@ public sealed class PSMemory : IMemory
     private void TrackWrite(uint phys, int size)
     {
         _readsSinceWrite = 0;
-        if (Diagnostics.MemGuard.Address != 0 &&
-            phys <= Diagnostics.MemGuard.Address && Diagnostics.MemGuard.Address < phys + (uint)size)
-            Diagnostics.MemGuard.Hit(this);
-        if (Diagnostics.MemGuard.WatchValue && size == 4 && phys < (uint)_ram.Length)
-        {
-            uint off = phys % (uint)_ram.Length;
-            uint w = (uint)(_ram[off] | (_ram[off + 1] << 8) | (_ram[off + 2] << 16) | (_ram[off + 3] << 24));
-            Diagnostics.MemGuard.HitValue(phys, w);
-        }
         if (phys < MemoryMap.RamWindow)
         {
             uint off = phys % (uint)_ram.Length;
@@ -86,6 +77,16 @@ public sealed class PSMemory : IMemory
             Dispatcher.NotifyWrite(off);
         }
 
+    }
+
+    private void TrackWritten(uint phys, int size, uint? value = null)
+    {
+        if (phys >= MemoryMap.RamWindow) return;
+        if (Diagnostics.MemGuard.Address != 0 &&
+            phys <= Diagnostics.MemGuard.Address && Diagnostics.MemGuard.Address < phys + (uint)size)
+            Diagnostics.MemGuard.Hit(this);
+        if (value.HasValue && Diagnostics.MemGuard.WatchValue)
+            Diagnostics.MemGuard.HitValue(phys, value.Value);
     }
 
     private void TrackRead(uint phys, int size)
@@ -98,6 +99,28 @@ public sealed class PSMemory : IMemory
             _readsSinceWrite = 0;
             Runtime.IdleTick();
         }
+    }
+
+    private bool TryDepthKey(uint phys, out uint key)
+    {
+        if (phys < MemoryMap.RamWindow)
+        {
+            key = (phys % (uint)_ram.Length) & ~3u;
+            return true;
+        }
+        if (phys >= MemoryMap.ScratchpadBase &&
+            phys < MemoryMap.ScratchpadBase + MemoryMap.ScratchpadSize)
+        {
+            key = phys & ~3u;
+            return true;
+        }
+        key = 0u;
+        return false;
+    }
+
+    private void InvalidateGteDepth(uint phys)
+    {
+        if (TryDepthKey(phys, out uint key)) GteScreen.InvalidateRamWrite(key);
     }
 
     private Span<byte> Resolve(uint address, int size)
@@ -173,6 +196,8 @@ public sealed class PSMemory : IMemory
 
         if (_frozenCount > 0 && phys < MemoryMap.RamWindow && _frozen[phys % (uint)_ram.Length]) return;
         Resolve(address, 1)[0] = value;
+        TrackWritten(phys, 1);
+        InvalidateGteDepth(phys);
     }
 
     public void WriteU16(uint address, ushort value)
@@ -189,10 +214,16 @@ public sealed class PSMemory : IMemory
             uint b = phys % (uint)_ram.Length;
             if(!_frozen[b])   s[0] = (byte)value;
             if(!_frozen[b+1]) s[1] = (byte)(value >> 8);
+            TrackWritten(phys, 2);
+            InvalidateGteDepth(phys);
+            InvalidateGteDepth(phys + 1u);
             return;
         }
         s[0] = (byte)value;
         s[1] = (byte)(value >> 8);
+        TrackWritten(phys, 2);
+        InvalidateGteDepth(phys);
+        InvalidateGteDepth(phys + 1u);
     }
 
     public void WriteU32(uint address, uint value)
@@ -221,12 +252,53 @@ public sealed class PSMemory : IMemory
             if(!_frozen[b+1]) s[1] = (byte)(value >> 8);
             if(!_frozen[b+2]) s[2] = (byte)(value >> 16);
             if(!_frozen[b+3]) s[3] = (byte)(value >> 24);
+            TrackWritten(phys, 4, value);
+            InvalidateGteDepth(phys);
             return;
         }
         s[0] = (byte)value;
         s[1] = (byte)(value >> 8);
         s[2] = (byte)(value >> 16);
         s[3] = (byte)(value >> 24);
+        TrackWritten(phys, 4, value);
+        InvalidateGteDepth(phys);
+    }
+
+    /// <summary>Exact GTE depth attached to a GPU packet word stored in RAM.</summary>
+    public bool TryGetGteDepth(uint address, uint value, out float z)
+    {
+        uint phys = MemoryMap.ToPhysical(address);
+        if (TryDepthKey(phys, out uint key))
+            return GteScreen.TryGetRamDepth(key, value, out z);
+        z = 0f;
+        return false;
+    }
+
+    public bool TryGetGteVertex(uint address, uint value, out GteScreen.VertexTag tag)
+    {
+        uint phys = MemoryMap.ToPhysical(address);
+        if (TryDepthKey(phys, out uint key))
+            return GteScreen.TryGetRamVertex(key, value, out tag);
+        tag = default;
+        return false;
+    }
+
+    public bool TryGetContainingGteDepth(uint address, out float z)
+    {
+        uint phys = MemoryMap.ToPhysical(address);
+        if (!TryDepthKey(phys, out uint key)) { z = 0f; return false; }
+        uint value = ReadU32(address & ~3u);
+        return GteScreen.TryGetRamDepth(key, value, out z);
+    }
+
+    public void TagGteDepth(uint address, uint value, float z)
+        => TagGteVertex(address, value, GteScreen.VertexTag.DepthOnly(z));
+
+    public void TagGteVertex(uint address, uint value, GteScreen.VertexTag tag)
+    {
+        uint phys = MemoryMap.ToPhysical(address);
+        if (tag.Depth > 0f && TryDepthKey(phys, out uint key))
+            GteScreen.NoteRamWrite(key, value, tag);
     }
 
     public uint ReadWordLeft(uint current, uint address)

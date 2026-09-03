@@ -83,9 +83,13 @@ public static class Cheats
 
         if (_everything)
         {
+            // Preserve the port's 0..19 selection while retaining the retail cheat's
+            // all-bits behavior (which also unlocks every imported costume).
+            byte costumeSelection = Costume.ReadSelected(m);
             // 0x8006D180 verbatim: five words of unlock bits all set, the two gallery
             // bytes, and the level select alongside them.
             for (uint o = 0x80; o <= 0x90; o += 4) m.WriteU32(Unlocks + o, 0xFFFFFFFFu);
+            Costume.WriteSelected(m, costumeSelection);
             m.WriteU8(Unlocks + 0x78, 1);
             m.WriteU8(Unlocks + 0x55, 1);
             m.WriteU32(LevelSelectFlag, 1);

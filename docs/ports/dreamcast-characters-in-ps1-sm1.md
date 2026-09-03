@@ -530,6 +530,11 @@ The arena exists solely in the recompiled port's eight-megabyte address space.
 It is why a whole converted cast can be tested without truncating models or
 mutating the original loose extraction.
 
+The adjacent `0x80780000..0x807C0000` region is the recompiled texture registry.
+It replaces the retail registry's seventeen-record ceiling with 32,768 records;
+`0x807C0000` onward contains the expanded twenty-entry costume-viewer data. These
+regions are disjoint from both the loose-WAD arena and the retail game heap.
+
 ## Validation checklist
 
 Before calling a new port complete:

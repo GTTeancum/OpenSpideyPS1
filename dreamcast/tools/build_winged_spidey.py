@@ -81,6 +81,12 @@ def parse_args() -> argparse.Namespace:
         default=ROOT / "spiderman2" / "extracted" / "wad" / "sp_tex00.psx",
         help="loose SM2 default texture library supplying the real black/white wing art",
     )
+    parser.add_argument(
+        "--player-texture-donor",
+        type=Path,
+        default=ROOT / "spiderman" / "extracted" / "wad" / "spidey.psx",
+        help="retail SM1 player model supplying HUD and shadow texture dependencies",
+    )
     return parser.parse_args()
 
 
@@ -94,6 +100,9 @@ def main() -> None:
         if args.visible_wing_proof
         else None
     )
+    player_support_textures = converter.load_ps1_texture_records(
+        args.player_texture_donor.resolve()
+    )
     character = converter.build_character(
         model,
         args.textures.resolve(),
@@ -101,6 +110,7 @@ def main() -> None:
         donor,
         args.visible_wing_proof,
         proof_asset,
+        supplemental_textures=player_support_textures,
     )
     texture_library = converter.build_texture_library(
         model,

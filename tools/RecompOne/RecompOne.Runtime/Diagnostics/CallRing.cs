@@ -1,4 +1,5 @@
 using System.Runtime.CompilerServices;
+using System.Globalization;
 
 namespace RecompOne.Runtime.Diagnostics;
 
@@ -49,10 +50,28 @@ public static class CallRing
 
     public static bool Enabled = true;
 
+    // Optional exact call counter for long, non-interactive diagnostics. Unlike
+    // searching Tail(), this survives the ring wrapping during a busy frame.
+    // Example: RECOMP_TRACE_CALL=80293100
+    public static readonly uint WatchedAddress = ReadWatchedAddress();
+    public static long WatchedCalls;
+
+    static uint ReadWatchedAddress()
+    {
+        string? raw = Environment.GetEnvironmentVariable("RECOMP_TRACE_CALL");
+        if (string.IsNullOrWhiteSpace(raw)) return 0;
+        raw = raw.Trim();
+        if (raw.StartsWith("0x", StringComparison.OrdinalIgnoreCase)) raw = raw[2..];
+        return uint.TryParse(raw, NumberStyles.HexNumber, CultureInfo.InvariantCulture, out uint value)
+            ? value
+            : 0;
+    }
+
     [MethodImpl(MethodImplOptions.AggressiveInlining)]
     public static void Enter(uint addr)
     {
         if (!Enabled) return;
+        if (addr == WatchedAddress) WatchedCalls++;
         _buf[_idx++ & (Size - 1)] = addr;
         if (++_sinceFrame >= StallCalls)
         {

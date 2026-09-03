@@ -36,6 +36,7 @@ docs/texture-dumps/
 spiderman/port/dist/
 spiderman2/port/dist/
 # Capture output
+/proof_render/
 spiderman/port/**/shots*/
 spiderman2/port/**/shots*/
 run*.txt

@@ -30,9 +30,9 @@ public static class ModelDiagnostics
     static uint _activeVertexPointer;
     static uint _activeVertexCount;
     static uint _activeOutputPointer;
-    static uint _headMeshPointer;
-    static bool _activeIsHead;
-    static int _faceSequence;
+    static int _activePlayerMesh = -1;
+    static readonly Dictionary<uint, int> _playerVertexPointers = [];
+    static readonly HashSet<long> _auditedFaceBatches = [];
     static readonly HashSet<uint> _seenMeshes = [];
 
     public static void ParseEnter(CpuContext c, IMemory m)
@@ -57,13 +57,25 @@ public static class ModelDiagnostics
         {
             uint model = m.ReadU32(pointerTable + mesh * 4u);
             uint vertexCount = m.ReadU16(model + 2u);
+            // Spider-Man moves from title slot 2 to level slot 12 in L1A1.
+            // Other 18-part actors (notably Black Cat) use different face packet
+            // layouts, so including them creates false player-geometry failures.
+            if (meshCount == 18)
+            {
+                uint vertices = model + 0x1Cu;
+                if (_parseSlot == 2 || _parseSlot == 12)
+                    _playerVertexPointers[vertices] = checked((int)mesh);
+                else
+                    // The model arena reuses addresses after the title actor is
+                    // freed. Do not let a later 18-part NPC inherit that identity.
+                    _playerVertexPointers.Remove(vertices);
+            }
             // Slot 2 is the active player model in both the title-shell costume
             // preview and normal gameplay.  Other 18-part actors can load later
             // (notably into slot 9); they must not replace the pointer used by
             // the player geometry audit.
             if (_parseSlot == 2 && mesh == 7 && meshCount == 18)
             {
-                _headMeshPointer = model;
                 if (TraceEnabled)
                 {
                     uint vertices = model + 0x1Cu;
@@ -115,9 +127,11 @@ public static class ModelDiagnostics
         _activeVertexPointer = c.A0;
         _activeVertexCount = c.A1;
         _activeOutputPointer = m.ReadU32(0x800B58F0u);
-        _activeIsHead = _headMeshPointer != 0 && c.A0 == _headMeshPointer + 0x1Cu;
+        _activePlayerMesh = _playerVertexPointers.TryGetValue(c.A0, out int playerMesh)
+            ? playerMesh
+            : -1;
 
-        if (_activeIsHead && TraceEnabled)
+        if (_activePlayerMesh == 7 && TraceEnabled)
             DumpHeadTransform(c, m);
 
         int priorSources = _sourceBase >= sourcePointer
@@ -153,7 +167,7 @@ public static class ModelDiagnostics
 
     public static void TransformExit(CpuContext c, IMemory m)
     {
-        if (!TraceEnabled || !_activeIsHead || _activeVertexCount == 0) return;
+        if (!TraceEnabled || _activePlayerMesh < 0 || _activeVertexCount == 0) return;
 
         int outliers = 0;
         int rigidMinX = int.MaxValue, rigidMaxX = int.MinValue;
@@ -181,25 +195,25 @@ public static class ModelDiagnostics
 
             ushort stitchOffset = m.ReadU16(input);
             Console.WriteLine(
-                $"[model-head] sequence={_sequence} vertex={index} xy=({x},{y}) " +
+                $"[model-mesh] sequence={_sequence} mesh={_activePlayerMesh} vertex={index} xy=({x},{y}) " +
                 $"type={(flags & 3)} stitch={(flags & 2) != 0} offset={stitchOffset}");
             outliers++;
         }
         if (outliers != 0)
             Console.WriteLine(
-                $"[model-head] sequence={_sequence} outliers={outliers}/{_activeVertexCount}");
+                $"[model-mesh] sequence={_sequence} mesh={_activePlayerMesh} outliers={outliers}/{_activeVertexCount}");
 
         int minX = Math.Min(rigidMinX, stitchMinX);
         int maxX = Math.Max(rigidMaxX, stitchMaxX);
         int minY = Math.Min(rigidMinY, stitchMinY);
         int maxY = Math.Max(rigidMaxY, stitchMaxY);
-        if (_sequence <= 3 || maxX - minX > 160 || maxY - minY > 160)
+        if (_sequence <= 3 || maxX - minX > 320 || maxY - minY > 320)
         {
             Console.WriteLine(
-                $"[model-head-bounds] sequence={_sequence} all=({minX},{minY})..({maxX},{maxY}) " +
+                $"[model-mesh-bounds] sequence={_sequence} mesh={_activePlayerMesh} all=({minX},{minY})..({maxX},{maxY}) " +
                 $"rigid=({rigidMinX},{rigidMinY})..({rigidMaxX},{rigidMaxY}) " +
                 $"stitch=({stitchMinX},{stitchMinY})..({stitchMaxX},{stitchMaxY})");
-            if (_activeVertexCount > 95)
+            if (_activePlayerMesh == 7 && _activeVertexCount > 95)
                 Console.WriteLine(
                     $"[model-head-129-after-transform] sequence={_sequence} " +
                     $"60={ScreenPoint(m, _activeOutputPointer, 60)} " +
@@ -210,10 +224,11 @@ public static class ModelDiagnostics
 
     public static void DrawFacesEnter(CpuContext c, IMemory m)
     {
-        if (!Enabled || !_activeIsHead || _activeVertexCount == 0 ||
-            _faceSequence == _sequence || c.A2 == 0)
+        if (!Enabled || _activePlayerMesh < 0 || _activeVertexCount == 0 || c.A2 == 0)
             return;
-        _faceSequence = _sequence;
+        long batchKey = ((long)_sequence << 32) | (uint)_activePlayerMesh;
+        if (!_auditedFaceBatches.Add(batchKey))
+            return;
 
         if (TraceEnabled)
         {
@@ -221,7 +236,7 @@ public static class ModelDiagnostics
             short depth2000 = unchecked((short)m.ReadU16(0x1F8002B4u));
             short depth6000 = unchecked((short)m.ReadU16(0x1F800344u));
             Console.WriteLine(
-                $"[model-head-depth-bias] sequence={_sequence} " +
+                $"[model-mesh-depth-bias] sequence={_sequence} mesh={_activePlayerMesh} " +
                 $"flag4000={depth4000} flag2000={depth2000} flag6000={depth6000}");
         }
 
@@ -237,7 +252,7 @@ public static class ModelDiagnostics
             if (length < 16 || length > 256)
             {
                 Console.WriteLine(
-                    $"[model-head-faces] sequence={_sequence} malformed-length={length} face={faceIndex}");
+                    $"[model-mesh-faces] sequence={_sequence} mesh={_activePlayerMesh} malformed-length={length} face={faceIndex}");
                 break;
             }
 
@@ -270,12 +285,12 @@ public static class ModelDiagnostics
             face += length;
         }
 
-        if (_sequence <= 3 || invalid != 0 || maxSpan > 80)
+        if (_sequence <= 3 || invalid != 0 || maxSpan > 160)
         {
             Console.WriteLine(
-                $"[model-head-faces] sequence={_sequence} faces={c.A2} invalid={invalid} " +
+                $"[model-mesh-faces] sequence={_sequence} mesh={_activePlayerMesh} faces={c.A2} invalid={invalid} " +
                 $"max-span={maxSpan} face={maxFace} indices={maxIndices}");
-            if (_activeVertexCount > 95)
+            if (_activePlayerMesh == 7 && _activeVertexCount > 95)
                 Console.WriteLine(
                     $"[model-head-129-at-draw] sequence={_sequence} " +
                     $"60={ScreenPoint(m, _activeOutputPointer, 60)} " +
@@ -285,7 +300,7 @@ public static class ModelDiagnostics
         if (ValidationEnabled)
         {
             Console.WriteLine(
-                $"[model-head-audit] sequence={_sequence} vertices={_activeVertexCount} " +
+                $"[model-mesh-audit] sequence={_sequence} mesh={_activePlayerMesh} vertices={_activeVertexCount} " +
                 $"faces={c.A2} invalid={invalid} max-span={maxSpan}");
         }
     }

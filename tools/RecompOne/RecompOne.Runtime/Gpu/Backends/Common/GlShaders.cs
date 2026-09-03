@@ -57,9 +57,10 @@ internal static class GlShaders
         """;
 
     /// <summary>
-    /// Cheap second pass over submitted triangles. Red records visible primitive coverage;
-    /// green records GTE/world geometry only. It repeats the main shader's transparency
-    /// rejection so texture cut-outs do not hide genuine holes in an authored backdrop.
+    /// Cheap second pass over submitted triangles. Red records visible primitive coverage,
+    /// green records visible GTE/world geometry, blue records HUD, and alpha records an
+    /// authored transparent texture footprint. Max blending accumulates those facts so
+    /// later cut-outs cannot erase earlier visible scene coverage.
     /// </summary>
     public const string CoverageVs = """
         #version 330 core
@@ -69,6 +70,7 @@ internal static class GlShaders
         layout(location = 4) in vec2 inUV;
         layout(location = 5) in float inWorld;
         layout(location = 6) in float inHud;
+        layout(location = 7) in float inPerspectiveW;
         uniform vec2 uPosBias;
         uniform vec2 uFbInv;
         out vec2 vUV;
@@ -80,7 +82,8 @@ internal static class GlShaders
         flat out float vHud;
         void main() {
             vec2 p = (inPos + uPosBias) * uFbInv - 1.0;
-            gl_Position = vec4(p, 0.0, 1.0);
+            float perspectiveW = max(inPerspectiveW, 1.0);
+            gl_Position = vec4(p * perspectiveW, 0.0, perspectiveW);
             int inClut = int(inClutF + 0.5);
             int inTexpage = int(inTexpageF + 0.5);
             vUV = inUV;
@@ -125,8 +128,9 @@ internal static class GlShaders
         }
 
         void main() {
+            bool visible = true;
             if (texMode == 5) {
-                if (texture(uExtTex, vUV).a < 0.5) discard;
+                visible = texture(uExtTex, vUV).a >= 0.5;
             } else if (texMode != 4) {
                 int rawU = dFdx(vUV.x) < 0.0 ? int(ceil(vUV.x - 0.0001)) : int(floor(vUV.x + 0.0001));
                 int rawV = dFdy(vUV.y) < 0.0 ? int(ceil(vUV.y - 0.0001)) : int(floor(vUV.y + 0.0001));
@@ -136,7 +140,7 @@ internal static class GlShaders
                     vec2 win = vec2(uTexWindow.xy) + 1.0;
                     vec2 fuv = mod(vUV, win) + vec2(uTexWindow.zw);
                     vec2 t = (fuv - uRepRect.xy) / uRepRect.zw;
-                    if (texture(uRepTex, t).a < 0.5) discard;
+                    visible = texture(uRepTex, t).a >= 0.5;
                 } else {
                     vec4 texel;
                     if (texMode == 0) {
@@ -155,34 +159,79 @@ internal static class GlShaders
                         texel = fetch(ivec2(pageBase.x + uv.x, pageBase.y + uv.y));
                     }
                     if (vRepClut != 0 && texMode != 2) {
-                        if (texel.a < 0.5) discard;
-                    } else if (texel.rgb == vec3(0.0) && texel.a < 0.5) discard;
+                        visible = texel.a >= 0.5;
+                    } else visible = texel.rgb != vec3(0.0) || texel.a >= 0.5;
                 }
             }
-            oColor = vec4(1.0, vWorld, vHud, 1.0);
+            oColor = visible
+                ? vec4(1.0, vWorld, vHud, 0.0)
+                : vec4(0.0, 0.0, 0.0, 1.0);
         }
         """;
 
     /// <summary>
-    /// Fill only untouched pixels in the horizontal area a wider camera adds. The
-    /// source comes from the nearest submitted world surface, never from HUD, so this
-    /// completes an authored room/sky boundary without stretching UI or changing any
-    /// pixel for which the game supplied geometry.
+    /// Copy the already-rendered color beneath exact GTE geometry into a HUD-free
+    /// companion texture. Geometry provides the footprint; sampling the completed
+    /// render target preserves the real texture, lighting, and blend result.
+    /// </summary>
+    public const string WorldCopyFs = """
+        #version 330 core
+        flat in float vWorld;
+        uniform sampler2D uRendered;
+        uniform ivec2 uRenderedSize;
+        out vec4 oColor;
+        void main() {
+            if (vWorld < 0.5) discard;
+            ivec2 p = clamp(ivec2(gl_FragCoord.xy), ivec2(0), uRenderedSize - 1);
+            oColor = texelFetch(uRendered, p, 0);
+        }
+        """;
+
+    /// <summary>
+    /// Resolve only untouched pixels in the horizontal area a wider camera adds.
+    /// Submitted pixels are unchanged, enclosed one-pixel cracks borrow an adjacent
+    /// world pixel, and an unmodeled side band may continue only the HUD-free world
+    /// color present at the original authored-view boundary. This avoids treating
+    /// screen-space HUD or an arbitrary nearby scene pixel as missing geometry.
     /// </summary>
     public const string WideCompleteFs = """
         #version 330 core
         in vec2 vUv;
         uniform sampler2D uTex;
         uniform sampler2D uCoverage;
+        uniform sampler2D uWorld;
         uniform vec2 uTexSize;
         uniform float uBaseFraction;
         uniform float uDebugCoverage;
+        uniform vec3 uClearColor;
+        uniform vec3 uDrawClear;
+        uniform float uDiagnosticClear;
         out vec4 oColor;
 
         bool sourceAt(ivec2 p, ivec2 size) {
             if (p.x < 0 || p.y < 0 || p.x >= size.x || p.y >= size.y) return false;
             vec3 coverage = texelFetch(uCoverage, p, 0).rgb;
-            return coverage.g > 0.5 || (coverage.r > 0.5 && coverage.b < 0.5);
+            // Side completion may borrow only from GTE-proven world geometry. A
+            // visible-but-unclassified screen primitive can be a moving HUD part;
+            // treating it as scenery produced horizontal health-bar smears at the
+            // widened edge during SM2's damage animation.
+            return coverage.g > 0.5 && coverage.b < 0.5;
+        }
+
+        bool drawnAt(ivec2 p, ivec2 size) {
+            if (p.x < 0 || p.y < 0 || p.x >= size.x || p.y >= size.y) return false;
+            vec3 color = texelFetch(uTex, p, 0).rgb;
+            vec3 axis = uDrawClear - uClearColor;
+            float axis2 = dot(axis, axis);
+            if (axis2 > 0.01) {
+                // Linear presentation sampling creates a fringe between the diagnostic
+                // clear and the authored clear. Recognize only that color line, not
+                // arbitrary scene colors which happen to share one channel.
+                float t = clamp(dot(color - uClearColor, axis) / axis2, 0.0, 1.0);
+                vec3 onLine = uClearColor + axis * t;
+                if (distance(color, onLine) <= 8.0 / 255.0) return false;
+            }
+            return any(greaterThan(abs(color - uDrawClear), vec3(0.5 / 255.0)));
         }
 
         void main() {
@@ -196,8 +245,13 @@ internal static class GlShaders
             }
             float side = (1.0 - uBaseFraction) * 0.5;
             bool addedSide = vUv.x < side || vUv.x > 1.0 - side;
-            if (texelFetch(uCoverage, p, 0).r > 0.5) {
+            vec4 here = texelFetch(uCoverage, p, 0);
+            if (here.r > 0.5 && (drawnAt(p, size) || addedSide)) {
                 oColor = base;
+                return;
+            }
+            if (here.a > 0.5) {
+                oColor = vec4(uClearColor, 1.0);
                 return;
             }
 
@@ -215,18 +269,24 @@ internal static class GlShaders
                 enclosed = true;
             }
             if (!addedSide) {
-                oColor = enclosed ? texelFetch(uTex, enclosedSource, 0) : base;
+                oColor = enclosed ? texelFetch(uTex, enclosedSource, 0)
+                    : uDiagnosticClear > 0.5 && !drawnAt(p, size)
+                        ? vec4(1.0, 0.0, 1.0, 1.0) : base;
                 return;
             }
 
-            ivec2 best = p;
-            bool found = false;
-            int toward = vUv.x < 0.5 ? 1 : -1;
-            for (int i = 1; i <= 512; i++) {
-                ivec2 q = p + ivec2(toward * i, 0);
-                if (sourceAt(q, size)) { best = q; found = true; break; }
-            }
-            oColor = found ? texelFetch(uTex, best, 0) : base;
+            // The level may simply have no mesh outside its original 4:3 camera.
+            // Continue the world pixel at that authored-view boundary, but only when
+            // coverage proves it is GTE world geometry. This is constant work and
+            // cannot pull animated HUD art into the side band.
+            int boundaryX = vUv.x < 0.5
+                ? int(floor(side * uTexSize.x))
+                : int(ceil((1.0 - side) * uTexSize.x)) - 1;
+            ivec2 boundary = ivec2(clamp(boundaryX, 0, size.x - 1), p.y);
+            oColor = sourceAt(boundary, size) ? texelFetch(uWorld, boundary, 0)
+                : uDiagnosticClear > 0.5 && !drawnAt(p, size)
+                    ? vec4(1.0, 0.0, 1.0, 1.0)
+                    : vec4(uClearColor, 1.0);
         }
         """;
 
@@ -286,9 +346,11 @@ internal static class GlShaders
         layout(location = 2) in float inClutF;
         layout(location = 3) in float inTexpageF;
         layout(location = 4) in vec2  inUV;
+        layout(location = 7) in float inPerspectiveW;
 
         out vec4 vColor;
         out vec2 vUV;
+        out float vAffineW;
         flat out ivec2 clutBase;
         flat out ivec2 pageBase;
         flat out int   texMode;
@@ -300,12 +362,14 @@ internal static class GlShaders
 
         void main() {
             vec2 p = (inPos + uVertexOffset + uPosBias) * uFbInv - 1.0;
-            gl_Position = vec4(p, 0.0, 1.0);
+            float perspectiveW = max(inPerspectiveW, 1.0);
+            gl_Position = vec4(p * perspectiveW, 0.0, perspectiveW);
 
             int inClut = int(inClutF + 0.5);
             int inTexpage = int(inTexpageF + 0.5);
 
-            vColor = vec4(inColorF, 0.0) / 255.0;
+            vColor = (vec4(inColorF, 0.0) / 255.0) * perspectiveW;
+            vAffineW = perspectiveW;
             vRepClut = (inTexpage >> 12) & 1;
 
             if ((inTexpage & 0x8000) != 0) {
@@ -329,6 +393,7 @@ internal static class GlShaders
         #version 330 core
         in vec4 vColor;
         in vec2 vUV;
+        in float vAffineW;
         flat in ivec2 clutBase;
         flat in ivec2 pageBase;
         flat in int   texMode;
@@ -361,10 +426,11 @@ internal static class GlShaders
         vec3 fullColor(ivec3 c8) { return vec3(clamp(c8, 0, 255)) / 255.0; }
 
         void main() {
+            vec4 affineColor = vColor / max(vAffineW, 0.000001);
             if (uCheckMask != 0 && texelFetch(uDest, ivec2(gl_FragCoord.xy), 0).a >= 0.5) discard;
 
             if (texMode == 4) {
-                FragColor = vec4(fullColor(ivec3(vColor.rgb * 255.0 + 0.5)), uSetMask);
+                FragColor = vec4(fullColor(ivec3(affineColor.rgb * 255.0 + 0.5)), uSetMask);
                 BlendColor = uBlend;
                 return;
             }
@@ -372,7 +438,7 @@ internal static class GlShaders
             if (texMode == 5) {
                 vec4 img = texture(uExtTex, vUV);
                 if (img.a < 0.5) discard;
-                ivec3 e8 = (ivec3(img.rgb * 255.0 + 0.5) * ivec3(vColor.rgb * 255.0 + 0.5)) >> 7;
+                ivec3 e8 = (ivec3(img.rgb * 255.0 + 0.5) * ivec3(affineColor.rgb * 255.0 + 0.5)) >> 7;
                 FragColor = vec4(fullColor(e8), uSetMask);
                 BlendColor = uBlend;
                 return;
@@ -389,7 +455,7 @@ internal static class GlShaders
                 vec2 t = (fuv - uRepRect.xy) / uRepRect.zw;
                 vec4 img = texture(uRepTex, t);
                 if (img.a < 0.5) discard;
-                ivec3 e8 = (ivec3(img.rgb * 255.0 + 0.5) * ivec3(vColor.rgb * 255.0 + 0.5)) >> 7;
+                ivec3 e8 = (ivec3(img.rgb * 255.0 + 0.5) * ivec3(affineColor.rgb * 255.0 + 0.5)) >> 7;
                 float stp = img.a < 0.95 ? 1.0 : 0.0;
                 // Replacement art is host-GPU data, not PS1 VRAM data. Keep
                 // the full 8-bit result instead of applying console-era
@@ -419,7 +485,7 @@ internal static class GlShaders
 
             if (vRepClut != 0 && texMode != 2) {
                 if (texel.a < 0.5) discard;
-                ivec3 e8 = (ivec3(texel.rgb * 255.0 + 0.5) * ivec3(vColor.rgb * 255.0 + 0.5)) >> 7;
+                ivec3 e8 = (ivec3(texel.rgb * 255.0 + 0.5) * ivec3(affineColor.rgb * 255.0 + 0.5)) >> 7;
                 float stp = texel.a < 0.95 ? 1.0 : 0.0;
                 FragColor = vec4(fullColor(e8), max(stp, uSetMask));
                 BlendColor = stp > 0.5 ? uBlend : uBlendOpaque;
@@ -428,7 +494,7 @@ internal static class GlShaders
 
             if (texel.rgb == vec3(0.0) && texel.a < 0.5) discard;
             ivec3 t8 = ivec3(texel.rgb * 31.0 + 0.5) << 3;
-            ivec3 c8 = (t8 * ivec3(vColor.rgb * 255.0 + 0.5)) >> 7;
+            ivec3 c8 = (t8 * ivec3(affineColor.rgb * 255.0 + 0.5)) >> 7;
             FragColor = vec4(fullColor(c8), max(texel.a, uSetMask));
             BlendColor = texel.a >= 0.5 ? uBlend : uBlendOpaque;
         }
@@ -498,6 +564,7 @@ internal static class GlShaders
         attribute vec2 inUV;
         attribute float inWorld;
         attribute float inHud;
+        attribute float inPerspectiveW;
         uniform vec2 uPosBias;
         uniform vec2 uFbInv;
         varying vec2 vUV;
@@ -510,7 +577,8 @@ internal static class GlShaders
         float bitAt(float v, float bit) { return floor(mod(v / bit, 2.0)); }
         void main() {
             vec2 p = (inPos + uPosBias) * uFbInv - 1.0;
-            gl_Position = vec4(p, 0.0, 1.0);
+            float perspectiveW = max(inPerspectiveW, 1.0);
+            gl_Position = vec4(p * perspectiveW, 0.0, perspectiveW);
             float tp = floor(inTexpageF + 0.5);
             float clut = floor(inClutF + 0.5);
             vUV = inUV;
@@ -560,8 +628,9 @@ internal static class GlShaders
         }
 
         void main() {
+            bool visible = true;
             if (vTexMode > 4.5 && vTexMode < 5.5) {
-                if (texture2D(uExtTex, vUV).a < 0.5) discard;
+                visible = texture2D(uExtTex, vUV).a >= 0.5;
             } else if (vTexMode < 3.5 || vTexMode > 4.5) {
                 vec2 win = uTexWindow.xy + 1.0;
                 vec2 fuv = vec2(mod(vUV.x, win.x), mod(vUV.y, win.y)) + uTexWindow.zw;
@@ -569,7 +638,7 @@ internal static class GlShaders
                 float rawV = dFdy(vUV.y) < 0.0 ? ceil(vUV.y - 0.0001) : floor(vUV.y + 0.0001);
                 if (vTexMode > 5.5) {
                     vec2 t = (fuv - uRepRect.xy) / uRepRect.zw;
-                    if (texture2D(uRepTex, t).a < 0.5) discard;
+                    visible = texture2D(uRepTex, t).a >= 0.5;
                 } else {
                     vec2 uv = vec2(mod(rawU, win.x), mod(rawV, win.y)) + uTexWindow.zw;
                     uv = vec2(mod(uv.x, 256.0), mod(uv.y, 256.0));
@@ -593,11 +662,25 @@ internal static class GlShaders
                         texel = fetch(vec2(vPageBase.x + uv.x, vPageBase.y + uv.y));
                     }
                     if (vRepClut > 0.5 && vTexMode < 1.5) {
-                        if (texel.a < 0.5) discard;
-                    } else if (texel.r == 0.0 && texel.g == 0.0 && texel.b == 0.0 && texel.a < 0.5) discard;
+                        visible = texel.a >= 0.5;
+                    } else visible = texel.r != 0.0 || texel.g != 0.0 ||
+                                           texel.b != 0.0 || texel.a >= 0.5;
                 }
             }
-            gl_FragColor = vec4(1.0, vWorld, vHud, 1.0);
+            gl_FragColor = visible
+                ? vec4(1.0, vWorld, vHud, 0.0)
+                : vec4(0.0, 0.0, 0.0, 1.0);
+        }
+        """;
+
+    public const string WorldCopyFs120 = """
+        #version 120
+        varying float vWorld;
+        uniform sampler2D uRendered;
+        uniform vec2 uRenderedSize;
+        void main() {
+            if (vWorld < 0.5) discard;
+            gl_FragColor = texture2D(uRendered, gl_FragCoord.xy / uRenderedSize);
         }
         """;
 
@@ -606,9 +689,13 @@ internal static class GlShaders
         varying vec2 vUv;
         uniform sampler2D uTex;
         uniform sampler2D uCoverage;
+        uniform sampler2D uWorld;
         uniform vec2 uTexSize;
         uniform float uBaseFraction;
         uniform float uDebugCoverage;
+        uniform vec3 uClearColor;
+        uniform vec3 uDrawClear;
+        uniform float uDiagnosticClear;
 
         vec4 at(sampler2D tex, vec2 p) {
             return texture2D(tex, (p + 0.5) / uTexSize);
@@ -617,7 +704,22 @@ internal static class GlShaders
             if (p.x < 0.0 || p.y < 0.0 || p.x >= uTexSize.x || p.y >= uTexSize.y)
                 return false;
             vec3 coverage = at(uCoverage, p).rgb;
-            return coverage.g > 0.5 || (coverage.r > 0.5 && coverage.b < 0.5);
+            return coverage.g > 0.5 && coverage.b < 0.5;
+        }
+
+        bool drawnAt(vec2 p) {
+            if (p.x < 0.0 || p.y < 0.0 || p.x >= uTexSize.x || p.y >= uTexSize.y) return false;
+            vec3 color = at(uTex, p).rgb;
+            vec3 axis = uDrawClear - uClearColor;
+            float axis2 = dot(axis, axis);
+            if (axis2 > 0.01) {
+                float t = clamp(dot(color - uClearColor, axis) / axis2, 0.0, 1.0);
+                vec3 onLine = uClearColor + axis * t;
+                if (distance(color, onLine) <= 8.0 / 255.0) return false;
+            }
+            vec3 delta = abs(color - uDrawClear);
+            return delta.r > 0.5 / 255.0 || delta.g > 0.5 / 255.0 ||
+                   delta.b > 0.5 / 255.0;
         }
 
         void main() {
@@ -630,8 +732,13 @@ internal static class GlShaders
             }
             float side = (1.0 - uBaseFraction) * 0.5;
             bool addedSide = vUv.x < side || vUv.x > 1.0 - side;
-            if (at(uCoverage, p).r > 0.5) {
+            vec4 here = at(uCoverage, p);
+            if (here.r > 0.5 && (drawnAt(p) || addedSide)) {
                 gl_FragColor = base;
+                return;
+            }
+            if (here.a > 0.5) {
+                gl_FragColor = vec4(uClearColor, 1.0);
                 return;
             }
 
@@ -645,19 +752,20 @@ internal static class GlShaders
                 enclosed = true;
             }
             if (!addedSide) {
-                gl_FragColor = enclosed ? at(uTex, enclosedSource) : base;
+                gl_FragColor = enclosed ? at(uTex, enclosedSource)
+                    : uDiagnosticClear > 0.5 && !drawnAt(p)
+                        ? vec4(1.0, 0.0, 1.0, 1.0) : base;
                 return;
             }
 
-            vec2 best = p;
-            bool found = false;
-            float toward = vUv.x < 0.5 ? 1.0 : -1.0;
-            for (int i = 1; i <= 512; i++) {
-                float d = float(i);
-                vec2 q = p + vec2(toward * d, 0.0);
-                if (sourceAt(q)) { best = q; found = true; break; }
-            }
-            gl_FragColor = found ? at(uTex, best) : base;
+            float boundaryX = vUv.x < 0.5
+                ? floor(side * uTexSize.x)
+                : ceil((1.0 - side) * uTexSize.x) - 1.0;
+            vec2 boundary = vec2(clamp(boundaryX, 0.0, uTexSize.x - 1.0), p.y);
+            gl_FragColor = sourceAt(boundary) ? at(uWorld, boundary)
+                : uDiagnosticClear > 0.5 && !drawnAt(p)
+                    ? vec4(1.0, 0.0, 1.0, 1.0)
+                    : vec4(uClearColor, 1.0);
         }
         """;
 
@@ -732,9 +840,11 @@ internal static class GlShaders
         attribute float inClutF;
         attribute float inTexpageF;
         attribute vec2  inUV;
+        attribute float inPerspectiveW;
 
         varying vec4  vColor;
         varying vec2  vUV;
+        varying float vAffineW;
         varying vec2  vClutBase;
         varying vec2  vPageBase;
         varying float vTexMode;
@@ -748,12 +858,14 @@ internal static class GlShaders
 
         void main() {
             vec2 p = (inPos + uVertexOffset + uPosBias) * uFbInv - 1.0;
-            gl_Position = vec4(p, 0.0, 1.0);
+            float perspectiveW = max(inPerspectiveW, 1.0);
+            gl_Position = vec4(p * perspectiveW, 0.0, perspectiveW);
 
             float tp = floor(inTexpageF + 0.5);
             float clut = floor(inClutF + 0.5);
 
-            vColor = vec4(inColorF / 255.0, 0.0);
+            vColor = vec4(inColorF / 255.0, 0.0) * perspectiveW;
+            vAffineW = perspectiveW;
             vRepClut = bitAt(tp, 4096.0);
             vUV = inUV;
             vClutBase = vec2(0.0);
@@ -778,6 +890,7 @@ internal static class GlShaders
         #version 120
         varying vec4  vColor;
         varying vec2  vUV;
+        varying float vAffineW;
         varying vec2  vClutBase;
         varying vec2  vPageBase;
         varying float vTexMode;
@@ -822,6 +935,7 @@ internal static class GlShaders
         }
 
         void main() {
+            vec4 affineColor = vColor / max(vAffineW, 0.000001);
             vec2 destUv = gl_FragCoord.xy / uDestSize;
             vec4 dstTexel = texture2D(uDest, destUv);
             if (uCheckMask > 0.5 && dstTexel.a >= 0.5) discard;
@@ -832,13 +946,13 @@ internal static class GlShaders
             float hostReplacement = 0.0;
 
             if (vTexMode > 3.5 && vTexMode < 4.5) {
-                rgb = vColor.rgb * 255.0;
+                rgb = affineColor.rgb * 255.0;
                 stp = 1.0;
                 mask = uSetMask;
             } else if (vTexMode > 4.5 && vTexMode < 5.5) {
                 vec4 img = texture2D(uExtTex, vUV);
                 if (img.a < 0.5) discard;
-                rgb = floor(img.rgb * 255.0 + 0.5) * floor(vColor.rgb * 255.0 + 0.5) / 128.0;
+                rgb = floor(img.rgb * 255.0 + 0.5) * floor(affineColor.rgb * 255.0 + 0.5) / 128.0;
                 stp = 1.0;
                 mask = uSetMask;
             } else {
@@ -853,7 +967,7 @@ internal static class GlShaders
                     vec2 t = (fuv - uRepRect.xy) / uRepRect.zw;
                     vec4 img = texture2D(uRepTex, t);
                     if (img.a < 0.5) discard;
-                    rgb = floor(img.rgb * 255.0 + 0.5) * floor(vColor.rgb * 255.0 + 0.5) / 128.0;
+                    rgb = floor(img.rgb * 255.0 + 0.5) * floor(affineColor.rgb * 255.0 + 0.5) / 128.0;
                     stp = img.a < 0.95 ? 1.0 : 0.0;
                     mask = max(stp, uSetMask);
                     hostReplacement = 1.0;
@@ -883,12 +997,12 @@ internal static class GlShaders
 
                     if (vRepClut > 0.5 && vTexMode < 1.5) {
                         if (texel.a < 0.5) discard;
-                        rgb = floor(texel.rgb * 255.0 + 0.5) * floor(vColor.rgb * 255.0 + 0.5) / 128.0;
+                        rgb = floor(texel.rgb * 255.0 + 0.5) * floor(affineColor.rgb * 255.0 + 0.5) / 128.0;
                         stp = texel.a < 0.95 ? 1.0 : 0.0;
                     } else {
                         if (texel.r == 0.0 && texel.g == 0.0 && texel.b == 0.0 && texel.a < 0.5) discard;
                         vec3 t8 = floor(texel.rgb * 31.0 + 0.5) * 8.0;
-                        rgb = t8 * floor(vColor.rgb * 255.0 + 0.5) / 128.0;
+                        rgb = t8 * floor(affineColor.rgb * 255.0 + 0.5) / 128.0;
                         stp = texel.a >= 0.5 ? 1.0 : 0.0;
                     }
                     mask = max(stp, uSetMask);
@@ -907,7 +1021,7 @@ internal static class GlShaders
     static readonly (uint Index, string Name)[] PrimAttribs =
     [
         (0, "inPos"), (1, "inColorF"), (2, "inClutF"), (3, "inTexpageF"),
-        (4, "inUV"), (5, "inWorld"), (6, "inHud"),
+        (4, "inUV"), (5, "inWorld"), (6, "inHud"), (7, "inPerspectiveW"),
     ];
 
     public static uint BuildPrim(GL gl, string vsSrc, string fsSrc, string name)

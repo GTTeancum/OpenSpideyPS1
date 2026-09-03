@@ -81,6 +81,16 @@ def parse_args() -> argparse.Namespace:
     parser.add_argument("--exit-frame", type=int, default=EXIT_FRAME)
     parser.add_argument("--timeout", type=int, default=180)
     parser.add_argument(
+        "--dump-textures",
+        action="store_true",
+        help="dump the game process's decoded texture pages for conversion audits",
+    )
+    parser.add_argument(
+        "--texture-dump-only",
+        action="store_true",
+        help="capture resolved pages and clean-exit evidence without menu-signature validation",
+    )
+    parser.add_argument(
         "--reuse-captures",
         action="store_true",
         help="validate existing console logs and frames without launching the game",
@@ -114,6 +124,7 @@ def run_game(
     render_scale: int,
     exit_frame: int,
     timeout: int,
+    dump_textures: bool,
 ) -> tuple[str, str]:
     ensure_no_game_process()
     for pattern in (
@@ -149,6 +160,9 @@ def run_game(
             "SPIDEY_TRACE_WAD": "1",
         }
     )
+    if dump_textures:
+        env["SPIDEY_DUMP_TEXTURES"] = "pages"
+        env["RECOMP_TEXTURE_DUMP_DIR"] = str(slot_root / "texture-dump")
     try:
         result = subprocess.run(
             [str(exe)],
@@ -440,6 +454,8 @@ def validate_slot(
 
 def main() -> None:
     args = parse_args()
+    if args.texture_dump_only and not args.dump_textures:
+        raise ValueError("--texture-dump-only requires --dump-textures")
     if args.render_scale < 1 or args.render_scale > 8:
         raise ValueError("--render-scale must be between 1 and 8")
     slots = [int(value.strip()) for value in args.slots.split(",") if value.strip()]
@@ -468,28 +484,51 @@ def main() -> None:
                 args.render_scale,
                 args.exit_frame,
                 args.timeout,
+                args.dump_textures,
             )
-        result = validate_slot(
-            assets,
-            slot_root,
-            slot,
-            console,
-            args.render_scale,
-            args.exit_frame,
-            run_token,
-        )
+        if args.texture_dump_only:
+            pages = sorted((slot_root / "texture-dump" / "pages").glob("*.json"))
+            clean_exit = f"[capture] exit at frame {args.exit_frame}" in console
+            if not pages or not clean_exit:
+                raise RuntimeError(
+                    f"slot {slot:02d} did not produce resolved pages and a clean exit"
+                )
+            result = {
+                "status": "texture-dump-valid",
+                "slot": slot,
+                "textureLibrary": f"sp_tex{slot:02d}.psx",
+                "resolvedPageCount": len(pages),
+                "runToken": run_token,
+                "cleanExit": clean_exit,
+                "pageRoot": str(slot_root / "texture-dump" / "pages"),
+            }
+        else:
+            result = validate_slot(
+                assets,
+                slot_root,
+                slot,
+                console,
+                args.render_scale,
+                args.exit_frame,
+                run_token,
+            )
         results.append(result)
         print(
             f"{result['status'].upper()} slot {slot:02d} "
             f"{result['textureLibrary']} -> one sequential SpiderMan2 process",
             flush=True,
         )
-        if result["status"] != "menu-capture-valid":
+        expected_status = (
+            "texture-dump-valid" if args.texture_dump_only else "menu-capture-valid"
+        )
+        if result["status"] != expected_status:
             raise RuntimeError(f"slot {slot:02d} failed runtime validation")
 
     report = {
         "schemaVersion": 3,
-        "status": "menu-capture-valid",
+        "status": (
+            "texture-dump-valid" if args.texture_dump_only else "menu-capture-valid"
+        ),
         "visualReview": "pending; every menu frame must be inspected before a costume passes",
         "scope": "SM2 Spider-Man costumes only; no NPC or enemy replacements",
         "assets": str(assets),
@@ -510,10 +549,16 @@ def main() -> None:
     }
     report_path = output / "runtime-validation.json"
     report_path.write_text(json.dumps(report, indent=2) + "\n", encoding="utf-8")
-    print(
-        f"MENU CAPTURED: {len(results)}/{len(slots)} selected SM2 Spider-Man costume slots; "
-        "visual review still required"
-    )
+    if args.texture_dump_only:
+        print(
+            f"TEXTURE PAGES CAPTURED: {len(results)}/{len(slots)} selected SM2 "
+            "Spider-Man costume slots"
+        )
+    else:
+        print(
+            f"MENU CAPTURED: {len(results)}/{len(slots)} selected SM2 Spider-Man "
+            "costume slots; visual review still required"
+        )
     print(f"report: {report_path}")
 
 

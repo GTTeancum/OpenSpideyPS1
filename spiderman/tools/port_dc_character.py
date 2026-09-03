@@ -37,6 +37,19 @@ MAGENTA_555 = 0x7C1F
 WING_HASH = 0xDC38D248
 WING_SIZE = 64
 PALETTE_CACHE_ID_DOMAIN = b"OpenSpideyPS1/DC-palette-cache-id/v1\0"
+PLAYER_SUPPORT_TEXTURE_START = 9
+PLAYER_FILLER_SIZE = 64
+PLAYER_FILLER_ID_DOMAIN = b"OpenSpideyPS1/player-texture-filler/v1\0"
+PLAYER_BODY_SOURCE_DIMENSIONS = {
+    0: (256, 256),
+    1: (256, 256),
+    2: (256, 256),
+    3: (64, 64),
+    4: (256, 256),
+    5: (128, 128),
+    6: (128, 128),
+    7: (128, 128),
+}
 
 # Bag-Man's Dreamcast head is two nested shells: Peter's 52-vertex head sits
 # behind a 49-vertex paper bag with transparent eye holes. Preserve that source
@@ -203,6 +216,54 @@ class Ps1TextureAsset:
     height: int
     palette: tuple[int, ...]
     payload: bytes
+
+
+@dataclass(frozen=True)
+class Ps1TextureRecord:
+    texture_hash: int
+    flags: int
+    palette_size: int
+    palette_id: int
+    width: int
+    height: int
+    palette: tuple[int, ...]
+    payload: bytes
+
+
+def runtime_actor_texture_index(logical_index: int, supplemental_count: int) -> int:
+    """Map actor materials around the fixed player support-texture window."""
+    if supplemental_count <= 0 or logical_index < PLAYER_SUPPORT_TEXTURE_START:
+        return logical_index
+    return logical_index + supplemental_count
+
+
+def player_texture_filler_count(actor_texture_count: int, supplemental_count: int) -> int:
+    if supplemental_count <= 0:
+        return 0
+    return max(0, PLAYER_SUPPORT_TEXTURE_START - actor_texture_count)
+
+
+def player_texture_record_count(actor_texture_count: int, supplemental_count: int) -> int:
+    return (
+        actor_texture_count
+        + supplemental_count
+        + player_texture_filler_count(actor_texture_count, supplemental_count)
+    )
+
+
+def player_filler_identity(model: ParsedModel, logical_index: int) -> tuple[int, int]:
+    digest = hashlib.sha256(
+        PLAYER_FILLER_ID_DOMAIN
+        + hashlib.sha256(model.data).digest()
+        + struct.pack("<I", logical_index)
+    ).digest()
+    texture_hash = u32(digest, 0)
+    palette_id = u32(digest, 4)
+    if texture_hash in (0, 0xFFFFFFFF):
+        texture_hash ^= 0x5A5A5A5A
+    if palette_id in (0, 0xFFFFFFFF):
+        palette_id ^= 0xA5A5A5A5
+    return texture_hash, palette_id
 
 
 def tagged_chunk_payload(data: bytes, tag_wanted: int) -> bytes:
@@ -934,6 +995,110 @@ def load_ps1_texture_asset(path: Path, texture_hash: int) -> Ps1TextureAsset:
     raise ValueError(f"texture hash 0x{texture_hash:08X} not found in {path}")
 
 
+def load_ps1_texture_records(path: Path) -> tuple[Ps1TextureRecord, ...]:
+    """Read a PS1 model's indexed texture records in material-index order.
+
+    Player donor models carry UI/effect dependencies in the same texture table as
+    their body materials. Converted bodies therefore retain these exact records;
+    host replacement art can still override the visible body pages independently.
+    """
+    data = path.read_bytes()
+    if len(data) < 16:
+        raise ValueError(f"PS1 texture donor is truncated: {path}")
+    metadata_offset = u32(data, 4)
+    object_count = u32(data, 8)
+    mesh_count_offset = 12 + object_count * 36
+    mesh_count = u32(data, mesh_count_offset)
+    cursor = metadata_offset
+    for _ in range(17):
+        tag = u32(data, cursor)
+        cursor += 4
+        if tag == 0xFFFFFFFF:
+            break
+        size = u32(data, cursor)
+        cursor += 4 + size
+    else:
+        raise ValueError(f"PS1 texture donor metadata has no terminator: {path}")
+
+    cursor += mesh_count * 4
+    texture_name_count = u32(data, cursor)
+    cursor += 4
+    texture_names = struct.unpack_from(f"<{texture_name_count}I", data, cursor)
+    cursor += texture_name_count * 4
+
+    palette4_count = u32(data, cursor)
+    cursor += 4
+    palettes4: dict[int, tuple[int, ...]] = {}
+    for _ in range(palette4_count):
+        palette_id = u32(data, cursor)
+        cursor += 4
+        palette = struct.unpack_from("<16H", data, cursor)
+        cursor += 16 * 2
+        if palette_id in palettes4 and palettes4[palette_id] != palette:
+            raise ValueError(f"PS1 texture donor reuses CLUT id 0x{palette_id:08X}")
+        palettes4[palette_id] = tuple(palette)
+    palette8_count = u32(data, cursor)
+    cursor += 4
+    palettes: dict[int, tuple[int, ...]] = {}
+    for _ in range(palette8_count):
+        palette_id = u32(data, cursor)
+        cursor += 4
+        palette = struct.unpack_from("<256H", data, cursor)
+        cursor += 256 * 2
+        if palette_id in palettes and palettes[palette_id] != palette:
+            raise ValueError(f"PS1 texture donor reuses CLUT id 0x{palette_id:08X}")
+        palettes[palette_id] = tuple(palette)
+
+    texture_count = u32(data, cursor)
+    cursor += 4
+    pointers = struct.unpack_from(f"<{texture_count}I", data, cursor)
+    records: dict[int, Ps1TextureRecord] = {}
+    for pointer in pointers:
+        if pointer + 20 > len(data):
+            raise ValueError(f"PS1 texture donor record exceeds file: {path}")
+        flags, palette_size, palette_id, index, width, height = struct.unpack_from(
+            "<IIIIHH", data, pointer
+        )
+        if index >= len(texture_names):
+            raise ValueError(f"PS1 texture record index {index} exceeds its hash table")
+        if palette_size == 256:
+            padded_width = (width + 1) & ~1
+            payload_size = padded_width * height
+            if height % 2 and padded_width % 4:
+                payload_size += 2
+            palette = palettes.get(palette_id)
+        elif palette_size == 16:
+            padded_width = (width + 3) & ~3
+            byte_width = padded_width // 2
+            payload_size = byte_width * height
+            if height % 2 and byte_width % 4:
+                payload_size += 2
+            palette = palettes4.get(palette_id)
+        else:
+            raise ValueError(
+                f"PS1 player texture {index} has unsupported palette size {palette_size}"
+            )
+        payload = data[pointer + 20 : pointer + 20 + payload_size]
+        if len(payload) != payload_size:
+            raise ValueError(f"PS1 player texture {index} payload is truncated")
+        if palette is None:
+            raise ValueError(
+                f"PS1 player texture {index} lacks CLUT id 0x{palette_id:08X}"
+            )
+        if index in records:
+            raise ValueError(f"PS1 texture donor repeats material index {index}")
+        records[index] = Ps1TextureRecord(
+            texture_names[index], flags, palette_size, palette_id,
+            width, height, palette, payload
+        )
+    expected = set(range(texture_name_count))
+    if set(records) != expected:
+        raise ValueError(
+            f"PS1 texture donor indices are {sorted(records)}, expected {sorted(expected)}"
+        )
+    return tuple(records[index] for index in range(texture_name_count))
+
+
 def rgb_to_555(rgb: tuple[int, int, int]) -> int:
     red, green, blue = rgb
     return ((red * 31 + 127) // 255) | (((green * 31 + 127) // 255) << 5) | (
@@ -1213,6 +1378,7 @@ def scaled_dimensions(
     model: ParsedModel,
     texture_scale: int,
     with_wings: bool,
+    fixed_player_layout: bool = False,
 ) -> dict[int, tuple[int, int]]:
     if texture_scale < 1:
         raise ValueError("texture scale divisor must be at least one")
@@ -1225,6 +1391,19 @@ def scaled_dimensions(
                 f"texture {texture.index} remains {width}x{height}; PS1 UVs are bytes"
             )
         dimensions[texture.index] = (width, height)
+    if fixed_player_layout:
+        # SM1's player effects retain hard-coded VRAM page coordinates. Make
+        # slots 0..8 occupy the exact same compact footprints as converted
+        # default Spider-Man, regardless of the selected donor's source atlas
+        # order. Full-resolution host replacements are keyed from these compact
+        # uploads and still render the untouched Dreamcast PNGs.
+        for index, (source_width, source_height) in PLAYER_BODY_SOURCE_DIMENSIONS.items():
+            if index not in dimensions:
+                continue
+            dimensions[index] = (
+                max(1, source_width // texture_scale),
+                max(1, source_height // texture_scale),
+            )
     spline_alias = scorpion_spline_runtime_alias(model)
     if spline_alias is not None:
         _, runtime_index = spline_alias
@@ -1293,6 +1472,7 @@ def convert_face(
     data: bytes,
     offset: int,
     dimensions: dict[int, tuple[int, int]],
+    texture_index_map: Mapping[int, int] | None = None,
     face_lighting: bytes | None = None,
     clear_indexed_rgb: bool = False,
 ) -> bytes:
@@ -1324,6 +1504,12 @@ def convert_face(
     output.extend(data[offset : offset + 2])
     output.extend(pack_u16(old_length - 8))
     output.extend(data[offset + 4 : offset + 20])
+    runtime_texture_index = (
+        texture_index
+        if texture_index_map is None
+        else texture_index_map[texture_index]
+    )
+    struct.pack_into("<I", output, 16, runtime_texture_index)
     for slot in range(4):
         output.append(uv_byte(us[slot], width))
         output.append(uv_byte(vs[slot], height))
@@ -1341,6 +1527,7 @@ def convert_mesh(
     dimensions: dict[int, tuple[int, int]],
     wing_transfer: WingTransfer | None,
     wing_index: int,
+    texture_index_map: Mapping[int, int] | None = None,
     face_lighting: bytes | tuple[bytes, ...] | None = None,
     clear_indexed_rgb: bool = False,
 ) -> bytes:
@@ -1367,6 +1554,7 @@ def convert_mesh(
                 data,
                 cursor,
                 dimensions,
+                texture_index_map,
                 lighting,
                 clear_indexed_rgb,
             )
@@ -1374,7 +1562,9 @@ def convert_mesh(
         cursor += length
     if cursor != model.mesh_ends[mesh_index]:
         raise AssertionError("mesh parser and converter disagree on end offset")
-    mesh = adapt_bagman_nested_head_for_ps1(model, mesh_index, bytes(output))
+    mesh = adapt_bagman_nested_head_for_ps1(
+        model, mesh_index, bytes(output), texture_index_map
+    )
     if wing_transfer is None:
         return mesh
     mesh = adapt_mesh_for_wing_sources(mesh, mesh_index, wing_transfer)
@@ -1393,6 +1583,7 @@ def adapt_bagman_nested_head_for_ps1(
     model: ParsedModel,
     mesh_index: int,
     mesh: bytes,
+    texture_index_map: Mapping[int, int] | None = None,
 ) -> bytes:
     """Mark the complete inner shell for SM1's native OT depth-offset channel.
 
@@ -1414,6 +1605,11 @@ def adapt_bagman_nested_head_for_ps1(
             "Bag-Man nested-head counts no longer match the audited Dreamcast source"
         )
 
+    inverse_texture_index_map = (
+        None
+        if texture_index_map is None
+        else {runtime: source for source, runtime in texture_index_map.items()}
+    )
     inner_vertices: set[int] = set()
     bag_vertices: set[int] = set()
     inner_faces = 0
@@ -1423,7 +1619,12 @@ def adapt_bagman_nested_head_for_ps1(
         if (flags & 3) == 0:
             raise ValueError("Bag-Man head unexpectedly contains an untextured face")
         corners = 4 if flags & 0x20 else 3
-        texture_index = u32(face, 16)
+        runtime_texture_index = u32(face, 16)
+        texture_index = (
+            runtime_texture_index
+            if inverse_texture_index_map is None
+            else inverse_texture_index_map[runtime_texture_index]
+        )
         adjusted = bytearray(face)
         if texture_index == 5:
             inner_faces += 1
@@ -1618,6 +1819,7 @@ def build_texture_section(
     with_wings: bool,
     visible_wing_proof: bool = False,
     wing_proof_asset: Ps1TextureAsset | None = None,
+    supplemental_textures: tuple[Ps1TextureRecord, ...] = (),
 ) -> tuple[list[int], list[tuple[int, ...]], list[bytes]]:
     palette_cache_ids = generated_palette_cache_ids(model, with_wings)
     actor_assets = quantize_actor_textures(model, texture_dir, dimensions)
@@ -1668,7 +1870,20 @@ def build_texture_section(
             palettes.append(tuple([MAGENTA_555] * 256))
             pixels.append(bytes(WING_SIZE * WING_SIZE))
 
-    output.extend(pack_u32(0))  # no 4-bit palettes
+    supplemental_palettes4: dict[int, tuple[int, ...]] = {}
+    for texture in supplemental_textures:
+        if texture.palette_size != 16:
+            continue
+        existing = supplemental_palettes4.get(texture.palette_id)
+        if existing is not None and existing != texture.palette:
+            raise ValueError(
+                f"supplemental 4-bit CLUT id 0x{texture.palette_id:08X} conflicts"
+            )
+        supplemental_palettes4[texture.palette_id] = texture.palette
+    output.extend(pack_u32(len(supplemental_palettes4)))
+    for palette_id, palette in supplemental_palettes4.items():
+        output.extend(pack_u32(palette_id))
+        output.extend(struct.pack("<16H", *palette))
     # Dreamcast 16-bit textures do not need a CLUT, so their shipped TexId is
     # commonly zero. SM1's CLUT cache is global rather than model-local, so even
     # the face-facing material index is unsafe: Black Cat index 0 otherwise
@@ -1702,61 +1917,111 @@ def build_texture_section(
                 f"palette-cache id 0x{wing_palette_id:08X} has conflicting wing palette"
             )
         palette_declarations[wing_palette_id] = palettes[-1]
+    for texture in supplemental_textures:
+        if texture.palette_size != 256:
+            continue
+        existing = palette_declarations.get(texture.palette_id)
+        if existing is not None and existing != texture.palette:
+            raise ValueError(
+                f"supplemental CLUT id 0x{texture.palette_id:08X} conflicts with actor palette"
+            )
+        palette_declarations[texture.palette_id] = texture.palette
+
+    actor_texture_count = len(pixels)
+    supplemental_count = len(supplemental_textures)
+    filler_records: list[tuple[int, int, int, int, int, bytes]] = []
+    for logical_index in range(actor_texture_count, PLAYER_SUPPORT_TEXTURE_START):
+        if not supplemental_count:
+            break
+        _, palette_id = player_filler_identity(model, logical_index)
+        filler_palette = tuple([MAGENTA_555] * 256)
+        existing = palette_declarations.get(palette_id)
+        if existing is not None and existing != filler_palette:
+            raise ValueError(
+                f"filler CLUT id 0x{palette_id:08X} conflicts with another palette"
+            )
+        palette_declarations[palette_id] = filler_palette
+        filler_records.append(
+            (0, 256, palette_id, PLAYER_FILLER_SIZE, PLAYER_FILLER_SIZE,
+             bytes(PLAYER_FILLER_SIZE * PLAYER_FILLER_SIZE))
+        )
 
     output.extend(pack_u32(len(palette_declarations)))
     for palette_cache_id, palette in palette_declarations.items():
         output.extend(pack_u32(palette_cache_id))
         output.extend(struct.pack("<256H", *palette))
 
-    output.extend(pack_u32(len(pixels)))
+    texture_count = player_texture_record_count(
+        actor_texture_count, supplemental_count
+    )
+    output.extend(pack_u32(texture_count))
     pointer_table = len(output)
-    output.extend(b"\x00" * (4 * len(pixels)))
+    output.extend(b"\x00" * (4 * texture_count))
     header_offsets: list[int] = []
+
+    actor_records: dict[int, tuple[int, int, int, int, int, bytes]] = {}
     for texture, payload in zip(model.textures, pixels[: len(model.textures)]):
         width, height = dimensions[texture.index]
+        actor_records[texture.index] = (
+            texture.unk, 256, palette_cache_ids[texture.index], width, height, payload
+        )
+    if spline_alias_asset is not None:
+        source_texture, runtime_index, _, alias_payload = spline_alias_asset
+        width, height = dimensions[runtime_index]
+        actor_records[runtime_index] = (
+            source_texture.unk, 256, palette_cache_ids[runtime_index],
+            width, height, alias_payload,
+        )
+    if with_wings:
+        actor_records[wing_index] = (
+            0, 256, palette_cache_ids[wing_index], WING_SIZE, WING_SIZE, pixels[-1]
+        )
+    if set(actor_records) != set(range(actor_texture_count)):
+        raise ValueError(
+            f"actor texture indices are {sorted(actor_records)}, "
+            f"expected 0..{actor_texture_count - 1}"
+        )
+
+    ordered_records: list[tuple[int, tuple[int, int, int, int, int, bytes]]] = []
+    for logical_index in range(min(actor_texture_count, PLAYER_SUPPORT_TEXTURE_START)):
+        ordered_records.append((logical_index, actor_records[logical_index]))
+    for filler_offset, record in enumerate(filler_records):
+        ordered_records.append((actor_texture_count + filler_offset, record))
+    for supplemental_index, texture in enumerate(supplemental_textures):
+        ordered_records.append(
+            (
+                PLAYER_SUPPORT_TEXTURE_START + supplemental_index,
+                (
+                    texture.flags, texture.palette_size, texture.palette_id,
+                    texture.width, texture.height, texture.payload,
+                ),
+            )
+        )
+    for logical_index in range(PLAYER_SUPPORT_TEXTURE_START, actor_texture_count):
+        ordered_records.append(
+            (
+                runtime_actor_texture_index(logical_index, supplemental_count),
+                actor_records[logical_index],
+            )
+        )
+    if [index for index, _ in ordered_records] != list(range(texture_count)):
+        raise AssertionError("player texture records are not contiguous in runtime order")
+
+    for index, record in ordered_records:
+        flags, palette_size, palette_id, width, height, payload = record
         header_offsets.append(len(output))
         output.extend(
             struct.pack(
                 "<IIIIHH",
-                texture.unk,
-                256,
-                palette_cache_ids[texture.index],
-                texture.index,
+                flags,
+                palette_size,
+                palette_id,
+                index,
                 width,
                 height,
             )
         )
         output.extend(payload)
-    if spline_alias_asset is not None:
-        source_texture, runtime_index, _, alias_payload = spline_alias_asset
-        width, height = dimensions[runtime_index]
-        header_offsets.append(len(output))
-        output.extend(
-            struct.pack(
-                "<IIIIHH",
-                source_texture.unk,
-                256,
-                palette_cache_ids[runtime_index],
-                runtime_index,
-                width,
-                height,
-            )
-        )
-        output.extend(alias_payload)
-    if with_wings:
-        header_offsets.append(len(output))
-        output.extend(
-            struct.pack(
-                "<IIIIHH",
-                0,
-                256,
-                palette_cache_ids[wing_index],
-                wing_index,
-                WING_SIZE,
-                WING_SIZE,
-            )
-        )
-        output.extend(pixels[-1])
     for index, header_offset in enumerate(header_offsets):
         struct.pack_into("<I", output, pointer_table + index * 4, header_offset)
     return header_offsets, palettes, pixels
@@ -1768,25 +2033,29 @@ def write_common_texture_prefix(
     with_wings: bool,
     tagged_chunks: bytes | None = None,
     mesh_names: tuple[int, ...] | None = None,
+    supplemental_textures: tuple[Ps1TextureRecord, ...] = (),
 ) -> None:
     output.extend(model.tagged_chunks if tagged_chunks is None else tagged_chunks)
     output_names = model.mesh_names if mesh_names is None else mesh_names
     output.extend(struct.pack(f"<{len(output_names)}I", *output_names))
     spline_alias = scorpion_spline_runtime_alias(model)
-    output.extend(
-        pack_u32(
-            len(model.texture_hashes)
-            + int(spline_alias is not None)
-            + int(with_wings)
-        )
-    )
-    output.extend(struct.pack(f"<{len(model.texture_hashes)}I", *model.texture_hashes))
+    actor_hashes = list(model.texture_hashes)
     if spline_alias is not None:
-        output.extend(pack_u32(SCORPION_SPLINE_RUNTIME_TEXTURE_HASH))
+        actor_hashes.append(SCORPION_SPLINE_RUNTIME_TEXTURE_HASH)
     if with_wings:
         if WING_HASH in model.texture_hashes:
             raise ValueError("model already contains the SM2 wing material hash")
-        output.extend(pack_u32(WING_HASH))
+        actor_hashes.append(WING_HASH)
+    supplemental_count = len(supplemental_textures)
+    hashes = actor_hashes[:PLAYER_SUPPORT_TEXTURE_START]
+    for logical_index in range(len(actor_hashes), PLAYER_SUPPORT_TEXTURE_START):
+        if not supplemental_count:
+            break
+        hashes.append(player_filler_identity(model, logical_index)[0])
+    hashes.extend(texture.texture_hash for texture in supplemental_textures)
+    hashes.extend(actor_hashes[PLAYER_SUPPORT_TEXTURE_START:])
+    output.extend(pack_u32(len(hashes)))
+    output.extend(struct.pack(f"<{len(hashes)}I", *hashes))
 
 
 def build_character(
@@ -1798,15 +2067,30 @@ def build_character(
     wing_proof_asset: Ps1TextureAsset | None = None,
     tagged_chunks: bytes | None = None,
     skeleton_donor: SkeletonDonor | None = None,
+    supplemental_textures: tuple[Ps1TextureRecord, ...] = (),
 ) -> bytes:
     if skeleton_donor is not None and tagged_chunks is not None:
         raise ValueError("use either a complete skeleton donor or tagged chunks, not both")
     with_wings = wing_donor is not None
     wing_transfer = prepare_wing_transfer(model, wing_donor) if wing_donor else None
-    dimensions = scaled_dimensions(model, texture_scale, with_wings)
-    wing_index = len(model.texture_hashes) + int(
+    dimensions = scaled_dimensions(
+        model,
+        texture_scale,
+        with_wings,
+        fixed_player_layout=bool(supplemental_textures),
+    )
+    supplemental_count = len(supplemental_textures)
+    logical_actor_texture_count = len(model.texture_hashes) + int(
+        scorpion_spline_runtime_alias(model) is not None
+    ) + int(with_wings)
+    texture_index_map = {
+        logical_index: runtime_actor_texture_index(logical_index, supplemental_count)
+        for logical_index in range(logical_actor_texture_count)
+    }
+    wing_logical_index = len(model.texture_hashes) + int(
         scorpion_spline_runtime_alias(model) is not None
     )
+    wing_index = texture_index_map[wing_logical_index] if with_wings else 0
     mesh_order = (
         tuple(range(model.mesh_count))
         if skeleton_donor is None
@@ -1848,6 +2132,7 @@ def build_character(
             dimensions,
             wing_transfer,
             wing_index,
+            texture_index_map,
             face_lighting,
             is_jameson_model(model),
         )
@@ -1864,6 +2149,7 @@ def build_character(
         with_wings,
         output_tagged_chunks,
         output_mesh_names,
+        supplemental_textures,
     )
     build_texture_section(
         model,
@@ -1873,6 +2159,7 @@ def build_character(
         with_wings,
         visible_wing_proof,
         wing_proof_asset,
+        supplemental_textures,
     )
     return bytes(output)
 
@@ -1926,6 +2213,11 @@ def parse_args() -> argparse.Namespace:
     parser.add_argument("--output-model", type=Path, required=True)
     parser.add_argument("--output-textures", type=Path)
     parser.add_argument(
+        "--player-texture-donor",
+        type=Path,
+        help="retail player model supplying embedded HUD/effect texture dependencies",
+    )
+    parser.add_argument(
         "--wing-donor",
         type=Path,
         help="loose PS1 SM2 spidey.psx used to add its stitched web-wing primitives",
@@ -1943,7 +2235,18 @@ def main() -> None:
     args = parse_args()
     model = parse_model(args.model)
     wings = load_wing_templates(args.wing_donor) if args.wing_donor else None
-    character = build_character(model, args.textures, args.texture_scale, wings)
+    supplemental_textures = (
+        load_ps1_texture_records(args.player_texture_donor)
+        if args.player_texture_donor
+        else ()
+    )
+    character = build_character(
+        model,
+        args.textures,
+        args.texture_scale,
+        wings,
+        supplemental_textures=supplemental_textures,
+    )
     args.output_model.parent.mkdir(parents=True, exist_ok=True)
     args.output_model.write_bytes(character)
     print(

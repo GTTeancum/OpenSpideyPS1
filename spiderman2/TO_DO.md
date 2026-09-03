@@ -26,7 +26,7 @@ What is verified, and how:
 | **Level select** | `SPIDEY_LEVEL=e1m1` redirects the archive lookups and E1M1 loads and plays |
 | **Cheats** | all ten codes' handlers read off and reproduced; `SPIDEY_CHEATS=all` installs |
 | **Modern renderer** | dithering/5-bit output removed; FXAA enabled by default and verified with exact same-frame pre/post captures |
-| **Widescreen** | true 16:9 GTE projection, 16:9 host window, stable left/right HUD anchoring, and completed authored side bands |
+| **Widescreen** | true 16:9 GTE projection, 16:9 host window, stable HUD anchors, and HUD-safe boundary continuation; full level-by-level side-band review remains open |
 | **Story-level render audit** | four ordered gameplay captures for every prefix: 19 zero-gap passes, one native-equivalent seam review, four explicit pre-render failures |
 | Stability | zero exceptions across every run in this session |
 
@@ -106,6 +106,10 @@ after that the route replays.
   crash in model initialization with invalid/unmapped source data. They are not
   widescreen failures, but they must be fixed before those levels can join the visual
   audit.
+- **Widescreen side bands.** Missing off-camera level mesh is never synthesized. The
+  completion pass can repeat only the exact HUD-free world color at the original view
+  boundary, so it no longer smears HUD art or searches arbitrarily across the scene;
+  each story level still needs visual approval of that treatment.
 - **Game-internals instrumentation.** `mkconfig.py` emits no `GameTrace`-style hooks,
   because every one of them is a global or a structure layout that has to be found in
   *this* executable first, and a hook pointed at a plausible-looking wrong address

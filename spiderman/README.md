@@ -267,11 +267,15 @@ emulated console drew, not what the desktop showed.
 
 ```
 SPIDEY_HZ=30               host presentation/GPU pacing budget; default 30 Hz
-SPIDEY_LEVEL=l5a3          boot straight into a level (47 prefixes, l1a1..l9a4)
+SPIDEY_LEVEL=l5a3          boot straight into a level (retail descriptor first;
+                           archive fallback for alternate prefixes)
 SPIDEY_CHEATS=all          the game's own cheats: everything, levelselect, invuln,
                            webbing, debug, bighead, viewers
 SPIDEY_COSTUME=symbiote    spiderman 2099 symbiote captain unlimited bagman
                            scarlet benreilly quickchange peterparker
+                           spiderphoenix prodigy dusk insulated alexrossred
+                           alexrosswhite venomearthx negativezone battledamaged
+                           spidermanwinged
 SPIDEY_ASSET_DIR=path      override extracted CD.WAD entries by filename
 SPIDEY_SNAP=crash          dump the game's RAM on the crash, or on named frames
 SPIDEY_SHOTS=1050,menu.spidey+300

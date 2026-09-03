@@ -82,16 +82,20 @@ public static class HostWindow
         if (OperatingSystem.IsMacOS())
             return [new GraphicsAPI(ContextAPI.OpenGL, ContextProfile.Core, ContextFlags.ForwardCompatible, new APIVersion(4, 1))];
 
-        var requested = Hle.GpuBackendFactory.Parse(ConfigManager.View.GpuBackend);
+        var requested = Hle.GpuBackendFactory.RequestedBackend();
         var core45 = new GraphicsAPI(ContextAPI.OpenGL, ContextProfile.Core, ContextFlags.Default, new APIVersion(4, 5));
         var core33 = new GraphicsAPI(ContextAPI.OpenGL, ContextProfile.Core, ContextFlags.Default, new APIVersion(3, 3));
+#if RECOMPONE_LEGACY_RENDERER
         var compat21 = new GraphicsAPI(ContextAPI.OpenGL, ContextProfile.Compatability, ContextFlags.Default, new APIVersion(2, 1));
+#endif
 
         return requested switch
         {
+#if RECOMPONE_LEGACY_RENDERER
             Hle.GlBackendKind.Gl21 => [compat21],
-            Hle.GlBackendKind.Gl33 => [core33, compat21],
-            _ => [core45, core33, compat21],
+#endif
+            Hle.GlBackendKind.Gl33 => [core33],
+            _ => [core45, core33],
         };
     }
 
@@ -387,7 +391,7 @@ public static class HostWindow
         Hle.GpuHle.FxaaEnabled = fxaa;
 
         _glBackend = (Hle.GlCore)Hle.GpuBackendFactory.Create(_gl,
-            Hle.GpuBackendFactory.Parse(ConfigManager.View.GpuBackend));
+            Hle.GpuBackendFactory.RequestedBackend());
         _glBackend.InitGl();
         Hle.GpuHle.Active = _glBackend.Ready;
         Hle.GpuHle.Backend = _glBackend;

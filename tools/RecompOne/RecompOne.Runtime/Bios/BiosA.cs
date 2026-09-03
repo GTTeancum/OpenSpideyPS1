@@ -725,6 +725,22 @@ public static class BiosA
 
     static uint BMemcpy(IMemory m, uint dst, uint src, uint n)
     {
+        // Projected coordinates are often staged inside whole primitive packets and
+        // copied before submission. Preserve the sidecar GTE depth for aligned words;
+        // a byte-at-a-time host implementation silently discarded that provenance.
+        if (((dst | src) & 3u) == 0)
+        {
+            uint words = n & ~3u;
+            for (uint i = 0; i < words; i += 4u)
+            {
+                uint value = m.ReadU32(src + i);
+                GteScreen.VertexTag tag = m is PSMemory ps &&
+                    ps.TryGetGteVertex(src + i, value, out var found) ? found : default;
+                GteScreen.StoreU32(m, dst + i, value, tag);
+            }
+            for (uint i = words; i < n; i++) m.WriteU8(dst + i, m.ReadU8(src + i));
+            return dst;
+        }
         for (uint i = 0; i < n; i++) m.WriteU8(dst + i, m.ReadU8(src + i));
         return dst;
     }
@@ -732,6 +748,18 @@ public static class BiosA
     static uint BMemmove(IMemory m, uint dst, uint src, uint n)
     {
         if (dst <= src || dst >= src + n) return BMemcpy(m, dst, src, n);
+        if (((dst | src | n) & 3u) == 0)
+        {
+            for (uint i = n; i > 0; i -= 4u)
+            {
+                uint at = i - 4u;
+                uint value = m.ReadU32(src + at);
+                GteScreen.VertexTag tag = m is PSMemory ps &&
+                    ps.TryGetGteVertex(src + at, value, out var found) ? found : default;
+                GteScreen.StoreU32(m, dst + at, value, tag);
+            }
+            return dst;
+        }
         for (uint i = n; i > 0; i--) m.WriteU8(dst + i - 1, m.ReadU8(src + i - 1));
         return dst;
     }

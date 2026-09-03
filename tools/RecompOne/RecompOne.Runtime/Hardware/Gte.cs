@@ -8,6 +8,9 @@ public static class Gte
     static int IR0, IR1, IR2, IR3;
     static readonly short[] SX = new short[3];
     static readonly short[] SY = new short[3];
+    static readonly ushort[] ScreenZ = new ushort[3];
+    static readonly float[] ScreenX = new float[3];
+    static readonly float[] ScreenY = new float[3];
     static readonly ushort[] SZ = new ushort[4];
     static readonly uint[] RGB = new uint[3];
     static uint RES1;
@@ -201,10 +204,15 @@ public static class Gte
         int ny = SatY((int)(sy >> 16));
         SX[0] = SX[1]; SX[1] = SX[2]; SX[2] = (short)nx;
         SY[0] = SY[1]; SY[1] = SY[2]; SY[2] = (short)ny;
+        ScreenZ[0] = ScreenZ[1]; ScreenZ[1] = ScreenZ[2]; ScreenZ[2] = SZ[3];
+        ScreenX[0] = ScreenX[1]; ScreenX[1] = ScreenX[2];
+        ScreenY[0] = ScreenY[1]; ScreenY[1] = ScreenY[2];
+        ScreenX[2] = Math.Clamp(sx / 65536f, -1024f, 1023f);
+        ScreenY[2] = Math.Clamp(sy / 65536f, -1024f, 1023f);
 
         // What the world looks like on screen, recorded so a widescreen hack can tell
         // world geometry from the HUD by where it came from rather than by its shape.
-        Hardware.GteScreen.Note(nx, ny);
+        Hardware.GteScreen.Note(nx, ny, SZ[3]);
 
         if (last)
         {
@@ -353,10 +361,10 @@ public static class Gte
             case 9: return (uint)IR1;
             case 10: return (uint)IR2;
             case 11: return (uint)IR3;
-            case 12: return (uint)((ushort)SX[0] | (SY[0] << 16));
-            case 13: return (uint)((ushort)SX[1] | (SY[1] << 16));
+            case 12: return ReadScreen(0);
+            case 13: return ReadScreen(1);
             case 14:
-            case 15: return (uint)((ushort)SX[2] | (SY[2] << 16));
+            case 15: return ReadScreen(2);
             case 16: return SZ[0];
             case 17: return SZ[1];
             case 18: return SZ[2];
@@ -381,6 +389,29 @@ public static class Gte
         }
     }
 
+    public static void ReadTo(Context.CpuContext context, int cpuRegister, int gteRegister)
+    {
+        uint value = Read(gteRegister);
+        float depth = gteRegister switch
+        {
+            12 => ScreenZ[0],
+            13 => ScreenZ[1],
+            14 or 15 => ScreenZ[2],
+            _ => 0f,
+        };
+        bool screen = gteRegister is 12 or 13 or 14 or 15 && depth > 0f;
+        int screenIndex = gteRegister switch { 12 => 0, 13 => 1, _ => 2 };
+        context.SetGteRead(cpuRegister, value, new Hardware.GteScreen.VertexTag(depth,
+            screen ? ScreenX[screenIndex] : 0f,
+            screen ? ScreenY[screenIndex] : 0f, screen));
+    }
+
+    static uint ReadScreen(int screenIndex)
+    {
+        uint packed = (uint)((ushort)SX[screenIndex] | (SY[screenIndex] << 16));
+        return packed;
+    }
+
     public static void Write(int reg, uint val)
     {
         switch (reg)
@@ -397,12 +428,17 @@ public static class Gte
             case 9: IR1 = (short)val; break;
             case 10: IR2 = (short)val; break;
             case 11: IR3 = (short)val; break;
-            case 12: SX[0] = (short)val; SY[0] = (short)(val >> 16); break;
-            case 13: SX[1] = (short)val; SY[1] = (short)(val >> 16); break;
-            case 14: SX[2] = (short)val; SY[2] = (short)(val >> 16); break;
+            case 12: SX[0] = (short)val; SY[0] = (short)(val >> 16); ScreenZ[0] = 0; ScreenX[0] = ScreenY[0] = 0; break;
+            case 13: SX[1] = (short)val; SY[1] = (short)(val >> 16); ScreenZ[1] = 0; ScreenX[1] = ScreenY[1] = 0; break;
+            case 14: SX[2] = (short)val; SY[2] = (short)(val >> 16); ScreenZ[2] = 0; ScreenX[2] = ScreenY[2] = 0; break;
             case 15:
                 SX[0] = SX[1]; SY[0] = SY[1]; SX[1] = SX[2]; SY[1] = SY[2];
+                ScreenZ[0] = ScreenZ[1]; ScreenZ[1] = ScreenZ[2];
+                ScreenX[0] = ScreenX[1]; ScreenX[1] = ScreenX[2];
+                ScreenY[0] = ScreenY[1]; ScreenY[1] = ScreenY[2];
                 SX[2] = (short)val; SY[2] = (short)(val >> 16);
+                ScreenZ[2] = 0;
+                ScreenX[2] = ScreenY[2] = 0;
                 break;
             case 16: SZ[0] = (ushort)val; break;
             case 17: SZ[1] = (ushort)val; break;
@@ -511,6 +547,52 @@ public static class Gte
     }
 
     public static void LoadWord(int reg, uint val) => Write(reg, val);
+
+    /// <summary>
+    /// Load a GTE data register while preserving the exact projection depth attached
+    /// to an SXY word previously stored in RAM. Games commonly stage projected
+    /// coordinates in an ordering-table packet and later reload them through LWC2;
+    /// treating that reload as an ordinary register write detaches SXY from its Z.
+    /// </summary>
+    public static void LoadWord(Memory.IMemory memory, uint address, int reg)
+    {
+        uint value = memory.ReadU32(address);
+        Hardware.GteScreen.VertexTag tag = memory is Memory.PSMemory ps &&
+            ps.TryGetGteVertex(address, value, out var found) ? found : default;
+
+        // Write first so register 15 performs its normal SXY FIFO shift, then attach
+        // the recovered depth to the same destination slot as the loaded coordinate.
+        Write(reg, value);
+        if (tag.Depth <= 0f) return;
+
+        ushort screenDepth = (ushort)Math.Clamp(tag.Depth, 1f, ushort.MaxValue);
+        switch (reg)
+        {
+            case 12: ScreenZ[0] = screenDepth; if (tag.HasSubpixel) { ScreenX[0] = tag.ScreenX; ScreenY[0] = tag.ScreenY; } break;
+            case 13: ScreenZ[1] = screenDepth; if (tag.HasSubpixel) { ScreenX[1] = tag.ScreenX; ScreenY[1] = tag.ScreenY; } break;
+            case 14:
+            case 15: ScreenZ[2] = screenDepth; if (tag.HasSubpixel) { ScreenX[2] = tag.ScreenX; ScreenY[2] = tag.ScreenY; } break;
+        }
+        System.Threading.Interlocked.Increment(ref Hardware.GteScreen.TaggedLoads);
+    }
     public static uint StoreWord(int reg) => Read(reg);
+
+    public static void StoreWord(Memory.IMemory memory, uint address, int gteRegister)
+    {
+        uint value = Read(gteRegister);
+        float depth = gteRegister switch
+        {
+            12 => ScreenZ[0],
+            13 => ScreenZ[1],
+            14 or 15 => ScreenZ[2],
+            _ => 0f,
+        };
+        bool screen = gteRegister is 12 or 13 or 14 or 15 && depth > 0f;
+        int screenIndex = gteRegister switch { 12 => 0, 13 => 1, _ => 2 };
+        Hardware.GteScreen.StoreU32(memory, address, value,
+            new Hardware.GteScreen.VertexTag(depth,
+                screen ? ScreenX[screenIndex] : 0f,
+                screen ? ScreenY[screenIndex] : 0f, screen));
+    }
     public static bool GetCondition() => false;
 }

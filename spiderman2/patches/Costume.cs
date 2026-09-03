@@ -37,6 +37,16 @@ public static class Costume
         (17, "spparkdc", "spidey-slot17.psx", ScratchName + 0x20u),
     };
 
+    /// <summary>The retail costume viewer order.</summary>
+    static readonly string[] Names =
+    {
+        "Spider-Man", "Spider-Phoenix", "Prodigy", "Dusk", "Insulated Suit",
+        "Alex Ross - Red", "Alex Ross - White", "Venom 2 - Earth X", "Negative Zone",
+        "Symbiote Spider-Man", "Spider-Man 2099", "Captain Universe", "Spidey Unlimited",
+        "Amazing Bag Man", "Scarlet Spidey", "Ben Reilly", "Quick Change Spidey",
+        "Peter Parker", "Battle Damaged",
+    };
+
     static readonly System.Collections.Generic.Dictionary<string, int> Aliases =
         new(StringComparer.OrdinalIgnoreCase)
     {
@@ -44,14 +54,44 @@ public static class Costume
         ["spider-man"] = 0,
         ["spiderman"] = 0,
         ["spidey"] = 0,
+        ["spiderphoenix"] = 1,
+        ["spider-phoenix"] = 1,
+        ["phoenix"] = 1,
         ["prodigy"] = 2,
         ["dusk"] = 3,
+        ["insulated"] = 4,
+        ["insulatedsuit"] = 4,
+        ["rossred"] = 5,
+        ["alexrossred"] = 5,
+        ["rosswhite"] = 6,
+        ["alexrosswhite"] = 6,
+        ["venom2"] = 7,
+        ["earthx"] = 7,
+        ["venomearthx"] = 7,
+        ["negative"] = 8,
+        ["negativezone"] = 8,
+        // Retained for old audit commands that used the internal costrhit label.
         ["ricochet"] = 8,
+        ["symbiote"] = 9,
+        ["black"] = 9,
+        ["2099"] = 10,
+        ["captain"] = 11,
+        ["captainuniverse"] = 11,
+        ["unlimited"] = 12,
+        ["spideyunlimited"] = 12,
         ["bagman"] = 13,
         ["bag-man"] = 13,
+        ["scarlet"] = 14,
+        ["scarletspider"] = 14,
+        ["ben"] = 15,
+        ["benreilly"] = 15,
+        ["quick"] = 16,
+        ["quickchange"] = 16,
         ["peter"] = 17,
         ["parker"] = 17,
         ["peterparker"] = 17,
+        ["battle"] = 18,
+        ["battledamaged"] = 18,
     };
 
     static int _slot = -1;
@@ -95,12 +135,14 @@ public static class Costume
         else
         {
             Console.Error.WriteLine(
-                $"[costume] unknown '{spec}'; expected a slot from 0 through {CostumeCount - 1}");
+                $"[costume] unknown '{spec}'; expected a retail costume name or slot " +
+                $"from 0 through {CostumeCount - 1}");
             return;
         }
 
         _forced = true;
-        Console.WriteLine($"[costume] requested slot {_slot:D2} (sp_tex{_slot:D2}.psx)");
+        Console.WriteLine(
+            $"[costume] requested {Names[_slot]} (slot {_slot:D2}, sp_tex{_slot:D2}.psx)");
     }
 
     /// <summary>Pre-hook on func_8004E4BC(actor data, one-based costume).</summary>
@@ -117,7 +159,8 @@ public static class Costume
         if (_reported) return;
         _reported = true;
         Console.WriteLine(
-            $"[costume] selected retail loader slot {_slot:D2} -> sp_tex{_slot:D2}.psx");
+            $"[costume] selected {Names[_slot]} through retail loader slot {_slot:D2} " +
+            $"-> sp_tex{_slot:D2}.psx");
     }
 
     static uint ResourceEntry(int index)

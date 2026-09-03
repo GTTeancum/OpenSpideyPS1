@@ -1,10 +1,10 @@
 #!/usr/bin/env python3
-"""Capture proof-only SM1 renders of normally transparent wing geometry.
+"""Capture authored close-ups of SM1-runtime wing geometry.
 
 SM1 does not ship with visible wings: its production texture is the magenta,
 zero-alpha paint-out. This diagnostic variant makes the retained geometry
-visible only to audit seams, UVs, winding, and animation ownership. Visible
-production wings belong to SM2 and are captured by capture_sm2_default_runtime.
+visible only to audit seams, UVs, winding, and animation ownership. Passing a
+costume index also supports the production SM2 winged suit imported into SM1.
 
 Input is injected only through the recompilation's process-local controller
 script.  This tool never generates host keyboard, mouse, or window input.
@@ -35,9 +35,9 @@ INPUT_SCRIPT = (
 )
 BOOT_SKIP_ANCHOR = "title.bmr"
 PROOFS = {
-    "proof_front_wings.png": (4100, (350, 1050, 1450, 1700)),
-    "proof_rear_wings.png": (4150, (900, 700, 1900, 1530)),
-    "proof_side_wings.png": (4800, (850, 700, 1900, 1700)),
+    "proof_rear_wings.png": (4000, (900, 650, 1800, 1600)),
+    "proof_crouch_wings.png": (4150, (900, 650, 1800, 1600)),
+    "proof_side_wings.png": (4600, (900, 650, 1800, 1600)),
 }
 
 
@@ -46,6 +46,11 @@ def parse_args() -> argparse.Namespace:
     parser.add_argument("--exe", type=Path, default=DEFAULT_EXE)
     parser.add_argument("--assets", type=Path, default=DEFAULT_ASSETS)
     parser.add_argument("--output", type=Path, default=DEFAULT_OUTPUT)
+    parser.add_argument(
+        "--costume",
+        type=int,
+        help="optional SM1 extended costume index (19 is default SM2 with wings)",
+    )
     parser.add_argument(
         "--render-scale",
         type=int,
@@ -65,7 +70,14 @@ def sha256(path: Path) -> str:
     return hashlib.sha256(path.read_bytes()).hexdigest()
 
 
-def capture(exe: Path, assets: Path, output: Path, scale: int, timeout: int) -> str:
+def capture(
+    exe: Path,
+    assets: Path,
+    output: Path,
+    scale: int,
+    timeout: int,
+    costume: int | None,
+) -> str:
     env = {key: value for key, value in os.environ.items() if not key.startswith("SPIDEY_")}
     env.pop("RECOMP_RENDER_SCALE", None)
     env.update(
@@ -85,6 +97,8 @@ def capture(exe: Path, assets: Path, output: Path, scale: int, timeout: int) -> 
             "SPIDEY_TRACE_WAD": "1",
         }
     )
+    if costume is not None:
+        env["SPIDEY_COSTUME"] = str(costume)
     result = subprocess.run(
         [str(exe)],
         cwd=exe.parent,
@@ -123,11 +137,19 @@ def main() -> None:
     output.mkdir(parents=True, exist_ok=True)
     if args.render_scale < 1 or args.render_scale > 8:
         raise ValueError("--render-scale must be between 1 and 8")
+    if args.costume is not None and not 0 <= args.costume < 20:
+        raise ValueError("--costume must be between 0 and 19")
     if not args.reuse_captures:
-        console = capture(exe, assets, output, args.render_scale, args.timeout)
-        for required in ("spidey.psx", "sp_tex00.psx"):
-            if f"override {required}:" not in console.casefold():
-                raise RuntimeError(f"runtime did not load the loose {required} override")
+        console = capture(
+            exe,
+            assets,
+            output,
+            args.render_scale,
+            args.timeout,
+            args.costume,
+        )
+        if "override spidey.psx" not in console.casefold():
+            raise RuntimeError("runtime did not load the loose spidey.psx override")
 
     # This level presents a 320x240 display after the runtime's 4:3 aspect
     # correction.  The prior 640x480 multiplier accidentally described scale
@@ -159,6 +181,7 @@ def main() -> None:
         "inputMethod": "process-local SPIDEY_SCRIPT controller state",
         "level": "l1a1",
         "assets": str(assets),
+        "costume": args.costume,
         "renderScale": args.render_scale,
         "nativeFrameCount": len(frames),
         "frames": frames,

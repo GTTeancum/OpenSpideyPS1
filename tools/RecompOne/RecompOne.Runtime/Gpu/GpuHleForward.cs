@@ -18,7 +18,10 @@ public sealed partial class Gpu
 
     static HleVertex HV(in Vert v) => new()
     {
-        X = v.X, Y = v.Y, R = (byte)v.R, G = (byte)v.G, B = (byte)v.B, U = (short)v.U, V = (short)v.V,
+        X = v.HasSubpixel ? v.RenderX : v.X,
+        Y = v.HasSubpixel ? v.RenderY : v.Y,
+        R = (byte)v.R, G = (byte)v.G, B = (byte)v.B, U = (short)v.U, V = (short)v.V,
+        Z = v.Z, HasGteZ = v.HasGteZ,
     };
 
     PrimFlags PrimOf(bool tex, bool semi, bool raw, int clut, bool gouraud = false,
@@ -41,6 +44,7 @@ public sealed partial class Gpu
 
         var be = GpuHle.Backend!;
         be.SetDrawEnv(CurEnv());
+        if (tex) GpuHle.NoteTextureTriangle(a.HasGteZ && b.HasGteZ && c.HasGteZ, world);
         be.DrawTri(HV(a), HV(b), HV(c),
             PrimOf(tex, semi, raw, clut, gouraud, world, hud, background,
                 ignoreCoverage));

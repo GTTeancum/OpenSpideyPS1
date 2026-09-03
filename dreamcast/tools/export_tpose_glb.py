@@ -30,6 +30,10 @@ def parse_args() -> argparse.Namespace:
     parser.add_argument("--input", required=True)
     parser.add_argument("--output", required=True)
     parser.add_argument(
+        "--blend-output",
+        help="optionally save the posed, packed Blender source-reference scene",
+    )
+    parser.add_argument(
         "--show-wings",
         action="store_true",
         help="replace the normally transparent wing texture with an opaque UV audit grid",
@@ -118,11 +122,17 @@ def pose_arms(armature: bpy.types.Object) -> None:
 
 
 def wing_materials(objects: list[bpy.types.Object] | None = None) -> list[bpy.types.Material]:
-    candidates = (
-        [slot.material for obj in objects for slot in obj.material_slots]
-        if objects is not None
-        else list(bpy.data.materials)
-    )
+    if objects is not None:
+        candidates = []
+        for obj in objects:
+            used_indices = {polygon.material_index for polygon in obj.data.polygons}
+            candidates.extend(
+                slot.material
+                for index, slot in enumerate(obj.material_slots)
+                if index in used_indices
+            )
+    else:
+        candidates = list(bpy.data.materials)
     return list(
         {
             material.name: material
@@ -315,6 +325,11 @@ def main() -> None:
     if not meshes:
         raise RuntimeError("no skinned meshes were available to bake")
     export_glb(args.output, meshes)
+    if args.blend_output:
+        blend = Path(args.blend_output).resolve()
+        blend.parent.mkdir(parents=True, exist_ok=True)
+        bpy.ops.file.pack_all()
+        bpy.ops.wm.save_as_mainfile(filepath=str(blend))
     print(f"wrote static T-pose proof GLB: {os.path.abspath(args.output)}")
 
 

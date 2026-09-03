@@ -13,6 +13,7 @@ public sealed class GlCore : IGpuBackend
         public float Clut, Texpage;
         public float U, V;
         public float World, Hud;
+        public float PerspectiveW;
     }
 
     const int MaxVerts = 0x40000;
@@ -45,12 +46,15 @@ public sealed class GlCore : IGpuBackend
     uint _fxaaProg, _fxaaFbo, _fxaaTex;
     int _fxaaW, _fxaaH, _uFxaaTexSize;
 
-    uint _coverageProg;
+    uint _coverageProg, _worldCopyProg;
     int _uCoveragePosBias, _uCoverageFbInv, _uCoverageTexWindow;
     int _uCoverageRepRect, _uCoverageRepClutCount;
+    int _uWorldCopyPosBias, _uWorldCopyFbInv, _uWorldCopySize;
     uint _wideCompleteProg, _wideCompleteFbo, _wideCompleteTex;
     int _wideCompleteW, _wideCompleteH;
-    int _uWideCompleteTexSize, _uWideCompleteBaseFraction, _uWideCompleteDebug;
+    int _uWideCompleteTexSize, _uWideCompleteBaseFraction, _uWideCompleteDebug,
+        _uWideCompleteClearColor, _uWideCompleteDrawClearColor,
+        _uWideCompleteDiagnosticClear;
 
     readonly GlVertex[] _verts = new GlVertex[MaxVerts];
     int _count;
@@ -62,6 +66,7 @@ public sealed class GlCore : IGpuBackend
     bool _kTransparent;
     int _kImage = -1;
     int _kBlend, _kSetMask, _kCheckMask, _kBackground, _kIgnoreCoverage;
+    byte _kClearR, _kClearG, _kClearB, _kDrawClearR, _kDrawClearG, _kDrawClearB;
     int _kTwAndX, _kTwAndY, _kTwOrX, _kTwOrY;
     int _kClipX0, _kClipY0, _kClipX1, _kClipY1;
     uint _kRepTex, _kRepClut;
@@ -95,6 +100,7 @@ public sealed class GlCore : IGpuBackend
         string fxaaFs = _legacy ? GlShaders.FxaaFs120 : GlShaders.FxaaFs;
         string coverageVs = _legacy ? GlShaders.CoverageVs120 : GlShaders.CoverageVs;
         string coverageFs = _legacy ? GlShaders.CoverageFs120 : GlShaders.CoverageFs;
+        string worldCopyFs = _legacy ? GlShaders.WorldCopyFs120 : GlShaders.WorldCopyFs;
         string wideCompleteFs = _legacy ? GlShaders.WideCompleteFs120 : GlShaders.WideCompleteFs;
 
         _progPrim = GlShaders.BuildPrim(_gl, primVs, primFs, "prim");
@@ -102,9 +108,10 @@ public sealed class GlCore : IGpuBackend
         _progPresent24 = GlShaders.BuildFullscreen(_gl, fullVs, present24Fs, "present24");
         _fxaaProg = GlShaders.BuildFullscreen(_gl, fullVs, fxaaFs, "fxaa");
         _coverageProg = GlShaders.BuildPrim(_gl, coverageVs, coverageFs, "coverage");
+        _worldCopyProg = GlShaders.BuildPrim(_gl, coverageVs, worldCopyFs, "world-copy");
         _wideCompleteProg = GlShaders.BuildFullscreen(_gl, fullVs, wideCompleteFs, "wide-complete");
         if (_progPrim == 0 || _progPresent == 0 || _progPresent24 == 0 || _fxaaProg == 0) return;
-        if (_coverageProg == 0 || _wideCompleteProg == 0)
+        if (_coverageProg == 0 || _worldCopyProg == 0 || _wideCompleteProg == 0)
         {
             GpuHle.WideBackgroundCompletion = false;
             Console.WriteLine("[wide] coverage completion unavailable; raw widened view retained");
@@ -169,14 +176,26 @@ public sealed class GlCore : IGpuBackend
             if (uCoverageVramSize >= 0)
                 _gl.Uniform2(uCoverageVramSize, (float)GlVram.Width, GlVram.Height);
         }
+        if (_worldCopyProg != 0)
+        {
+            _uWorldCopyPosBias = _gl.GetUniformLocation(_worldCopyProg, "uPosBias");
+            _uWorldCopyFbInv = _gl.GetUniformLocation(_worldCopyProg, "uFbInv");
+            _uWorldCopySize = _gl.GetUniformLocation(_worldCopyProg, "uRenderedSize");
+            _gl.UseProgram(_worldCopyProg);
+            _gl.Uniform1(_gl.GetUniformLocation(_worldCopyProg, "uRendered"), 5);
+        }
         if (_wideCompleteProg != 0)
         {
             _gl.UseProgram(_wideCompleteProg);
             _gl.Uniform1(_gl.GetUniformLocation(_wideCompleteProg, "uTex"), 0);
             _gl.Uniform1(_gl.GetUniformLocation(_wideCompleteProg, "uCoverage"), 1);
+            _gl.Uniform1(_gl.GetUniformLocation(_wideCompleteProg, "uWorld"), 2);
             _uWideCompleteTexSize = _gl.GetUniformLocation(_wideCompleteProg, "uTexSize");
             _uWideCompleteBaseFraction = _gl.GetUniformLocation(_wideCompleteProg, "uBaseFraction");
             _uWideCompleteDebug = _gl.GetUniformLocation(_wideCompleteProg, "uDebugCoverage");
+            _uWideCompleteClearColor = _gl.GetUniformLocation(_wideCompleteProg, "uClearColor");
+            _uWideCompleteDrawClearColor = _gl.GetUniformLocation(_wideCompleteProg, "uDrawClear");
+            _uWideCompleteDiagnosticClear = _gl.GetUniformLocation(_wideCompleteProg, "uDiagnosticClear");
         }
 
         _vao = _gl.GenVertexArray();
@@ -192,6 +211,7 @@ public sealed class GlCore : IGpuBackend
         _gl.EnableVertexAttribArray(4); _gl.VertexAttribPointer(4, 2, VertexAttribPointerType.Float, false, stride, (void*)28);
         _gl.EnableVertexAttribArray(5); _gl.VertexAttribPointer(5, 1, VertexAttribPointerType.Float, false, stride, (void*)36);
         _gl.EnableVertexAttribArray(6); _gl.VertexAttribPointer(6, 1, VertexAttribPointerType.Float, false, stride, (void*)40);
+        _gl.EnableVertexAttribArray(7); _gl.VertexAttribPointer(7, 1, VertexAttribPointerType.Float, false, stride, (void*)44);
 
         // fullscreen quad for present, real vbo since gl_VertexID without arrays does not draw on mesa for some reason?? or i did it wrong?
         _presentVao = _gl.GenVertexArray();
@@ -366,6 +386,12 @@ public sealed class GlCore : IGpuBackend
                                         && _kRepW == _pendingRepW && _kRepH == _pendingRepH))
             && _kTransparent == transparent && _kBlend == blend && _kImage == image
             && _kBackground == (background ? 1 : 0)
+            && (!background ||
+                (_kClearR == GpuHle.BackgroundR && _kClearG == GpuHle.BackgroundG &&
+                 _kClearB == GpuHle.BackgroundB &&
+                 _kDrawClearR == GpuHle.DrawBackgroundR &&
+                 _kDrawClearG == GpuHle.DrawBackgroundG &&
+                 _kDrawClearB == GpuHle.DrawBackgroundB))
             && _kIgnoreCoverage == (ignoreCoverage ? 1 : 0)
             && _kSetMask == (_env.SetMask ? 1 : 0) && _kCheckMask == (_env.CheckMask ? 1 : 0)
             && _kTwAndX == twAndX && _kTwAndY == twAndY && _kTwOrX == twOrX && _kTwOrY == twOrY
@@ -387,6 +413,15 @@ public sealed class GlCore : IGpuBackend
         _kTarget = target;
         _kImage = image;
         _kBackground = f.Background ? 1 : 0;
+        if (f.Background)
+        {
+            _kClearR = GpuHle.BackgroundR;
+            _kClearG = GpuHle.BackgroundG;
+            _kClearB = GpuHle.BackgroundB;
+            _kDrawClearR = GpuHle.DrawBackgroundR;
+            _kDrawClearG = GpuHle.DrawBackgroundG;
+            _kDrawClearB = GpuHle.DrawBackgroundB;
+        }
         _kIgnoreCoverage = f.IgnoreCoverage ? 1 : 0;
         _kTransparent = transparent; _kBlend = blend;
         _kSetMask = _env.SetMask ? 1 : 0; _kCheckMask = _env.CheckMask ? 1 : 0;
@@ -549,6 +584,7 @@ public sealed class GlCore : IGpuBackend
             U = v.U, V = v.V,
             World = f.World ? 1f : 0f,
             Hud = f.Hud ? 1f : 0f,
+            PerspectiveW = f.Textured && v.HasGteZ ? Math.Max(v.Z, 1f) : 1f,
         };
     }
 
@@ -640,6 +676,9 @@ public sealed class GlCore : IGpuBackend
         {
             _gl.BindFramebuffer(FramebufferTarget.Framebuffer, rt.CoverageFbo);
             _gl.ClearColor(0f, 0f, 0f, 0f);
+            _gl.Clear(ClearBufferMask.ColorBufferBit);
+            _gl.BindFramebuffer(FramebufferTarget.Framebuffer, rt.WorldFbo);
+            _gl.ClearColor(r, g, b, 1f);
             _gl.Clear(ClearBufferMask.ColorBufferBit);
         }
         _gl.BindFramebuffer(FramebufferTarget.Framebuffer, 0);
@@ -884,9 +923,19 @@ public sealed class GlCore : IGpuBackend
             }
         }
 
-        if (rt is { CoverageFbo: not 0 })
+        if (rt is { CoverageFbo: not 0 } &&
+            GpuHle.SourceAspect > GpuHle.BaseAspect + 0.001f)
         {
-            if (_kBackground != 0) ClearCoverage(rt);
+            if (_kBackground != 0)
+            {
+                rt.ClearR = _kClearR;
+                rt.ClearG = _kClearG;
+                rt.ClearB = _kClearB;
+                rt.DrawClearR = _kDrawClearR;
+                rt.DrawClearG = _kDrawClearG;
+                rt.DrawClearB = _kDrawClearB;
+                ClearCoverage(rt);
+            }
             else if (_kIgnoreCoverage == 0) DrawCoverage(rt);
         }
 
@@ -909,15 +958,18 @@ public sealed class GlCore : IGpuBackend
 
     /// <summary>
     /// Record submitted primitive footprints independently of PS1 framebuffer alpha.
-    /// The second channel carries the projection provenance supplied by Wide.Screen,
-    /// which prevents a nearby HUD quad from becoming source material for a backdrop.
+    /// The second channel carries the projection provenance supplied by Wide.Screen;
+    /// exact world fragments are also copied to a separate HUD-free color target so
+    /// screen-space art can never become source material for side completion.
     /// </summary>
     void DrawCoverage(GlDisplayRt rt)
     {
         _gl.BindFramebuffer(FramebufferTarget.Framebuffer, rt.CoverageFbo);
         _gl.Viewport(0, 0, (uint)rt.TexW, (uint)rt.TexH);
         _gl.Disable(EnableCap.DepthTest);
-        _gl.Disable(EnableCap.Blend);
+        _gl.Enable(EnableCap.Blend);
+        _gl.BlendEquation(BlendEquationModeEXT.Max);
+        _gl.BlendFunc(BlendingFactor.One, BlendingFactor.One);
         _gl.Disable(EnableCap.CullFace);
         _gl.UseProgram(_coverageProg);
         _gl.BindVertexArray(_vao);
@@ -955,6 +1007,29 @@ public sealed class GlCore : IGpuBackend
         if (_uCoverageRepClutCount >= 0)
             _gl.Uniform1(_uCoverageRepClutCount, (float)_kRepClutCount);
         _gl.DrawArrays(PrimitiveType.Triangles, 0, (uint)_count);
+        _gl.Disable(EnableCap.Blend);
+
+        if (rt.WorldFbo != 0 && _worldCopyProg != 0)
+        {
+            _gl.BindFramebuffer(FramebufferTarget.Framebuffer, rt.WorldFbo);
+            _gl.Viewport(0, 0, (uint)rt.TexW, (uint)rt.TexH);
+            _gl.Disable(EnableCap.Blend);
+            _gl.UseProgram(_worldCopyProg);
+            _gl.BindVertexArray(_vao);
+            _gl.ActiveTexture(TextureUnit.Texture5);
+            _gl.BindTexture(TextureTarget.Texture2D, rt.Tex);
+            if (_uWorldCopyPosBias >= 0)
+                _gl.Uniform2(_uWorldCopyPosBias, (float)(rt.Margin - rt.X), (float)(-rt.Y));
+            if (_uWorldCopyFbInv >= 0)
+                _gl.Uniform2(_uWorldCopyFbInv, 2f / rt.Wide1x, 2f / rt.H);
+            if (_uWorldCopySize >= 0)
+            {
+                if (_legacy) _gl.Uniform2(_uWorldCopySize, (float)rt.TexW, rt.TexH);
+                else _gl.Uniform2(_uWorldCopySize, rt.TexW, rt.TexH);
+            }
+            _gl.DrawArrays(PrimitiveType.Triangles, 0, (uint)_count);
+            _gl.ActiveTexture(TextureUnit.Texture0);
+        }
         RebindTarget(rt);
     }
 
@@ -964,6 +1039,12 @@ public sealed class GlCore : IGpuBackend
         _gl.Disable(EnableCap.ScissorTest);
         _gl.ClearColor(0f, 0f, 0f, 0f);
         _gl.Clear(ClearBufferMask.ColorBufferBit);
+        if (rt.WorldFbo != 0)
+        {
+            _gl.BindFramebuffer(FramebufferTarget.Framebuffer, rt.WorldFbo);
+            _gl.ClearColor(rt.ClearR / 255f, rt.ClearG / 255f, rt.ClearB / 255f, 1f);
+            _gl.Clear(ClearBufferMask.ColorBufferBit);
+        }
         _gl.Enable(EnableCap.ScissorTest);
         RebindTarget(rt);
     }
@@ -1122,7 +1203,8 @@ public sealed class GlCore : IGpuBackend
     unsafe uint ApplyWideBackground(uint srcTex, GlDisplayRt? src, int w, int h, float aspect)
     {
         if (!GpuHle.WideBackgroundCompletion || _wideCompleteProg == 0 ||
-            src is not { CoverageTex: not 0 } || aspect <= GpuHle.BaseAspect + 0.001f)
+            src is not { CoverageTex: not 0, WorldTex: not 0 } ||
+            aspect <= GpuHle.BaseAspect + 0.001f)
             return srcTex;
 
         if (_wideCompleteTex == 0)
@@ -1159,11 +1241,22 @@ public sealed class GlCore : IGpuBackend
         _gl.BindTexture(TextureTarget.Texture2D, srcTex);
         _gl.ActiveTexture(TextureUnit.Texture1);
         _gl.BindTexture(TextureTarget.Texture2D, src.CoverageTex);
+        _gl.ActiveTexture(TextureUnit.Texture2);
+        _gl.BindTexture(TextureTarget.Texture2D, src.WorldTex);
         if (_uWideCompleteTexSize >= 0) _gl.Uniform2(_uWideCompleteTexSize, (float)w, h);
         if (_uWideCompleteBaseFraction >= 0)
             _gl.Uniform1(_uWideCompleteBaseFraction, GpuHle.BaseAspect / aspect);
         if (_uWideCompleteDebug >= 0)
             _gl.Uniform1(_uWideCompleteDebug, GpuHle.WideCoverageView ? 1f : 0f);
+        if (_uWideCompleteClearColor >= 0)
+            _gl.Uniform3(_uWideCompleteClearColor,
+                src.ClearR / 255f, src.ClearG / 255f, src.ClearB / 255f);
+        if (_uWideCompleteDrawClearColor >= 0)
+            _gl.Uniform3(_uWideCompleteDrawClearColor,
+                src.DrawClearR / 255f, src.DrawClearG / 255f, src.DrawClearB / 255f);
+        if (_uWideCompleteDiagnosticClear >= 0)
+            _gl.Uniform1(_uWideCompleteDiagnosticClear,
+                RecompOne.Runtime.Diagnostics.DrawEnvWarn.TintBackground ? 1f : 0f);
         _gl.DrawArrays(PrimitiveType.TriangleStrip, 0, 4);
         _gl.ActiveTexture(TextureUnit.Texture0);
         return _wideCompleteTex;
@@ -1326,6 +1419,7 @@ public sealed class GlCore : IGpuBackend
         if (_progPresent24 != 0) _gl.DeleteProgram(_progPresent24);
         if (_fxaaProg != 0) _gl.DeleteProgram(_fxaaProg);
         if (_coverageProg != 0) _gl.DeleteProgram(_coverageProg);
+        if (_worldCopyProg != 0) _gl.DeleteProgram(_worldCopyProg);
         if (_wideCompleteProg != 0) _gl.DeleteProgram(_wideCompleteProg);
         if (_presentTex != 0) _gl.DeleteTexture(_presentTex);
         if (_presentFbo != 0) _gl.DeleteFramebuffer(_presentFbo);

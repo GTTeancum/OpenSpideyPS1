@@ -381,20 +381,31 @@ public static class Diag
     {
         if (!_primFrames.Contains(Interlocked.Read(ref Frame))) return;
         var v = new StringBuilder();
-        for (int i = 0; i < e.Count; i++) v.Append($"({e.X[i]},{e.Y[i]}) ");
+        for (int i = 0; i < e.Count; i++)
+            v.Append($"({e.X[i]},{e.Y[i]} uv={e.U[i]},{e.V[i]}) ");
         if (_primHeader != Interlocked.Read(ref Frame))
         {
             _primHeader = Interlocked.Read(ref Frame);
             Write($"[prim] gte points={RecompOne.Runtime.Hardware.GteScreen.Count} " +
                   $"sample={RecompOne.Runtime.Hardware.GteScreen.Sample()}");
         }
-        bool gte = true;
+        var depth = new StringBuilder();
+        var lookupDepth = new StringBuilder();
+        bool exact = true;
         for (int i = 0; i < e.Count; i++)
-            if (!RecompOne.Runtime.Hardware.GteScreen.Has(e.X[i] - e.DrawLeft, e.Y[i] - e.DrawTop))
-            { gte = false; break; }
-        Write($"[prim] {(gte ? "world" : "  HUD")} n={e.Count} " +
+        {
+            exact &= e.HasDepth[i];
+            depth.Append(e.HasDepth[i] ? $"{e.Depth[i]:0} " : "- ");
+            bool found = RecompOne.Runtime.Hardware.GteScreen.TryGetDepth(
+                e.X[i] - e.DrawOffsetX, e.Y[i] - e.DrawOffsetY, out float projected);
+            lookupDepth.Append(found ? $"{projected:0} " : "- ");
+        }
+        Write($"[prim] {(e.World ? "world" : "  HUD")} n={e.Count} " +
               $"{(e.Textured ? "T" : "-")}{(e.SemiTransparent ? "S" : "-")}" +
               $"{(e.Gouraud ? "G" : "-")}{(e.Raw ? "R" : "-")} " +
-              $"clut={e.Clut:X4} area=[{e.DrawLeft},{e.DrawTop}..{e.DrawRight},{e.DrawBottom}] {v}");
+              $"tpage={e.TexPage:X3} clut={e.Clut:X4} " +
+              $"area=[{e.DrawLeft},{e.DrawTop}..{e.DrawRight},{e.DrawBottom}] " +
+              $"depth={(exact ? "exact" : "incomplete")} z=[{depth}] " +
+              $"projected=[{lookupDepth}] {v}");
     }
 }

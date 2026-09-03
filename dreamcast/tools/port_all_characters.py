@@ -286,6 +286,9 @@ def main() -> None:
         playable_animation = converter.tagged_chunk_payload(
             playable_animation_donor.read_bytes(), 0x2C
         )
+    player_support_textures = converter.load_ps1_texture_records(
+        playable_animation_donor
+    )
     sm1_skeleton_root = args.sm1_skeleton_models.resolve()
     skeleton_donor_paths = {
         name: sm1_skeleton_root / filename
@@ -340,6 +343,9 @@ def main() -> None:
                 wings,
                 tagged_chunks=tagged_chunks,
                 skeleton_donor=skeleton_donor,
+                supplemental_textures=(
+                    player_support_textures if name in PLAYABLE else ()
+                ),
             )
             destination.write_bytes(converted)
             converted_models[name] = model
@@ -365,11 +371,19 @@ def main() -> None:
                     texture_index,
                     model_source_digest,
                 )
-            dimensions = converter.scaled_dimensions(model, args.texture_scale, False)
+            dimensions = converter.scaled_dimensions(
+                model,
+                args.texture_scale,
+                False,
+                fixed_player_layout=name in PLAYABLE,
+            )
             actor_assets = converter.quantize_actor_textures(
                 model,
                 texture_dir,
                 dimensions,
+            )
+            supplemental_count = (
+                len(player_support_textures) if name in PLAYABLE else 0
             )
             for texture in model.textures:
                 source_png = converter.find_texture_png(texture_dir, texture)
@@ -389,7 +403,9 @@ def main() -> None:
                 host_textures.append(
                     {
                         "actor": name,
-                        "textureIndex": texture.index,
+                        "textureIndex": converter.runtime_actor_texture_index(
+                            texture.index, supplemental_count
+                        ),
                         "source": str(source_png),
                         "compatibilitySize": [width, height],
                         "hostSize": [texture.width, texture.height],
@@ -422,7 +438,9 @@ def main() -> None:
                 host_textures.append(
                     {
                         "actor": name,
-                        "textureIndex": runtime_index,
+                        "textureIndex": converter.runtime_actor_texture_index(
+                            runtime_index, supplemental_count
+                        ),
                         "source": str(source_png),
                         "compatibilitySize": [width, height],
                         "hostSize": [source_texture.width, source_texture.height],
@@ -430,9 +448,19 @@ def main() -> None:
                         "output": str(pack_destination),
                         "sha256": source_signature,
                         "role": "SM1 procedural spline runtime alias",
-                        "sourceTextureIndex": source_texture.index,
+                        "sourceTextureIndex": converter.runtime_actor_texture_index(
+                            source_texture.index, supplemental_count
+                        ),
                     }
                 )
+            actor_texture_count = (
+                len(model.textures)
+                + int(spline_alias_asset is not None)
+                + int(name == "SPIDEY")
+            )
+            filler_count = converter.player_texture_filler_count(
+                actor_texture_count, supplemental_count
+            )
             vertices, normals, faces = model_totals(model)
             entries.append(
                 {
@@ -463,13 +491,23 @@ def main() -> None:
                     "vertices": vertices,
                     "normals": normals,
                     "faces": faces,
-                    "textures": (
-                        len(model.textures)
-                        + int(spline_alias_asset is not None)
-                        + int(name == "SPIDEY")
+                    "textures": converter.player_texture_record_count(
+                        actor_texture_count,
+                        supplemental_count,
                     ),
+                    "actorTextureCount": actor_texture_count,
+                    "supplementalPlayerTextures": (
+                        len(player_support_textures) if name in PLAYABLE else 0
+                    ),
+                    "playerSupportTextureStart": (
+                        converter.PLAYER_SUPPORT_TEXTURE_START
+                        if supplemental_count else None
+                    ),
+                    "playerTextureFillers": filler_count,
                     "paletteCacheIds": {
-                        str(texture_index): f"0x{palette_cache_id:08X}"
+                        str(converter.runtime_actor_texture_index(
+                            texture_index, supplemental_count
+                        )): f"0x{palette_cache_id:08X}"
                         for texture_index, palette_cache_id in sorted(palette_cache_ids.items())
                     },
                     "wingCapable": name == "SPIDEY",

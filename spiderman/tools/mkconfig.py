@@ -62,7 +62,10 @@ def main():
             ('CdWadFind', 'post', 'Recompiled.OverlayPatches.CdWadFindExit'),
             ('CdWadRead', 'pre',  'Recompiled.AssetOverrides.CdWadRead'),
             ('HeapAlloc', 'pre',  'Recompiled.OverlayPatches.HeapAlloc'),
-            ('HeapFree',  'pre',  'Recompiled.OverlayPatches.HeapFree')):
+            ('HeapFree',  'pre',  'Recompiled.OverlayPatches.HeapFree'),
+            # Direct level tests must select the full retail descriptor, not only
+            # substitute its filenames. See patches/LevelSwitch.cs.
+            ('func_80018800', 'pre', 'Recompiled.LevelSwitch.SelectDescriptor')):
         if fn in names:
             patches.append({'overlay': 'main', 'function': fn, 'mode': mode, 'target': target})
         else:
@@ -135,6 +138,21 @@ def main():
                         'target': 'Recompiled.PadPatches.PadInitMtapExit'})
     else:
         skipped.append('PadInitMtap')
+
+    # The 20-entry costume system retains the retail shell viewer and player
+    # constructor, extending their data/configuration at the two stable entry points.
+    patches.append({'overlay': 'shell', 'function': 'func_80261C70', 'mode': 'pre',
+                    'target': 'Recompiled.Costume.PrepareViewer'})
+    if 'func_80046B40' in names:
+        patches.append({'overlay': 'main', 'function': 'func_80046B40', 'mode': 'pre',
+                        'target': 'Recompiled.Costume.RunRetailTextureOverlay'})
+    else:
+        skipped.append('func_80046B40(pre)')
+    if 'func_80047DF8' in names:
+        patches.append({'overlay': 'main', 'function': 'func_80047DF8', 'mode': 'post',
+                        'target': 'Recompiled.Costume.ApplyAbilityProfile'})
+    else:
+        skipped.append('func_80047DF8(post)')
     for fn in GPU_RUNTIME:
         if fn in names:
             patches.append({'overlay': '*', 'function': fn, 'mode': 'replace',

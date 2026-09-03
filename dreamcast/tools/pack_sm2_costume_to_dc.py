@@ -46,7 +46,12 @@ DEFAULT_MAPPING = (
 DEFAULT_OUTPUT_ROOT = (
     ROOT / "dreamcast" / "converted" / "sm2-costume-tests" / "runtime" / "default"
 )
-WING_HASH = 0xDC38D248
+DC_WING_HASH = 0xDC38D248
+# The translated SM2 actor retains its authored web-wing page at DC38D248.
+# CEB60740 is a body-atlas page and must never receive the wing packets.
+SM2_WING_HASH = DC_WING_HASH
+HIDDEN_WING_HASH = 0x57494E47  # "WING"; private runtime-only material.
+MAGENTA_555 = 0x7C1F
 HAND_MESH_NAMES = frozenset(
     {
         0x08A2712E,
@@ -202,18 +207,19 @@ def polygon_key(
     )
 
 
-def source_dimensions(mapping: dict[str, Any]) -> dict[int, tuple[int, int]]:
+def mapping_dimensions(
+    mapping: dict[str, Any], field: str
+) -> dict[int, tuple[int, int]]:
     result: dict[int, tuple[int, int]] = {}
     for polygon in mapping["polygons"]:
-        for field in ("original", "mapped"):
-            item = polygon[field]
-            texture_hash = material_hash(item["material"])
-            dimensions = tuple(item["imageSize"])
-            if texture_hash in result and result[texture_hash] != dimensions:
-                raise ValueError(
-                    f"material {texture_hash:08X} has conflicting image dimensions"
-                )
-            result[texture_hash] = dimensions
+        item = polygon[field]
+        texture_hash = material_hash(item["material"])
+        dimensions = tuple(item["imageSize"])
+        if texture_hash in result and result[texture_hash] != dimensions:
+            raise ValueError(
+                f"{field} material {texture_hash:08X} has conflicting image dimensions"
+            )
+        result[texture_hash] = dimensions
     return result
 
 
@@ -230,7 +236,7 @@ def match_static_mapping(
         for face in mesh["Faces"]:
             face_index = face["FaceIndex"]
             texture_hash = face["TextureHash"]
-            if texture_hash == WING_HASH:
+            if texture_hash == DC_WING_HASH:
                 continue
             width, height = dimensions[texture_hash]
             for triangle_index, slots in enumerate(emitted_slot_orders(face)):
@@ -493,6 +499,8 @@ def rewrite_faces(
     semantic_triangles: dict[int, list[SourceTriangle]],
     dimensions: dict[int, tuple[int, int]],
     output_hashes: tuple[int, ...],
+    *,
+    hide_wings: bool = False,
 ) -> tuple[bytes, dict[str, int]]:
     texture_index = {texture_hash: index for index, texture_hash in enumerate(output_hashes)}
     if len(texture_index) != len(output_hashes):
@@ -529,10 +537,10 @@ def rewrite_faces(
 
             native_face = target[face_offset : face_offset + length]
             split_quad = False
-            if face["TextureHash"] == WING_HASH:
+            if face["TextureHash"] == DC_WING_HASH:
                 mappings = [
                     (
-                        WING_HASH,
+                        HIDDEN_WING_HASH if hide_wings else SM2_WING_HASH,
                         [
                             (coordinate["U"], coordinate["V"])
                             for coordinate in face["TextureCoordinates"][
@@ -582,11 +590,11 @@ def rewrite_faces(
                     packet[4:8] = bytes((*split_indices[mapping_index], 0))
                 struct.pack_into("<H", packet, 12, vertex_count + rebuilt_face_count)
                 struct.pack_into("<I", packet, 16, texture_index[mapped_hash])
-                width, height = dimensions[mapped_hash]
                 for slot, uv in enumerate(mapped_uvs):
                     if uv_is_native:
                         u, v = int(uv[0]), int(uv[1])
                     else:
+                        width, height = dimensions[mapped_hash]
                         u, v = uv_byte(uv[0], width), uv_byte(uv[1], height)
                     packet[20 + slot * 2] = u
                     packet[21 + slot * 2] = v
@@ -657,14 +665,124 @@ def replace_texture_section(
     return bytes(prefix)
 
 
+def append_hidden_wing_texture(
+    library: bytes,
+    output_hashes: tuple[int, ...],
+) -> bytes:
+    """Append a private 64x64 magenta-key page without replacing any SM2 page."""
+    layout = container_layout(library)
+    if HIDDEN_WING_HASH in layout["textureHashes"]:
+        raise ValueError("hidden wing material already exists in source library")
+    if output_hashes[-1] != HIDDEN_WING_HASH:
+        raise ValueError("hidden wing material must be the final output hash")
+
+    section = layout["textureSection"]
+    palette4_count = u32(library, section)
+    palette4_start = section + 4
+    palette4_end = palette4_start + palette4_count * (4 + 16 * 2)
+    palette8_count = u32(library, palette4_end)
+    palette8_start = palette4_end + 4
+    palette8_end = palette8_start + palette8_count * (4 + 256 * 2)
+    texture_count = u32(library, palette8_end)
+    if texture_count == 0xFFFFFFFF:
+        raise ValueError("detail/cubemap texture libraries cannot append a hidden wing page")
+    if texture_count != layout["textureCount"]:
+        raise ValueError("texture count changed while locating hidden wing append point")
+
+    old_pointers = [
+        u32(library, layout["texturePointerTable"] + index * 4)
+        for index in range(texture_count)
+    ]
+    if not old_pointers:
+        raise ValueError("source library has no texture records")
+    old_records_start = min(old_pointers)
+    old_pointer_end = layout["texturePointerTable"] + texture_count * 4
+    if old_records_start < old_pointer_end:
+        raise ValueError("source texture records overlap their pointer table")
+
+    declared_palette_ids = {
+        u32(library, palette4_start + index * (4 + 16 * 2))
+        for index in range(palette4_count)
+    } | {
+        u32(library, palette8_start + index * (4 + 256 * 2))
+        for index in range(palette8_count)
+    }
+    digest = hashlib.sha256(b"OpenSpideyPS1/hidden-wing/v1\0" + library).digest()
+    palette_id = struct.unpack_from("<I", digest)[0] or 1
+    while palette_id in declared_palette_ids:
+        palette_id = (palette_id + 1) & 0xFFFFFFFF or 1
+
+    output = bytearray(library[: layout["hashCountOffset"]])
+    output.extend(struct.pack("<I", len(output_hashes)))
+    output.extend(struct.pack(f"<{len(output_hashes)}I", *output_hashes))
+    output.extend(struct.pack("<I", palette4_count))
+    output.extend(library[palette4_start:palette4_end])
+    output.extend(struct.pack("<I", palette8_count + 1))
+    output.extend(library[palette8_start:palette8_end])
+    output.extend(struct.pack("<I", palette_id))
+    output.extend(struct.pack("<256H", *((MAGENTA_555,) * 256)))
+    output.extend(struct.pack("<I", texture_count + 1))
+    pointer_table = len(output)
+    output.extend(bytes((texture_count + 1) * 4))
+    output.extend(library[old_pointer_end:old_records_start])
+    new_records_start = len(output)
+    output.extend(library[old_records_start:])
+
+    for index, old_pointer in enumerate(old_pointers):
+        new_pointer = new_records_start + (old_pointer - old_records_start)
+        struct.pack_into("<I", output, pointer_table + index * 4, new_pointer)
+
+    hidden_pointer = len(output)
+    hidden_texture_index = len(output_hashes) - 1
+    output.extend(
+        struct.pack(
+            "<IIIIHH",
+            0,
+            256,
+            palette_id,
+            hidden_texture_index,
+            64,
+            64,
+        )
+    )
+    output.extend(bytes(64 * 64))
+    struct.pack_into(
+        "<I", output, pointer_table + texture_count * 4, hidden_pointer
+    )
+
+    appended = bytes(output)
+    appended_layout = container_layout(appended)
+    if appended_layout["textureHashes"] != output_hashes:
+        raise ValueError("hidden wing append changed the material hash table")
+    if appended_layout["textureCount"] != texture_count + 1:
+        raise ValueError("hidden wing append did not add exactly one texture record")
+    return appended
+
+
 def parse_args() -> argparse.Namespace:
     parser = argparse.ArgumentParser()
     parser.add_argument("--dc-model", type=Path, default=DEFAULT_DC_MODEL)
     parser.add_argument("--dc-textures", type=Path, default=DEFAULT_DC_TEXTURES)
     parser.add_argument("--sm2-model", type=Path, default=DEFAULT_SM2_MODEL)
+    parser.add_argument(
+        "--skeleton-model",
+        type=Path,
+        help=(
+            "optional compatible actor supplying hierarchy/animation metadata; "
+            "defaults to --sm2-model"
+        ),
+    )
     parser.add_argument("--sm2-textures", type=Path, default=DEFAULT_SM2_TEXTURES)
     parser.add_argument("--mapping", type=Path, default=DEFAULT_MAPPING)
     parser.add_argument("--multitool", type=Path)
+    parser.add_argument(
+        "--hide-wings",
+        action="store_true",
+        help=(
+            "route only the native wing/seam faces through the reserved DC38D248 "
+            "material slot; the supplied texture library must key that slot out"
+        ),
+    )
     parser.add_argument(
         "--output-model", type=Path, default=DEFAULT_OUTPUT_ROOT / "spidey.psx"
     )
@@ -683,19 +801,35 @@ def main() -> None:
     converter = load_converter()
     dc_model = converter.parse_model(args.dc_model.resolve())
     wing_donor = converter.load_wing_templates(args.sm2_model.resolve())
-    skeleton_donor = converter.parse_skeleton_donor(args.sm2_model.resolve())
+    skeleton_path = (
+        args.skeleton_model.resolve()
+        if args.skeleton_model is not None
+        else args.sm2_model.resolve()
+    )
+    skeleton_donor = converter.parse_skeleton_donor(skeleton_path)
     if set(dc_model.mesh_names) != set(skeleton_donor.mesh_names):
         raise ValueError("Dreamcast and SM2 actors have different mesh-name sets")
     # Animation transforms address objects by numeric position. Name-match and
     # reorder alternate Dreamcast costume meshes onto the complete SM2 object
     # table; the converter also remaps every file-wide stitched-vertex reference
     # into that emitted order.
-    metadata_mode = "complete SM2 skeleton donor"
+    metadata_mode = f"complete skeleton donor from {skeleton_path}"
     tagged_chunks = None
     build_skeleton_donor = skeleton_donor
     expected_mesh_names = skeleton_donor.mesh_names
     mapping = json.loads(args.mapping.read_text(encoding="utf-8"))
-    dimensions = source_dimensions(mapping)
+    # Keep target-oracle and mapped-source dimensions separate. Dusk uses the
+    # same hash label for differently sized pages on those two sides.
+    target_dimensions = mapping_dimensions(mapping, "original")
+    source_dimensions = mapping_dimensions(mapping, "mapped")
+    semantic_dimensions = dict(target_dimensions)
+    semantic_dimensions.update(source_dimensions)
+    sm2_model_layout = container_layout(args.sm2_model.read_bytes())
+    output_hashes = tuple(sm2_model_layout["textureHashes"])
+    texture_library = args.sm2_textures.read_bytes()
+    if args.hide_wings:
+        output_hashes += (HIDDEN_WING_HASH,)
+        texture_library = append_hidden_wing_texture(texture_library, output_hashes)
 
     # Scale 1 preserves the exact DC UV byte conversion used by the static GLB
     # proof.  Its temporary DC texture payload is replaced below by SM2's native
@@ -709,7 +843,6 @@ def main() -> None:
         skeleton_donor=build_skeleton_donor,
     )
     base_layout = container_layout(base)
-    sm2_model_layout = container_layout(args.sm2_model.read_bytes())
     if base_layout["meshNames"] != expected_mesh_names:
         raise ValueError("rebuilt Dreamcast mesh order does not match its metadata")
 
@@ -723,22 +856,23 @@ def main() -> None:
         source_dump = dump_mesh(multitool, args.sm2_model.resolve(), source_dump_path)
 
     static_matches, static_report = match_static_mapping(
-        target_dump, mapping, dimensions
+        target_dump, mapping, target_dimensions
     )
-    semantic_triangles = mesh_triangles(source_dump, dimensions)
+    semantic_triangles = mesh_triangles(source_dump, semantic_dimensions)
     rewritten, face_report = rewrite_faces(
         base,
         target_dump,
         base_layout,
         static_matches,
         semantic_triangles,
-        dimensions,
-        sm2_model_layout["textureHashes"],
+        source_dimensions,
+        output_hashes,
+        hide_wings=args.hide_wings,
     )
     packed = replace_texture_section(
         rewritten,
-        sm2_model_layout["textureHashes"],
-        args.sm2_textures.read_bytes(),
+        output_hashes,
+        texture_library,
     )
 
     # Reparse the final model before publishing it.  This also proves that all
@@ -746,7 +880,7 @@ def main() -> None:
     args.output_model.parent.mkdir(parents=True, exist_ok=True)
     args.output_model.write_bytes(packed)
     args.output_textures.parent.mkdir(parents=True, exist_ok=True)
-    shutil.copyfile(args.sm2_textures, args.output_textures)
+    args.output_textures.write_bytes(texture_library)
     with tempfile.TemporaryDirectory(prefix="sm2-dc-native-verify-") as temporary:
         final_dump_path = Path(temporary) / "spidey-final.json"
         final_dump = dump_mesh(multitool, args.output_model.resolve(), final_dump_path)
@@ -756,7 +890,7 @@ def main() -> None:
         for mesh in final_dump["Meshes"]
         for face in mesh["Faces"]
     }
-    unknown_hashes = final_hashes.difference(sm2_model_layout["textureHashes"])
+    unknown_hashes = final_hashes.difference(output_hashes)
     if unknown_hashes:
         raise ValueError(
             "final actor contains unknown material hashes: "
@@ -772,6 +906,7 @@ def main() -> None:
         "scope": "native SM2 runtime actor; GLB is validation input only",
         "dcModel": str(args.dc_model.resolve()),
         "sm2Model": str(args.sm2_model.resolve()),
+        "skeletonModel": str(skeleton_path),
         "sm2TextureLibrary": str(args.sm2_textures.resolve()),
         "animationMetadata": metadata_mode,
         "staticMapping": str(args.mapping.resolve()),
@@ -781,10 +916,11 @@ def main() -> None:
         "outputModelSha256": sha256(packed),
         "outputTextureSha256": sha256(args.output_textures.read_bytes()),
         "meshCount": len(final_dump["Meshes"]),
-        "materialCount": len(sm2_model_layout["textureHashes"]),
+        "materialCount": len(output_hashes),
         "finalFaceCount": final_face_count,
         "staticProof": static_report,
         "faceMapping": face_report,
+        "wingPolicy": "dedicated-private-magenta-key" if args.hide_wings else "source-authored",
         "alternateHandMeshNames": [
             f"0x{value:08X}" for value in sorted(HAND_MESH_NAMES)
         ],
