@@ -44,9 +44,9 @@ public static class Costume
     // unrelated shell data. The generated-viewer transform points the costume
     // viewer at this port-only arena instead, where all twenty entries fit.
     public const uint ViewerTable = 0x807C0000;
-    const uint ViewerStrings = ViewerTable + 0x200;
-    const uint ViewerDescriptions = ViewerTable + 0x400;
-    const uint ViewerModelName = ViewerTable + 0x1800;
+    const uint ViewerStrings = ViewerTable + 0x800;
+    const uint ViewerDescriptions = ViewerTable + 0x1000;
+    const uint ViewerModelName = ViewerTable + 0x5000;
     const uint RetailViewerTable = 0x802693A8;
     const uint ModelCache = 0x800A0904;
 
@@ -160,17 +160,22 @@ public static class Costume
 
     static int _want = -1;
     static int _loadedCostume = -1;
+    public static int LoadedCostume => _loadedCostume;
+    public static uint ViewerCount => (uint)(Names.Length + SuitMods.Catalogue.Count);
+    static string ModelFor(int selected) => SuitMods.IsMod(selected) ? "spidey.psx" : DreamcastModels[selected];
+    public static bool IsUnlocked(IMemory memory, uint index) => index < ViewerCount &&
+        (SuitMods.IsMod((int)index) || (memory.ReadU32(Unlocks) & (1u << (int)index)) != 0);
     static bool _selfTest;
     static bool _selfTestDone;
 
     public static string DreamcastAssetFor(string requestedName, IMemory memory)
     {
         int selected = _want >= 0 ? _want : ReadSelected(memory);
-        if ((uint)selected >= DreamcastModels.Length) selected = 0;
+        if ((uint)selected >= ViewerCount) selected = 0;
         string source = requestedName;
         if (requestedName.Equals("spidey.psx", StringComparison.OrdinalIgnoreCase))
         {
-            source = DreamcastModels[selected];
+            source = ModelFor(selected);
             _loadedCostume = selected;
         }
         if (!source.Equals(requestedName, StringComparison.OrdinalIgnoreCase))
@@ -187,7 +192,7 @@ public static class Costume
     public static bool RunRetailTextureOverlay(CpuContext c, IMemory memory)
     {
         int selected = _want >= 0 ? _want : ReadSelected(memory);
-        if ((uint)selected >= DreamcastModels.Length) selected = 0;
+        if ((uint)selected >= ViewerCount) selected = 0;
 
         int slot = FindModelSlot(memory, "spidey");
         if (slot < 0)
@@ -196,7 +201,7 @@ public static class Costume
         if (_loadedCostume == selected)
         {
             Console.WriteLine(
-                $"[costume] viewer actor already loaded: {DreamcastModels[selected]}");
+                $"[costume] viewer actor already loaded: {ModelFor(selected)}");
             return false;
         }
 
@@ -224,7 +229,7 @@ public static class Costume
         if (selected >= OriginalCostumeCount)
             Console.WriteLine(
                 "[costume] skipped SM1 retail texture overlay for baked imported actor");
-        Console.WriteLine($"[costume] viewer actor reload slot {slot}: {DreamcastModels[selected]}");
+        Console.WriteLine($"[costume] viewer actor reload slot {slot}: {ModelFor(selected)}");
         return false;
     }
 
@@ -257,46 +262,93 @@ public static class Costume
 
         uint text = ViewerStrings;
         uint description = ViewerDescriptions;
-        for (int i = 10; i < ViewerNames.Length; i++)
+        for (int i = 10; i < ViewerCount; i++)
         {
-            WriteCString(memory, text, ViewerNames[i]);
+            string name = SuitMods.IsMod(i) ? SuitMods.At(i).Name : ViewerNames[i];
+            WriteCString(memory, text, name);
             uint entry = ViewerTable + (uint)i * 12;
             memory.WriteU32(entry, text);
             memory.WriteU32(entry + 4, description);
             memory.WriteU32(entry + 8, 0x004C0008); // retail default Spider-Man style
-            text += (uint)Encoding.ASCII.GetByteCount(ViewerNames[i]) + 1;
-            description = WriteImportedDescription(memory, description, i);
+            text += (uint)Encoding.ASCII.GetByteCount(name) + 1;
+            description = SuitMods.IsMod(i) ? WriteModDescription(memory, description, i) : WriteImportedDescription(memory, description, i);
+            if (text >= ViewerDescriptions || description >= ViewerModelName)
+                throw new InvalidOperationException("costume viewer text arena exhausted");
         }
     }
 
     /// <summary>
-    /// Keep the active row above the retail rotate/zoom legend and enable the list's
-    /// otherwise-unused scroll window for the complete twenty-entry roster.
+    /// Align the first text line with the description and fit eleven stock-spaced rows.
     /// </summary>
     public static void ConfigureViewerList(IMemory memory, uint list)
     {
-        memory.WriteU8(list + 0x15, 6);
+        memory.WriteU32(list + 0x20, 70); // Right-column first text line.
+        memory.WriteU8(list + 0x15, 11); // Last baseline 170, inside the frame ending at 175.
+    }
+
+    /// <summary>Align the list frame with the description frame without changing its text layout.</summary>
+    public static void AlignViewerFrame(IMemory memory, uint list)
+    {
+        uint frame = memory.ReadU32(list + 4);
+        if (frame == 0) return;
+        // Right-panel constructor in shell:func_80261C70: Y=0x3A, height=0x75.
+        // Width, X, opening animation, font and ten-pixel row pitch stay retail.
+        memory.WriteU32(frame + 0x20, 0x3A);
+        memory.WriteU32(frame + 0x10, 0x75);
     }
 
     static uint WriteImportedDescription(IMemory memory, uint address, int index)
     {
         uint cursor = address;
-        cursor = WriteColor(memory, cursor, 0xFF, 0xFF, 0x00);
+        cursor = WriteViewerColor(memory, cursor, heading: true);
         cursor = WriteViewerLine(memory, cursor, "SPECIAL COSTUME");
-        cursor = WriteColor(memory, cursor, 0xFF, 0xFF, 0xFF);
+        cursor = WriteViewerColor(memory, cursor, heading: false);
         cursor = WriteViewerLine(memory, cursor, ViewerNames[index].ToUpperInvariant());
-        cursor = WriteColor(memory, cursor, 0xFF, 0xFF, 0x00);
+        cursor = WriteViewerColor(memory, cursor, heading: true);
         cursor = WriteViewerLine(memory, cursor, "GAME POWERS:");
-        cursor = WriteColor(memory, cursor, 0xFF, 0xFF, 0xFF);
+        cursor = WriteViewerColor(memory, cursor, heading: false);
         foreach (string line in ImportedPowerText[index - 10])
             cursor = WriteViewerLine(memory, cursor, line);
-        cursor = WriteColor(memory, cursor, 0xFF, 0xFF, 0x00);
+        cursor = WriteViewerColor(memory, cursor, heading: true);
         cursor = WriteViewerLine(memory, cursor, "UNLOCKED WITH:");
-        cursor = WriteColor(memory, cursor, 0xFF, 0xFF, 0xFF);
+        cursor = WriteViewerColor(memory, cursor, heading: false);
         cursor = WriteViewerLine(memory, cursor, ImportedUnlockText[index - 10]);
         memory.WriteU8(cursor++, 0xFF);
         return cursor;
     }
+
+    static uint WriteModDescription(IMemory memory, uint cursor, int index)
+    {
+        var mod = SuitMods.At(index);
+        cursor = WriteViewerColor(memory, cursor, heading: true);
+        cursor = WriteViewerLine(memory, cursor, mod.Name.ToUpperInvariant());
+        cursor = WriteViewerColor(memory, cursor, heading: false);
+        string line = "";
+        foreach (string word in mod.Description.ToUpperInvariant().Split(' ', StringSplitOptions.RemoveEmptyEntries))
+        {
+            // Long single words are wrapped too, never allowed to run through the selector.
+            string remaining = word;
+            if (line.Length > 0 && line.Length + remaining.Length + 1 > 18)
+            { cursor = WriteViewerLine(memory, cursor, line); line = ""; }
+            while (remaining.Length > 18)
+            { cursor = WriteViewerLine(memory, cursor, remaining[..18]); remaining = remaining[18..]; }
+            line = line.Length == 0 ? remaining : line + " " + remaining;
+        }
+        if (line.Length > 0) cursor = WriteViewerLine(memory, cursor, line);
+        cursor = WriteViewerColor(memory, cursor, heading: true);
+        cursor = WriteViewerLine(memory, cursor, "SM1 ABILITIES:");
+        cursor = WriteViewerColor(memory, cursor, heading: false);
+        cursor = WriteViewerLine(memory, cursor, Names[mod.AbilityProfile].ToUpperInvariant());
+        cursor = WriteViewerLine(memory, cursor, "ALWAYS UNLOCKED");
+        memory.WriteU8(cursor++, 255);
+        return cursor;
+    }
+
+    // Exact RGB tokens from retail charbio.dat's costume entries. Keep the
+    // original viewer's font, 10-pixel line pitch, anchor and shadow renderer.
+    static uint WriteViewerColor(IMemory memory, uint address, bool heading) => heading
+        ? WriteColor(memory, address, 105, 105, 0)
+        : WriteColor(memory, address, 68, 68, 100);
 
     static uint WriteColor(IMemory memory, uint address, byte r, byte g, byte b)
     {
@@ -317,6 +369,7 @@ public static class Costume
     public static void ApplyAbilityProfile(CpuContext c, IMemory memory)
     {
         int selected = ReadSelected(memory);
+        if (SuitMods.IsMod(selected)) selected = SuitMods.At(selected).AbilityProfile;
         if ((uint)selected >= AbilityConfig.Length) selected = 0;
         uint player = c.V0;
         if ((player & 0xFF000000u) != 0x80000000u) return;
@@ -355,7 +408,7 @@ public static class Costume
             if ((bits & (1u << original)) != 0)
                 bits |= 1u << UnlockPartnerByOriginal[original];
         memory.WriteU32(Unlocks, bits);
-        WriteSelected(memory, (byte)selected);
+        WriteSelected(memory, (byte)(SuitMods.Active >= 0 ? SuitMods.Active : selected));
     }
 
     /// <summary>
@@ -365,6 +418,7 @@ public static class Costume
     /// </summary>
     public static byte ReadSelected(IMemory memory)
     {
+        if (SuitMods.Active >= 0) return (byte)SuitMods.Active;
         byte extended = memory.ReadU8(ExtendedSelected);
         if (memory.ReadU16(ExtendedSelectionMarker) == ExtendedSelectionMagic &&
             extended < Names.Length)
@@ -383,6 +437,20 @@ public static class Costume
 
     public static void WriteSelected(IMemory memory, byte selected)
     {
+        if (SuitMods.IsMod(selected))
+        {
+            if (SuitMods.Select(selected))
+            {
+                // Persist identity on the host, never a catalogue index in a retail save.
+                byte proxy = (byte)SuitMods.At(selected).AbilityProfile;
+                memory.WriteU8(ExtendedSelected, 0); // stock fallback if the mod is later removed
+                memory.WriteU16(ExtendedSelectionMarker, ExtendedSelectionMagic);
+                memory.WriteU8(Selected, proxy);
+                return;
+            }
+            selected = 0;
+        }
+        SuitMods.Select(-1);
         if (selected >= Names.Length) selected = 0;
         memory.WriteU8(ExtendedSelected, selected);
         memory.WriteU16(ExtendedSelectionMarker, ExtendedSelectionMagic);
@@ -400,7 +468,7 @@ public static class Costume
     {
         uint savedBits = memory.ReadU32(Unlocks);
         uint savedSelection = memory.ReadU32(Selected);
-        const uint DummyPlayer = ViewerTable + 0x1C00;
+        const uint DummyPlayer = ViewerTable + 0x6000;
         try
         {
             for (int original = 1; original <= 9; original++)
@@ -460,11 +528,13 @@ public static class Costume
 
     public static void Install()
     {
+        SuitMods.Install();
         _selfTest = !string.IsNullOrEmpty(
             Environment.GetEnvironmentVariable("SPIDEY_COSTUME_SELF_TEST"));
         Event.AddListener<VSyncEvent>(e =>
         {
             if (e.Memory == null) return;
+            SuitMods.Observe(e.Memory);
             if (_selfTest && !_selfTestDone)
             {
                 _selfTestDone = true;
@@ -478,7 +548,9 @@ public static class Costume
         if (string.IsNullOrWhiteSpace(spec)) return;
         spec = spec.Trim();
 
-        if (int.TryParse(spec, out int n) && n >= 0 && n < Names.Length) _want = n;
+        int mod = SuitMods.Catalogue.FindIndex(m => m.Id.Equals(spec, StringComparison.OrdinalIgnoreCase));
+        if (mod >= 0) _want = SuitMods.StockCount + mod;
+        else if (int.TryParse(spec, out int n) && n >= 0 && n < ViewerCount) _want = n;
         else if (Aliases.TryGetValue(spec, out int a)) _want = a;
         else
         {
@@ -486,6 +558,6 @@ public static class Costume
             return;
         }
 
-        Console.WriteLine($"[costume] {Names[_want]} (index {_want})");
+        Console.WriteLine($"[costume] {(SuitMods.IsMod(_want) ? SuitMods.At(_want).Id : Names[_want])} (index {_want})");
     }
 }

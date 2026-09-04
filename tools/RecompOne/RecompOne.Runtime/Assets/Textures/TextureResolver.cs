@@ -10,6 +10,8 @@ public struct ResolvedTexture
 
 public static class TextureResolver
 {
+    // Game-owned material binding. Data-only manifests cannot provide this delegate or guest pointers.
+    public static Func<TileRect, ResolvedTexture>? ActorMaterials { get; set; }
     sealed class Entry
     {
         public int Generation = -1;
@@ -60,6 +62,11 @@ public static class TextureResolver
     /// everything past the edge clamped and smeared into horizontal streaks.
     /// </summary>
     public static int PageWidthTexels(int bpp) => 256;
+
+    // PS1 texture-window sampling is (uv & andMask) | offset. The maximum
+    // remaining coordinate is andMask, not its complement: ~63 + 1 made a
+    // 64-texel actor window look 193 texels wide, defeating HD replacements.
+    public static int TextureWindowExtent(int andMask) => (andMask & 0xFF) + 1;
 
     static int TexelsPerWord(int bpp) => bpp switch { 4 => 4, 8 => 2, _ => 1 };
 
@@ -284,7 +291,7 @@ public static class TextureResolver
         var mgr = AssetReplacerManager.Instance;
         bool dumping = TextureDumper.Enabled;
         bool observing = dumping || TextureRegistry.Enabled;
-        if (!observing && !mgr.HasTextures) return false;
+        if (!observing && !mgr.HasTextures && ActorMaterials == null) return false;
 
         var gpu = Runtime.Gpu;
         if (gpu == null) return false;
@@ -295,7 +302,7 @@ public static class TextureResolver
         if (twAndX != 0xFF || twOrX != 0)
         {
             u0 = twOrX;
-            w = (~twAndX & 0xFF) + 1;
+            w = TextureWindowExtent(twAndX);
         }
         else
         {
@@ -306,7 +313,7 @@ public static class TextureResolver
         if (twAndY != 0xFF || twOrY != 0)
         {
             v0 = twOrY;
-            h = (~twAndY & 0xFF) + 1;
+            h = TextureWindowExtent(twAndY);
         }
         else
         {
@@ -321,6 +328,12 @@ public static class TextureResolver
         }
 
         var rect = TextureTile.Describe(tpage, clut, u0, v0, w, h);
+
+        if (ActorMaterials?.Invoke(rect) is { Hit: true } actor)
+        {
+            result = actor;
+            return true;
+        }
 
         if (mgr.HasRules && mgr.MatchRule(tpage, rect.Bpp, w, h) is { } ruled)
         {

@@ -32,6 +32,8 @@ public static class Controller
     /// as long as the script says.
     /// </summary>
     public static ushort ScriptHeld;
+    /// <summary>Private process-local test mode; ignore physical pads, not host UI.</summary>
+    public static bool ScriptExclusive;
     public static byte   RightX = 0x80;
     public static byte   RightY = 0x80;
     public static byte   LeftX = 0x80;
@@ -54,4 +56,29 @@ public static class Controller
     public static ushort ReplayState = 0xFFFF;
     public static byte  ReplayLeftX = 0x80, ReplayLeftY = 0x80;
     public static byte  ReplayRightX = 0x80, ReplayRightY = 0x80;
+
+    /// <summary>Apply replay/test state after polling devices. Normal play is unchanged.</summary>
+    public static void ApplyInputOverrides()
+    {
+        if (ReplayActive)
+        {
+            State = ReplayState;
+            LeftX = ReplayLeftX;
+            LeftY = ReplayLeftY;
+            RightX = ReplayRightX;
+            RightY = ReplayRightY;
+        }
+        else if (ScriptExclusive)
+        {
+            State = 0xFFFF;
+            LeftX = LeftY = RightX = RightY = 0x80;
+        }
+        State &= (ushort)~ScriptHeld;
+        if (ScriptExclusive)
+        {
+            State2 = 0xFFFF;
+            LeftX2 = LeftY2 = RightX2 = RightY2 = 0x80;
+            Connected2 = false;
+        }
+    }
 }

@@ -1086,6 +1086,16 @@ public sealed class GlCore : IGpuBackend
         // of them stale within a single game frame, so the widescreen target was never
         // eligible and presentation silently fell back to 4:3 every time.
         if (_drewSincePresent) { _frame++; _drewSincePresent = false; }
+        foreach (var tex in _repTextures.Keys.Where(t => t.Retired).ToArray())
+        {
+            var info = _repUse[tex];
+            if (info.Frame >= _frame) continue;
+            _gl.DeleteTexture(info.Handle);
+            _repTextures.Remove(tex);
+            _repUse.Remove(tex);
+            _repBytes -= info.Bytes;
+            tex.Rgba = [];
+        }
 
         for (int i = 0; i < _rts.Length; i++)
         {

@@ -19,6 +19,7 @@ namespace Recompiled;
 ///   SPIDEY_SHOT_EVERY=120     ...or write one every N frames
 ///   SPIDEY_SHOT_DIR=shots     where they go (default "shots")
 ///   SPIDEY_SHOT_CROP=x,y,w,h  also write an exact display-pixel close-up per shot
+///   SPIDEY_SCRIPT_EXCLUSIVE=1 ignore physical game-pad state during an armed test
 ///   SPIDEY_CAPTURE_PRESENTED=1 capture the final presented frame, including FXAA
 ///   SPIDEY_CAPTURE_FXAA_PAIR=1 write pre/post-FXAA images from the exact same frame
 ///   SPIDEY_EXIT=900           quit after this frame
@@ -160,6 +161,9 @@ public static class Capture
         }
 
         // The frame counter feeds the watchdog, so listen even with nothing to capture.
+        Controller.ScriptExclusive = _active &&
+            Environment.GetEnvironmentVariable("SPIDEY_SCRIPT_EXCLUSIVE") == "1";
+        if (Controller.ScriptExclusive) Console.WriteLine("[capture] process-local input exclusive; physical game-pad state ignored");
         if (_active) Directory.CreateDirectory(_dir);
         Event.AddListener<VSyncEvent>(OnFrame);
         if (!_active) return;

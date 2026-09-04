@@ -181,6 +181,8 @@ public enum TextureMode : byte
 
 public sealed class ReplacementTexture
 {
+    // Explicit ownership release for data-only suits; GPU deletion waits for a safe frame boundary.
+    public bool Retired;
     public int Width, Height;
     public float ScaleX = 1f, ScaleY = 1f;
     public byte[] Rgba = [];

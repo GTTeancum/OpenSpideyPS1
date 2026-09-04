@@ -1,10 +1,10 @@
 #!/usr/bin/env python3
-"""Extend the generated SM1 costume viewer from 10 to 20 entries.
+"""Extend the generated SM1 costume viewer to the stock + data-only mod catalogue.
 
 The retail table ends immediately before unrelated shell data, so Costume.PrepareViewer
 builds a relocated table in the port's eight-megabyte RAM. This deterministic generated-
-source transform changes only the two loop bounds, the UI capacity, and the four hard-
-coded table-base calculations inside func_80261C70.
+source transform updates loop bounds, the scroll window, table bases, persistent selection
+and unlock queries inside func_80261C70. It preserves the retail model-resource proxy.
 """
 
 from pathlib import Path
@@ -30,17 +30,28 @@ def main() -> None:
     end = source.index(NEXT_FUNCTION, start)
     function = source[start:end]
 
+    # The constructor's 10 is row pitch, NOT capacity (the retail allocation
+    # already holds 40 entries). Preserve it and the retail font/position.
     function = replace_exact(
-        function, "c.V1 = 0x0000000Au;", "c.V1 = 0x00000014u;", 1
+        function, "< 0x0000000Au ? 1u : 0u;", "< Recompiled.Costume.ViewerCount ? 1u : 0u;", 2
     )
-    function = replace_exact(
-        function, "< 0x0000000Au ? 1u : 0u;", "< 0x00000014u ? 1u : 0u;", 2
-    )
+    for old, new in (
+        ("c.SetDerived(2, c.V0 & c.V1, 2, 3);", "c.V0 = Recompiled.Costume.IsUnlocked(m, c.S0) ? 1u : 0u;"),
+        ("c.SetDerived(3, c.V1 & c.V0, 3, 2);", "c.V1 = Recompiled.Costume.IsUnlocked(m, c.S3) ? 1u : 0u;"),
+    ):
+        function = replace_exact(function, old, old + "\n        " + new, 1)
     function = replace_exact(
         function,
         "        SpiderMan.func_80016424(c, m);\n",
         "        SpiderMan.func_80016424(c, m);\n"
         "        Recompiled.Costume.ConfigureViewerList(m, c.S5);\n",
+        1,
+    )
+    function = replace_exact(
+        function,
+        "        SpiderMan.func_800166A0(c, m);\n",
+        "        SpiderMan.func_800166A0(c, m);\n"
+        "        Recompiled.Costume.AlignViewerFrame(m, c.S5);\n",
         1,
     )
 
@@ -101,7 +112,7 @@ def main() -> None:
     function = "\n".join(lines) + ("\n" if function.endswith("\n") else "")
 
     SOURCE.write_text(source[:start] + function + source[end:], encoding="utf-8")
-    print("  costume viewer: 20 entries, scrolling list, table relocated to 0x807C0000")
+    print("  costume viewer: stock + data-only mods, scrolling list, table relocated to 0x807C0000")
 
 
 if __name__ == "__main__":
