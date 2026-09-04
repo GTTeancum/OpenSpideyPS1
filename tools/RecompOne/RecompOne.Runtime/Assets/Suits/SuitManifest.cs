@@ -4,13 +4,39 @@ using System.Text.Json;
 namespace RecompOne.Runtime.Assets.Suits;
 
 /// <summary>Data-only reskins. No guest addresses, model binaries, scripts or assemblies.</summary>
-public sealed record SuitManifest(string Id, string Name, string Description, int AbilityProfile,
+public sealed record SuitManifest(string Id, string Name, string Comments, int AbilityProfile,
     IReadOnlyDictionary<uint, string> Textures)
 {
     public static readonly string[] Profiles =
         ["spiderman", "2099", "symbiote", "captain-universe", "unlimited",
          "bagman", "scarlet", "ben-reilly", "quick-change", "peter-parker"];
     public const long PixelBudget = 64L * 1024 * 1024;
+    // Verbatim GAME POWERS lines from SM1 charbio.dat, in Profiles order.
+    public static readonly string[][] PowerText =
+    [
+        ["SUPER STRENGTH", "SUPER AGILITY", "STICK TO WALLS", "SPIDER SENSE"],
+        ["ENHANCED STRENGTH"], ["UNLIMITED WEBBING"],
+        ["INVULNERABLE", "ENHANCED STRENGTH", "UNLIMITED WEBBING"],
+        ["STEALTH MODE"], ["NO SPIDEY BELT"], ["NONE"], ["NONE"],
+        ["NO SPIDEY BELT"], ["NO SPIDEY BELT"]
+    ];
+
+    public static string[] WrapComments(string value)
+    {
+        var lines = new List<string>();
+        string line = "";
+        foreach (string word in value.ToUpperInvariant().Split(' ', StringSplitOptions.RemoveEmptyEntries))
+        {
+            string remaining = word;
+            if (line.Length > 0 && line.Length + remaining.Length + 1 > 18)
+            { lines.Add(line); line = ""; }
+            while (remaining.Length > 18)
+            { lines.Add(remaining[..18]); remaining = remaining[18..]; }
+            line = line.Length == 0 ? remaining : line + " " + remaining;
+        }
+        if (line.Length > 0) lines.Add(line);
+        return lines.ToArray();
+    }
     // Public paintable materials of the approved wingless DC Spider-Man donor.
     // The invisible-wing cutout is deliberately not a paintable body material.
     static readonly HashSet<uint> DonorMaterials =
@@ -72,7 +98,7 @@ public sealed record SuitManifest(string Id, string Name, string Description, in
         using var doc = JsonDocument.Parse(File.ReadAllBytes(path), new JsonDocumentOptions
             { CommentHandling = JsonCommentHandling.Skip, MaxDepth = 8 });
         var o = doc.RootElement;
-        Fields(o, "version", "id", "name", "description", "donor", "abilities", "textures");
+        Fields(o, "version", "id", "name", "comments", "donor", "abilities", "textures");
         if (o.GetProperty("version").GetInt32() != 1) throw new InvalidDataException("unsupported suit version");
         string id = Label(o, "id", 48);
         if (id.Any(c => !(c is >= 'a' and <= 'z' or >= '0' and <= '9' or '-')))
@@ -83,6 +109,12 @@ public sealed record SuitManifest(string Id, string Name, string Description, in
         Fields(abilities, "profile");
         int profile = Array.IndexOf(Profiles, abilities.GetProperty("profile").GetString());
         if (profile < 0) throw new InvalidDataException("unknown SM1 ability profile");
+        string comments = o.GetProperty("comments").GetString() ?? "";
+        if (comments.Length > 72 || comments.Any(c => c < 32 || c > 126))
+            throw new InvalidDataException("comments must be at most 72 printable ASCII characters");
+        int availableLines = 11 - 4 - PowerText[profile].Length;
+        if (WrapComments(comments).Length > availableLines)
+            throw new InvalidDataException($"comments do not fit beneath this donor's powers; shorten to {availableLines} lines of 18 characters");
         var textures = new Dictionary<uint, string>();
         var tex = o.GetProperty("textures");
         if (tex.ValueKind != JsonValueKind.Object) throw new InvalidDataException("textures must be an object");
@@ -106,7 +138,7 @@ public sealed record SuitManifest(string Id, string Name, string Description, in
             if (!textures.TryAdd(material, file)) throw new InvalidDataException("duplicate material ID");
         }
         if (textures.Count == 0) throw new InvalidDataException("at least one external texture is required");
-        return new(id, Label(o, "name", 18), Label(o, "description", 72), profile, textures);
+        return new(id, Label(o, "name", 18), comments, profile, textures);
     }
 
     public Dictionary<uint, ReplacementTexture> Decode()

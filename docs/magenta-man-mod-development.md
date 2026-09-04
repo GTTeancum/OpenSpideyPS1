@@ -1,4 +1,4 @@
-# Magenta Man — SM1 data-only suit example
+# Magenta Man — developer notes
 
 Magenta-colored fabric, original Dreamcast geometry/UVs, black web detail and white
 eyes. This is a reskin, not a debug color or missing-texture placeholder.
@@ -22,7 +22,8 @@ This example is currently for SM1, not SM2.
 ## Edit the JSON and PNGs
 
 `suit.json` supports `//` comments. `name` (up to 18 printable ASCII characters)
-and `description` (up to 72) appear in the selector. `id` must be unique and stable;
+and `comments` (up to 72, further bounded by the available wrapped lines) appear
+in the selector. GAME POWERS uses the chosen profile's retail text. `id` must be unique and stable;
 selection is remembered by that ID outside the retail save. Removing a selected
 mod falls back to default Spider-Man instead of selecting a different catalogue slot.
 
@@ -54,8 +55,8 @@ The invisible wing cutout is not paintable in this wingless donor.
 neighbor enlargement of the tinted source, not newly painted HD detail. The other
 seven images use original Dreamcast dimensions. The sample's decoded pixels occupy
 17,776,640 bytes (about 17 MiB) in host RAM, plus GPU texture storage. PNG file size
-is not the same as decoded memory cost. `provenance.json` records pixel-source/file
-hashes and dimensions; the generator does not modify the donor PSX.
+is not the same as decoded memory cost. The generator does not modify the donor PSX.
+No provenance file is included in the user-facing mod folder.
 
 ## Boundaries and failure behavior
 

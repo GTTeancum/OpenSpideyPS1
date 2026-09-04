@@ -6,8 +6,8 @@ deliberately enlarged to 2048x2048 to exercise host-side HD uploads, not to clai
 new artistic detail. Other textures retain the original Dreamcast dimensions.
 """
 import argparse
-import hashlib
 import json
+import shutil
 from pathlib import Path
 from PIL import Image
 from pack_sm2_costume_to_dc import container_layout
@@ -27,7 +27,6 @@ def main():
     output = args.output.resolve()
     (output / 'textures').mkdir(parents=True, exist_ok=True)
     textures = {}
-    evidence = []
     for entry in sorted(entries, key=lambda e: e['textureIndex']):
         index = entry['textureIndex']
         source = Path(entry['source'])
@@ -40,33 +39,26 @@ def main():
             chroma = maximum - minimum
             recolored.append((maximum, minimum, maximum, a) if chroma > 12 else (r, g, b, a))
         image.putdata(recolored)
-        original_size = image.size
         if index == 0:
             image = image.resize((2048, 2048), Image.Resampling.NEAREST)
         material = f'{hashes[index]:08X}'
         relative = f'textures/{material}.png'
         image.save(output / relative)
         textures[material] = relative
-        evidence.append({'material': material, 'source': str(source.relative_to(ROOT)),
-                         'sourceSha256': hashlib.sha256(source.read_bytes()).hexdigest(),
-                         'sourceSize': original_size, 'outputSize': image.size,
-                         'sha256': hashlib.sha256((output / relative).read_bytes()).hexdigest()})
     manifest = dict(version=1, id='magenta-man', name='Magenta Man',
-                    description='Magenta DC reskin. External PNGs, original web detail and white eyes.',
+                    comments='Your friendly magenta neighborhood!',
                     donor='dc-spiderman', abilities={'profile': 'spiderman'}, textures=textures)
     content = json.dumps(manifest, indent=2)
     content = content.replace('  "abilities": {',
-        '  // Assign one SM1 ability profile (appearance stays DC Spider-Man):\n'
+        '  // Choose whose powers your costume uses:\n'
         '  // spiderman, 2099, symbiote, captain-universe, unlimited, bagman,\n'
-        '  // scarlet, ben-reilly, quick-change, peter-parker. See README for effects.\n'
-        '  // These are complete retail profiles, not SM2 abilities or arbitrary code.\n'
+        '  // scarlet, ben-reilly, quick-change, peter-parker.\n'
+        '  // See instructions.txt for what each choice does.\n'
         '  "abilities": {')
     (output / 'suit.json').write_text(content + '\n', encoding='utf-8')
-    (output / 'provenance.json').write_text(json.dumps({
-        'donorSha256': hashlib.sha256(donor).hexdigest(),
-        'donorUnmodified': True, 'textures': evidence,
-        'note': '2048 texture is a nearest-neighbor HD-path test, not newly authored detail.'
-    }, indent=2) + '\n', encoding='utf-8')
+    instructions = ROOT / 'mods/samples/magenta-man/instructions.txt'
+    if output != instructions.parent:
+        shutil.copy2(instructions, output / 'instructions.txt')
     print(f'{output}: {len(textures)} external PNGs; donor unchanged; JSON profile spiderman')
 
 

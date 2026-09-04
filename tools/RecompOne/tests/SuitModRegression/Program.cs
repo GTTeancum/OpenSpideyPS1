@@ -42,6 +42,13 @@ Reject(d => d["donor"] = "../../unsafe.psx", "arbitrary model files rejected");
 Reject(d => d["address"] = "0x80010000", "raw address fields rejected");
 Reject(d => d["abilities"]!["profile"] = "sm2-electric-web", "unknown ability profile rejected");
 Reject(d => d["name"] = "BAD\u0002TEXT", "selector control bytes rejected");
+Reject(d => d["comments"] = "BAD\u0002TEXT", "comment control bytes rejected");
+Reject(d => d["comments"] = new string('W', 72), "comments that would overflow the default donor pane rejected");
+var emptyComments = JsonNode.Parse(clean)!;
+emptyComments["comments"] = "";
+File.WriteAllText(manifest, emptyComments.ToJsonString());
+Check(SuitManifest.Read(manifest).Comments == "", "author may leave comments empty");
+File.WriteAllText(manifest, clean);
 Reject(d => d["textures"]!["FBC5A5A0"] = "../outside.png", "path traversal rejected");
 Reject(d => d["textures"]!["FBC5A5A0"] = "C:/outside.png", "absolute path rejected");
 Reject(d => d["textures"]!["FBC5A5A0"] = "small.png:stream", "alternate file stream rejected");
@@ -92,6 +99,31 @@ Costume.PrepareViewer(new CpuContext(), memory);
 Check(memory.ReadU32(Costume.ViewerTable + 20 * 12) >= Costume.ViewerTable + 0x800, "mod label stored in port-owned selector arena");
 // Use retail data and functions as the UI oracle, not a hand-designed layout.
 byte[] bio = File.ReadAllBytes(Path.Combine(root, "spiderman/extracted/wad/charbio.dat"));
+string[] costumeSections = System.Text.Encoding.ASCII.GetString(bio).Split((char)1)
+    .Where(s => s.Contains("Game Powers:\0")).ToArray();
+Check(costumeSections.Length == 10, "ten original ability-donor descriptions found");
+for (int profile = 0; profile < 10; profile++)
+{
+    string[] originalPowers = costumeSections[profile].Split("Game Powers:\0\u0002DDd")[1]
+        .Split("\u0002ii\0Comments:")[0].TrimEnd('\0').ToUpperInvariant().Split('\0');
+    Check(SuitManifest.PowerText[profile].SequenceEqual(originalPowers), "donor power wording matches retail: " + SuitManifest.Profiles[profile]);
+    SuitMods.Catalogue[0] = SuitMods.Catalogue[0] with { AbilityProfile = profile, Comments = "Made by Jane. Enjoy!" };
+    Costume.PrepareViewer(new CpuContext(), memory);
+    uint p = memory.ReadU32(Costume.ViewerTable + 20 * 12 + 4);
+    var lines = new List<string>();
+    while (memory.ReadU8(p) != 255)
+    {
+        if (memory.ReadU8(p) == 2) { p += 4; continue; }
+        string line = "";
+        while (memory.ReadU8(p) != 0) line += (char)memory.ReadU8(p++);
+        p++;
+        lines.Add(line);
+    }
+    string[] expected = ["COSTUME:", "MAGENTA MAN", "GAME POWERS:", ..originalPowers,
+        "COMMENTS:", ..SuitManifest.WrapComments("Made by Jane. Enjoy!")];
+    Check(lines.SequenceEqual(expected) && lines.Count <= 11,
+        "stock-style sections, automatic donor powers and author's comments: " + SuitManifest.Profiles[profile]);
+}
 Check(bio.AsSpan().IndexOf(new byte[] { 2, 105, 105, 0 }) >= 0 &&
       bio.AsSpan().IndexOf(new byte[] { 2, 68, 68, 100 }) >= 0, "stock description palette read from charbio.dat");
 for (uint suit = 10; suit < Costume.ViewerCount; suit++)

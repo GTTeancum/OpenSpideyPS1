@@ -321,25 +321,19 @@ public static class Costume
     {
         var mod = SuitMods.At(index);
         cursor = WriteViewerColor(memory, cursor, heading: true);
+        cursor = WriteViewerLine(memory, cursor, "COSTUME:");
+        cursor = WriteViewerColor(memory, cursor, heading: false);
         cursor = WriteViewerLine(memory, cursor, mod.Name.ToUpperInvariant());
-        cursor = WriteViewerColor(memory, cursor, heading: false);
-        string line = "";
-        foreach (string word in mod.Description.ToUpperInvariant().Split(' ', StringSplitOptions.RemoveEmptyEntries))
-        {
-            // Long single words are wrapped too, never allowed to run through the selector.
-            string remaining = word;
-            if (line.Length > 0 && line.Length + remaining.Length + 1 > 18)
-            { cursor = WriteViewerLine(memory, cursor, line); line = ""; }
-            while (remaining.Length > 18)
-            { cursor = WriteViewerLine(memory, cursor, remaining[..18]); remaining = remaining[18..]; }
-            line = line.Length == 0 ? remaining : line + " " + remaining;
-        }
-        if (line.Length > 0) cursor = WriteViewerLine(memory, cursor, line);
         cursor = WriteViewerColor(memory, cursor, heading: true);
-        cursor = WriteViewerLine(memory, cursor, "SM1 ABILITIES:");
+        cursor = WriteViewerLine(memory, cursor, "GAME POWERS:");
         cursor = WriteViewerColor(memory, cursor, heading: false);
-        cursor = WriteViewerLine(memory, cursor, Names[mod.AbilityProfile].ToUpperInvariant());
-        cursor = WriteViewerLine(memory, cursor, "ALWAYS UNLOCKED");
+        foreach (string power in RecompOne.Runtime.Assets.Suits.SuitManifest.PowerText[mod.AbilityProfile])
+            cursor = WriteViewerLine(memory, cursor, power);
+        cursor = WriteViewerColor(memory, cursor, heading: true);
+        cursor = WriteViewerLine(memory, cursor, "COMMENTS:");
+        cursor = WriteViewerColor(memory, cursor, heading: false);
+        foreach (string line in RecompOne.Runtime.Assets.Suits.SuitManifest.WrapComments(mod.Comments))
+            cursor = WriteViewerLine(memory, cursor, line);
         memory.WriteU8(cursor++, 255);
         return cursor;
     }

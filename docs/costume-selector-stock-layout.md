@@ -38,3 +38,10 @@ assertions. Native captures in `proof_render/magenta-man/aligned-text-eleven-row
 (`frame_01817.png`, `frame_02867.png`, `frame_04017.png`) were inspected individually:
 the first text lines align, the eleventh row clears the bottom border, and selecting
 Magenta Man then scrolling back to stock works. The single-process test exited normally.
+
+Mod descriptions now use COSTUME (JSON name), GAME POWERS (the chosen SM1
+ability donor's exact retail wording), and COMMENTS (JSON comments). The original
+palette, font and spacing remain unchanged. The 106-assertion regression checks
+all ten donor texts against charbio.dat and rejects comments that would overflow.
+Both native screenshots in `proof_render/magenta-man/stock-style-description`
+(`frame_01866.png`, `frame_02066.png`) were inspected; all three sections fit.

@@ -17,7 +17,7 @@ libraries, so the result is an ordinary .NET application rather than an emulator
 
 [![Magenta Man in the costume selector](docs/screenshots/magenta-man-costume-selector.png)](docs/screenshots/magenta-man-costume-selector.png)
 
-**Proof of reskin mod capability** — Magenta Man uses the Dreamcast Spider-Man model with external PNG textures, a custom selector name and description, and a JSON-assigned SM1 ability profile.
+**Proof of reskin mod capability** — Magenta Man uses the Dreamcast Spider-Man model with external PNG textures, a custom costume name and comments, and a JSON-assigned SM1 ability profile with the original game-power descriptions.
 
 ---
 

@@ -2,12 +2,12 @@
   "version": 1,
   "id": "magenta-man",
   "name": "Magenta Man",
-  "description": "Magenta DC reskin. External PNGs, original web detail and white eyes.",
+  "comments": "Your friendly magenta neighborhood!",
   "donor": "dc-spiderman",
-  // Assign one SM1 ability profile (appearance stays DC Spider-Man):
+  // Choose whose powers your costume uses:
   // spiderman, 2099, symbiote, captain-universe, unlimited, bagman,
-  // scarlet, ben-reilly, quick-change, peter-parker. See README for effects.
-  // These are complete retail profiles, not SM2 abilities or arbitrary code.
+  // scarlet, ben-reilly, quick-change, peter-parker.
+  // See instructions.txt for what each choice does.
   "abilities": {
     "profile": "spiderman"
   },
