@@ -3,7 +3,6 @@
   "id": "magenta-man",
   "name": "Magenta Man",
   "comments": "Your friendly magenta neighborhood!",
-  "donor": "dc-spiderman",
   // Choose whose powers your costume uses:
   // spiderman, 2099, symbiote, captain-universe, unlimited, bagman,
   // scarlet, ben-reilly, quick-change, peter-parker.

@@ -11,6 +11,7 @@ import shutil
 from pathlib import Path
 from PIL import Image
 from pack_sm2_costume_to_dc import container_layout
+from build_reskin_uv_templates import build_templates
 
 ROOT = Path(__file__).resolve().parents[2]
 
@@ -47,7 +48,7 @@ def main():
         textures[material] = relative
     manifest = dict(version=1, id='magenta-man', name='Magenta Man',
                     comments='Your friendly magenta neighborhood!',
-                    donor='dc-spiderman', abilities={'profile': 'spiderman'}, textures=textures)
+                    abilities={'profile': 'spiderman'}, textures=textures)
     content = json.dumps(manifest, indent=2)
     content = content.replace('  "abilities": {',
         '  // Choose whose powers your costume uses:\n'
@@ -59,6 +60,7 @@ def main():
     instructions = ROOT / 'mods/samples/magenta-man/instructions.txt'
     if output != instructions.parent:
         shutil.copy2(instructions, output / 'instructions.txt')
+    build_templates(output)
     print(f'{output}: {len(textures)} external PNGs; donor unchanged; JSON profile spiderman')
 
 

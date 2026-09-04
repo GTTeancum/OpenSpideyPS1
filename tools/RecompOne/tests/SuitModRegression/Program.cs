@@ -37,6 +37,7 @@ void Reject(Action<JsonNode> mutate, string label)
     File.WriteAllText(manifest, clean);
 }
 Check(SuitManifest.Read(Path.Combine(sample, "suit.json")).Decode().Values.Any(t => t.Width == 2048 && t.Height == 2048), "real 2048 PNG decoded at full dimensions");
+Check(document["donor"] == null, "DC default Spider-Man is implicit; sample has no donor field");
 Check(TextureResolver.TextureWindowExtent(63) == 64 && TextureResolver.TextureWindowExtent(31) == 32 && TextureResolver.TextureWindowExtent(255) == 256, "PS1 texture window mask yields correct replacement extent (not 193/225)");
 Reject(d => d["donor"] = "../../unsafe.psx", "arbitrary model files rejected");
 Reject(d => d["address"] = "0x80010000", "raw address fields rejected");

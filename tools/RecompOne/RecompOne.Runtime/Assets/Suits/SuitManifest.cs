@@ -98,13 +98,12 @@ public sealed record SuitManifest(string Id, string Name, string Comments, int A
         using var doc = JsonDocument.Parse(File.ReadAllBytes(path), new JsonDocumentOptions
             { CommentHandling = JsonCommentHandling.Skip, MaxDepth = 8 });
         var o = doc.RootElement;
-        Fields(o, "version", "id", "name", "comments", "donor", "abilities", "textures");
+        Fields(o, "version", "id", "name", "comments", "abilities", "textures");
         if (o.GetProperty("version").GetInt32() != 1) throw new InvalidDataException("unsupported suit version");
         string id = Label(o, "id", 48);
         if (id.Any(c => !(c is >= 'a' and <= 'z' or >= '0' and <= '9' or '-')))
             throw new InvalidDataException("id must use lowercase letters, digits and hyphens");
-        if (o.GetProperty("donor").GetString() != "dc-spiderman")
-            throw new InvalidDataException("supported donor: dc-spiderman (installed, wingless SM1 actor)");
+        // Geometry is always the installed DC default Spider-Man; no model choice in JSON.
         var abilities = o.GetProperty("abilities");
         Fields(abilities, "profile");
         int profile = Array.IndexOf(Profiles, abilities.GetProperty("profile").GetString());

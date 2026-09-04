@@ -5,7 +5,7 @@ eyes. This is a reskin, not a debug color or missing-texture placeholder.
 
 ## Install and select
 
-Copy this folder to `mods/suits/magenta-man` beside `SpiderMan.exe`, then restart.
+Copy `mods/samples/magenta-man` to `mods/suits/magenta-man` beside `SpiderMan.exe`, then restart.
 Choose **SPECIAL → COSTUME VIEWER → MAGENTA MAN → SELECT**. It is an additional,
 always-unlocked suit; none of the twenty built-in suits or their unlocks is replaced.
 The loader logs `[suit-mod] registered magenta-man` when installation is valid.
@@ -14,8 +14,9 @@ The selector aligns both columns' frames and first text lines, with eleven visib
 rows at the original 10-pixel pitch and scrolling for additional suits. Descriptions use the
 original `charbio.dat` palette: heading RGB (105,105,0), body (68,68,100).
 
-The supported donor is `dc-spiderman`: the installed, approved **wingless SM1**
-Dreamcast Spider-Man actor. No Dreamcast disc, additional PSX, or model rebuild is
+The model is fixed in the loader: the installed, approved **wingless SM1**
+Dreamcast default Spider-Man actor. No JSON donor field is accepted.
+No Dreamcast disc, additional PSX, or model rebuild is
 needed. The loader does not accept custom model files or executable code here.
 This example is currently for SM1, not SM2.
 
@@ -57,6 +58,15 @@ seven images use original Dreamcast dimensions. The sample's decoded pixels occu
 17,776,640 bytes (about 17 MiB) in host RAM, plus GPU texture storage. PNG file size
 is not the same as decoded memory cost. The generator does not modify the donor PSX.
 No provenance file is included in the user-facing mod folder.
+
+`TEMPLATE` contains reference sheets at the paint textures' exact dimensions.
+Blender imports the original decoded DC `SPIDEY.glb` and its official UV Layout
+exporter exports each matching material to SVG; Sharp composites those outlines
+over copies of the PNGs without changing any UV coordinates. Original Blender
+SVGs are retained under `TEMPLATE/UV`. The game never loads this folder.
+The generator does not re-unwrap, infer islands, or read UVs from compatibility
+face packets. It requires Blender, Node.js and Sharp (`BLENDER`, `NODE_EXE` and
+`SHARP_MODULE` can select local installations).
 
 ## Boundaries and failure behavior
 

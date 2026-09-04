@@ -12,6 +12,13 @@ filenames. Keep the face, body parts and transparent areas in the same places.
 You can use larger pictures for finer detail; 2048 x 2048 is supported.
 Do not stretch just one side of a picture or change its proportions.
 
+Need a painting guide? TEMPLATE contains copies with Blender's UV layouts
+stamped over them. White outlines show where the model's faces use the picture.
+Each guide has the same filename and size as its texture. The UV subfolder
+also has clean outlines you can open as a separate layer in a supporting editor.
+Use these as a reference while painting the clean pictures in textures.
+Keep the guide lines out of your finished costume. The game ignores TEMPLATE.
+
 2. Name it and choose its powers
 
 Open suit.json in Notepad. Change only the text inside the quotation marks:
@@ -23,7 +30,7 @@ Open suit.json in Notepad. Change only the text inside the quotation marks:
             lines will fit with any power choice. Text wraps automatically.
   profile   Whose powers to copy, using one of the choices below.
 
-Leave version, donor and the textures entries as they are. Keep the commas
+Leave version and the textures entries as they are. Keep the commas
 and quotation marks in place. You do not need another JSON file.
 
 Power choices:
