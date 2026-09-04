@@ -15,6 +15,10 @@ libraries, so the result is an ordinary .NET application rather than an emulator
 | [![Enter Electro rooftops](docs/screenshots/sm2-e1m0-rooftops.png)](docs/screenshots/sm2-e1m0-rooftops.png) | [![Enter Electro gameplay](docs/screenshots/sm2-e1m0-gameplay.png)](docs/screenshots/sm2-e1m0-gameplay.png) |
 | **Enter Electro, episode 1** — the opening shot over the rooftops | **Enter Electro** — the first level in play, with the health bar, web cartridges and spider-sense compass |
 
+[![Magenta Man in the costume selector](docs/screenshots/magenta-man-costume-selector.png)](docs/screenshots/magenta-man-costume-selector.png)
+
+**Proof of reskin mod capability** — Magenta Man uses the Dreamcast Spider-Man model with external PNG textures, a custom selector name and description, and a JSON-assigned SM1 ability profile.
+
 ---
 
 ## The two games are siloed, deliberately
