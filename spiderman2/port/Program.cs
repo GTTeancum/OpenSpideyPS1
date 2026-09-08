@@ -147,7 +147,9 @@ public static class Program
         Costume.Install();
         Cheats.Install();
         Rates.Install();
-        Wide.Install(0x80031EA0u, completeBackdrop: true, defaultEnabled: true);
+        // Native bounds and subdivision hooks supply the widened geometry.
+        // Copying old boundary pixels can conceal holes and stretch textures.
+        Wide.Install(0x80031EA0u, defaultEnabled: true);
         Harness.Install();
 
         AppDomain.CurrentDomain.UnhandledException += (_, e) => Diag.Fatal(e.ExceptionObject as Exception);

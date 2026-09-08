@@ -1,0 +1,14 @@
+<Project Sdk="Microsoft.NET.Sdk">
+  <PropertyGroup>
+    <OutputType>Exe</OutputType>
+    <TargetFramework>net10.0</TargetFramework>
+    <ImplicitUsings>enable</ImplicitUsings>
+    <Nullable>enable</Nullable>
+    <DefineConstants>$(DefineConstants);SM2</DefineConstants>
+  </PropertyGroup>
+  <ItemGroup>
+    <ProjectReference Include="../../../../spiderman2/port/SpiderMan2.csproj" />
+    <Compile Include="../RenderingRegression/Program.cs" Link="Program.cs" />
+    <Compile Include="../RenderingRegression/NativeGame.cs" Link="NativeGame.cs" />
+  </ItemGroup>
+</Project>

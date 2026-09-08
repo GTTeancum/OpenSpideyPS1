@@ -233,6 +233,48 @@
     },
     {
       "overlay": "main",
+      "function": "func_800877F4",
+      "mode": "pre",
+      "target": "Recompiled.WorldFrustum.Enter"
+    },
+    {
+      "overlay": "main",
+      "function": "func_800877F4",
+      "mode": "post",
+      "target": "Recompiled.WorldFrustum.Exit"
+    },
+    {
+      "overlay": "main",
+      "function": "func_80089918",
+      "mode": "pre",
+      "target": "Recompiled.WorldSubpixel.SetSubdivisionCorners"
+    },
+    {
+      "overlay": "main",
+      "function": "func_8008997C",
+      "mode": "pre",
+      "target": "Recompiled.WorldSubpixel.SubdivisionEnter"
+    },
+    {
+      "overlay": "main",
+      "function": "func_8008997C",
+      "mode": "post",
+      "target": "Recompiled.WorldSubpixel.SubdivisionExit"
+    },
+    {
+      "overlay": "main",
+      "function": "func_80089B74",
+      "mode": "pre",
+      "target": "Recompiled.WorldSubpixel.EdgeEnter"
+    },
+    {
+      "overlay": "main",
+      "function": "func_80089B74",
+      "mode": "post",
+      "target": "Recompiled.WorldSubpixel.EdgeExit"
+    },
+    {
+      "overlay": "main",
       "function": "MovieNextFrame",
       "mode": "post",
       "target": "Recompiled.MovieTrace.NextFrameExit"

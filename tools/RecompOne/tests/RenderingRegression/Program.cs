@@ -41,7 +41,7 @@ foreach (var (x, y) in new[] { (123.75f, 67.25f), (-23.125f, -7.625f) })
     Console.WriteLine($"shared-edge whole/split x={x} y={y}: whole={whole} split={split} {(pass ? "PASS" : "FAIL")}");
     if (!pass) failures++;
 
-    // SM1 stores outcodes beside SXY in scratch RAM before stripping them for GP0.
+    // Engine stores outcodes beside SXY in scratch RAM before stripping them for GP0.
     uint encoded = packed | 0x40004000u;
     GteScreen.StoreU32(memory, source + 8, encoded, expected);
     GteScreen.LoadU32(cpu, 11, memory, source + 8);
@@ -67,20 +67,20 @@ var edgeTag = new GteScreen.VertexTag(1200, 30.5f, 40.75f, true);
 CpuContext EdgeCpu() => new() { A0 = 0x1F800000, A2 = 2, T6 = 16, T8 = 0, T9 = 0 };
 GteScreen.StoreU32(memory, edgeAddress, edgeWord, edgeTag);
 var nativeCpu = EdgeCpu();
-Recompiled.SpiderMan.func_8007D534_Impl(nativeCpu, memory);
+NativeGame.EdgeNative(nativeCpu, memory);
 uint nativeWord = memory.ReadU32(edgeAddress);
 memory.TryGetGteVertex(edgeAddress, nativeWord, out var nativeTag);
 bool nativeFractional = GteScreen.ValidatePacketVertex(nativeWord, nativeTag).HasSubpixel;
 GteScreen.StoreU32(memory, edgeAddress, edgeWord, edgeTag);
 var hookedCpu = EdgeCpu();
-Recompiled.SpiderMan.func_8007D534(hookedCpu, memory);
+NativeGame.Edge(hookedCpu, memory);
 uint hookedWord = memory.ReadU32(edgeAddress);
 memory.TryGetGteVertex(edgeAddress, hookedWord, out var hookedTag);
 var finalTag = GteScreen.ValidatePacketVertex(hookedWord, hookedTag);
 bool edgePass = nativeWord == hookedWord && nativeWord == (31u | 39u << 16) &&
     nativeCpu.Snapshot().gpr.SequenceEqual(hookedCpu.Snapshot().gpr) &&
     !nativeFractional && finalTag.HasSubpixel && finalTag.ScreenX == 30.5f && finalTag.ScreenY == 40.75f;
-Console.WriteLine($"SM1 edge routine: native word=0x{nativeWord:X8} hooked=0x{hookedWord:X8} " +
+Console.WriteLine($"Engine edge routine: native word=0x{nativeWord:X8} hooked=0x{hookedWord:X8} " +
     $"native subpixel={nativeFractional} hooked={finalTag} {(edgePass ? "PASS" : "FAIL")}");
 if (!edgePass) failures++;
 // Actual failing packet observed at the widescreen left edge: 0,130 -> -1,128.
@@ -89,14 +89,14 @@ var borrowCpu = EdgeCpu();
 borrowCpu.T9 = 0x20000000;
 GteScreen.StoreU32(memory, edgeAddress, 130u << 16,
     new GteScreen.VertexTag(1155, 0.5391998f, 130.03665f, true));
-Recompiled.SpiderMan.func_8007D534(borrowCpu, memory);
+NativeGame.Edge(borrowCpu, memory);
 uint borrowWord = memory.ReadU32(edgeAddress);
 memory.TryGetGteVertex(edgeAddress, borrowWord, out var borrowTag);
 borrowTag = GteScreen.ValidatePacketVertex(borrowWord, borrowTag);
 bool borrowPass = borrowWord == 0x0080FFFF && borrowTag.HasSubpixel &&
     Math.Abs(borrowTag.ScreenX - 0.5391998f) < 0.0001f &&
     Math.Abs(borrowTag.ScreenY - 130.03665f) < 0.0001f;
-Console.WriteLine($"SM1 packed edge borrow: word={borrowWord:X8} tag={borrowTag} {(borrowPass ? "PASS" : "FAIL")}");
+Console.WriteLine($"Engine packed edge borrow: word={borrowWord:X8} tag={borrowTag} {(borrowPass ? "PASS" : "FAIL")}");
 if (!borrowPass) failures++;
 // A ground vertex below the viewport must retain its true projection for GPU
 // clipping/interpolation, while the emulated SXY register remains PS1-saturated.
@@ -173,12 +173,12 @@ RecompOne.Runtime.Gte.WriteControl(4, 0);
 CpuContext SubdivisionCpu() => new() { A1 = 0x1F800000, A2 = 0, A3 = 4096,
     T4 = 16, T5 = 128, T6 = 0, S5 = 0x3FFF3FFF, S6 = 0, SP = 0x80013000 };
 var nativeSubdivision = SubdivisionCpu();
-Recompiled.SpiderMan.func_8007D33C_Impl(nativeSubdivision, memory);
+NativeGame.SubdivisionNative(nativeSubdivision, memory);
 uint clampedWord = memory.ReadU32(0x1F800000);
 memory.TryGetGteVertex(0x1F800000, clampedWord, out var uncertified);
 bool lostAtCap = !GteScreen.ValidatePacketVertex(clampedWord, uncertified).HasSubpixel;
 var fixedSubdivision = SubdivisionCpu();
-Recompiled.SpiderMan.func_8007D33C(fixedSubdivision, memory);
+NativeGame.Subdivision(fixedSubdivision, memory);
 uint certifiedWord = memory.ReadU32(0x1F800000);
 GteScreen.LoadU32(cpu, 25, memory, 0x1F800000);
 RecompOne.Runtime.Gte.WriteFrom(cpu, 12, 25);
@@ -191,7 +191,7 @@ bool capPass = lostAtCap && clampedWord == certifiedWord &&
     certified.HasSubpixel && certified.ScreenY == 519.5f &&
     !GteScreen.ValidatePacketVertex(packetWord + 1, certified).HasSubpixel &&
     GteScreen.RamVertexTransform == null;
-Console.WriteLine($"SM1 subdivision software cap: native={certifiedWord:X8} projectionY={certified.ScreenY} retained={certified.HasSubpixel} {(capPass ? "PASS" : "FAIL")}");
+Console.WriteLine($"Engine subdivision software cap: native={certifiedWord:X8} projectionY={certified.ScreenY} retained={certified.HasSubpixel} {(capPass ? "PASS" : "FAIL")}");
 if (!capPass) failures++;
 // A subdivided edge must lie on its original projective segment, including when
 // camera-space rounding would otherwise move it off an unsubdivided neighbour.
@@ -211,13 +211,13 @@ for (int i = 0; i < 3; i++)
 CpuContext CornerCpu() => new() { T1=cornerAddresses[0], T2=cornerAddresses[1], T3=cornerAddresses[2] };
 CpuContext EdgeSubdivisionCpu() => new() { A1=0x1F800000, A2=2, A3=2048, T4=16, T5=128,
     T6=0, S5=0x3FFF3FFF, S6=0, SP=0x80013000 };
-Recompiled.SpiderMan.func_8007D2D8_Impl(CornerCpu(),memory);
+NativeGame.CornersNative(CornerCpu(),memory);
 var oldEdgeCpu=EdgeSubdivisionCpu();
-Recompiled.SpiderMan.func_8007D33C_Impl(oldEdgeCpu,memory);
+NativeGame.SubdivisionNative(oldEdgeCpu,memory);
 uint oldMidpoint=memory.ReadU32(0x1F800010);
-Recompiled.SpiderMan.func_8007D2D8(CornerCpu(),memory);
+NativeGame.Corners(CornerCpu(),memory);
 var newEdgeCpu=EdgeSubdivisionCpu();
-Recompiled.SpiderMan.func_8007D33C(newEdgeCpu,memory);
+NativeGame.Subdivision(newEdgeCpu,memory);
 uint newMidpoint=memory.ReadU32(0x1F800010);
 memory.TryGetGteVertex(0x1F800010,newMidpoint,out var midpoint);
 double expectedX=(cornerTags[0].ScreenX*(double)cornerTags[0].Depth+cornerTags[1].ScreenX*(double)cornerTags[1].Depth)/(cornerTags[0].Depth+cornerTags[1].Depth);
@@ -228,9 +228,9 @@ RecompOne.Runtime.Gte.WriteFrom(cpu,12,25);
 RecompOne.Runtime.Gte.StoreWord(memory,wholePacket,12);
 memory.TryGetGteVertex(wholePacket,memory.ReadU32(wholePacket),out var roundTripMidpoint);
 midpointPass &= roundTripMidpoint==midpoint;
-Console.WriteLine($"SM1 projective subdivision edge: expectedX={expectedX} actual={midpoint} {(midpointPass ? "PASS" : "FAIL")}");
+Console.WriteLine($"Engine projective subdivision edge: expectedX={expectedX} actual={midpoint} {(midpointPass ? "PASS" : "FAIL")}");
 if(!midpointPass) failures++;
-// Exercise GP0 decoding, the real SM1 world/HUD classifier, and HLE submission.
+// Exercise GP0 decoding, the real Engine world/HUD classifier, and HLE submission.
 // Two neighboring textured triangles use different transfer paths for one edge.
 var sink = new NumericBackend();
 GpuHle.Active = true;
@@ -266,7 +266,7 @@ foreach (float distance in new[] { 1000f, 20000f })
                     // The adjacent face also goes through SM1's native edge
                     // expansion. Its host edge must still coincide exactly.
                     GteScreen.StoreU32(memory, edgeAddress, word, t);
-                    Recompiled.SpiderMan.func_8007D534(EdgeCpu(), memory);
+                    NativeGame.Edge(EdgeCpu(), memory);
                     word = memory.ReadU32(edgeAddress);
                     memory.TryGetGteVertex(edgeAddress, word, out t);
                 }
@@ -301,10 +301,10 @@ foreach(var (x,y,z,wantWide) in new[] {(1100,0,1000,true),(1600,0,1000,false),(0
     memory.WriteU32(obj+12,unchecked((uint)(z<<12)));
     memory.WriteU32(obj+16,0);memory.WriteU32(obj+20,0);
     memory.WriteU32(obj+24,0);memory.WriteU32(obj+28,0);
-    memory.WriteU32(0x800A0914,table); memory.WriteU32(table,mesh);
+    memory.WriteU32(NativeGame.ModelTable,table); memory.WriteU32(table,mesh);
     memory.WriteU32(mesh+8,20u<<12);
     for(uint i=12;i<=20;i+=4)memory.WriteU32(mesh+i,unchecked((ushort)-10)|(10u<<16));
-    memory.WriteU32(0x800B591C,camera);
+    memory.WriteU32(NativeGame.Camera,camera);
     for(uint i=4;i<=12;i+=4)memory.WriteU32(camera+i,0);
     void Matrix(int first,short[] values)
     {
@@ -318,7 +318,7 @@ foreach(var (x,y,z,wantWide) in new[] {(1100,0,1000,true),(1600,0,1000,false),(0
     {
         memory.WriteU16(obj,0);
         GpuHle.FovNum=wide?1000:1; GpuHle.FovDen=wide?1333:1;
-        Recompiled.SpiderMan.func_8007B1B4(new CpuContext {A0=obj,SP=0x801F0000},memory);
+        NativeGame.Frustum(new CpuContext {A0=obj,SP=0x801F0000},memory);
         return (memory.ReadU16(obj)&0x8000)==0;
     }
     bool native=Visible(false), wide=Visible(true);

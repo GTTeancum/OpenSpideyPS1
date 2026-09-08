@@ -72,7 +72,16 @@ def main():
             # Translate the Dreamcast Bag-Man inner/outer shell depth relationship
             # through the engine's native per-face ordering-table offset channel.
             ('DrawPrimSet', 'pre', 'Recompiled.DcModelCompatibility.ApplyBagmanNestedShellDepth'),
-            ('DrawPrimSet', 'post', 'Recompiled.DcModelCompatibility.RestoreBagmanNestedShellDepth')):
+            ('DrawPrimSet', 'post', 'Recompiled.DcModelCompatibility.RestoreBagmanNestedShellDepth'),
+            # Engine-equivalent routines verified against the SM1 instruction streams:
+            # frustum 8007B1B4, corners 8007D2D8, grid 8007D33C, edges 8007D534.
+            ('func_800877F4', 'pre', 'Recompiled.WorldFrustum.Enter'),
+            ('func_800877F4', 'post', 'Recompiled.WorldFrustum.Exit'),
+            ('func_80089918', 'pre', 'Recompiled.WorldSubpixel.SetSubdivisionCorners'),
+            ('func_8008997C', 'pre', 'Recompiled.WorldSubpixel.SubdivisionEnter'),
+            ('func_8008997C', 'post', 'Recompiled.WorldSubpixel.SubdivisionExit'),
+            ('func_80089B74', 'pre', 'Recompiled.WorldSubpixel.EdgeEnter'),
+            ('func_80089B74', 'post', 'Recompiled.WorldSubpixel.EdgeExit')):
         if fn in names:
             patches.append({'overlay': 'main', 'function': fn, 'mode': mode, 'target': target})
         else:
