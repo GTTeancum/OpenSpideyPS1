@@ -254,7 +254,7 @@ Dreamcast/SM2 disc. The conversion and audit workflow remains documented in
 emulated console drew, not what the desktop showed.
 
 ```
-SPIDEY_HZ=30               host presentation/GPU pacing budget; default 30 Hz
+SPIDEY_HZ=60               developer comparison override; player default 60 Hz
 SPIDEY_LEVEL=l5a3          boot straight into a level (retail descriptor first;
                            archive fallback for alternate prefixes)
 SPIDEY_CHEATS=all          the game's own cheats: everything, levelselect, invuln,

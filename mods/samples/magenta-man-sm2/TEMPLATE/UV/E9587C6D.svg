@@ -1,0 +1,28 @@
+<?xml version="1.0" standalone="no"?>
+<!DOCTYPE svg PUBLIC "-//W3C//DTD SVG 1.1//EN"
+  "http://www.w3.org/Graphics/SVG/1.1/DTD/svg11.dtd">
+<svg width="2048" height="2048" viewBox="0 0 2048 2048"
+     xmlns="http://www.w3.org/2000/svg" version="1.1">
+<desc>, (Blender 4.5.8 LTS)</desc>
+<polygon stroke="black" stroke-width="1" fill="rgb(204, 204, 204)" fill-opacity="0" points="800.000,1568.000 992.000,1952.000 864.000,1568.000 " />
+<polygon stroke="black" stroke-width="1" fill="rgb(204, 204, 204)" fill-opacity="0" points="864.000,1568.000 480.000,1120.000 800.000,1568.000 " />
+<polygon stroke="black" stroke-width="1" fill="rgb(204, 204, 204)" fill-opacity="0" points="1056.000,1056.000 480.000,1120.000 864.000,1568.000 " />
+<polygon stroke="black" stroke-width="1" fill="rgb(204, 204, 204)" fill-opacity="0" points="992.000,1952.000 1184.000,1568.000 1120.000,1568.000 " />
+<polygon stroke="black" stroke-width="1" fill="rgb(204, 204, 204)" fill-opacity="0" points="1504.000,1056.000 1120.000,1568.000 1184.000,1568.000 " />
+<polygon stroke="black" stroke-width="1" fill="rgb(204, 204, 204)" fill-opacity="0" points="864.000,1568.000 1120.000,1568.000 1056.000,1056.000 " />
+<polygon stroke="black" stroke-width="1" fill="rgb(204, 204, 204)" fill-opacity="0" points="1120.000,1568.000 864.000,1568.000 992.000,1952.000 " />
+<polygon stroke="black" stroke-width="1" fill="rgb(204, 204, 204)" fill-opacity="0" points="1504.000,1056.000 1056.000,1056.000 1120.000,1568.000 " />
+<polygon stroke="black" stroke-width="1" fill="rgb(204, 204, 204)" fill-opacity="0" points="288.000,672.000 544.000,32.000 288.000,32.000 " />
+<polygon stroke="black" stroke-width="1" fill="rgb(204, 204, 204)" fill-opacity="0" points="32.000,288.000 288.000,672.000 288.000,32.000 " />
+<polygon stroke="black" stroke-width="1" fill="rgb(204, 204, 204)" fill-opacity="0" points="288.000,32.000 32.000,32.000 32.000,288.000 " />
+<polygon stroke="black" stroke-width="1" fill="rgb(204, 204, 204)" fill-opacity="0" points="288.000,672.000 480.000,1120.000 544.000,32.000 " />
+<polygon stroke="black" stroke-width="1" fill="rgb(204, 204, 204)" fill-opacity="0" points="544.000,32.000 480.000,1120.000 1056.000,32.000 " />
+<polygon stroke="black" stroke-width="1" fill="rgb(204, 204, 204)" fill-opacity="0" points="1056.000,32.000 480.000,1120.000 1056.000,1056.000 " />
+<polygon stroke="black" stroke-width="1" fill="rgb(204, 204, 204)" fill-opacity="0" points="1440.000,32.000 1696.000,672.000 1696.000,32.000 " />
+<polygon stroke="black" stroke-width="1" fill="rgb(204, 204, 204)" fill-opacity="0" points="1696.000,672.000 1952.000,288.000 1696.000,32.000 " />
+<polygon stroke="black" stroke-width="1" fill="rgb(204, 204, 204)" fill-opacity="0" points="1952.000,32.000 1696.000,32.000 1952.000,288.000 " />
+<polygon stroke="black" stroke-width="1" fill="rgb(204, 204, 204)" fill-opacity="0" points="1504.000,1056.000 1696.000,672.000 1440.000,32.000 " />
+<polygon stroke="black" stroke-width="1" fill="rgb(204, 204, 204)" fill-opacity="0" points="1504.000,1056.000 1440.000,32.000 1056.000,32.000 " />
+<polygon stroke="black" stroke-width="1" fill="rgb(204, 204, 204)" fill-opacity="0" points="1504.000,1056.000 1056.000,32.000 1056.000,1056.000 " />
+
+</svg>

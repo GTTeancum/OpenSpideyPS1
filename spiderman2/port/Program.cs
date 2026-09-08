@@ -130,6 +130,7 @@ public static class Program
         // signal for the game's registered VSyncCallback timers.
         int hz = TargetHz();
         RecompOne.Runtime.GpuBusy.FrameBudgetMs = 1000.0 / hz;
+        Console.WriteLine($"[timing] {hz} Hz presentation/GPU budget");
         RecompOne.Runtime.Runtime.VBlanksPerFrame = Math.Max(1, (int)Math.Round(60.0 / hz));
 
         var vb = Environment.GetEnvironmentVariable("SPIDEY_VBLANK");

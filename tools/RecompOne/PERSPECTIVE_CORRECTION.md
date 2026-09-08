@@ -10,7 +10,7 @@ game option or compatibility toggle.
 2. Recompiled direct register moves, loads, and stores preserve that complete vertex tag while a projected coordinate is assembled into a GPU packet. Arithmetic may safely retain an unambiguous depth tag, but clears subpixel X/Y because the packed coordinate was deliberately modified.
 3. Main RAM and the PS1 scratchpad retain exact `{word value, depth, subpixel X/Y}` provenance. DMA and ordering-table submission transfer it beside the GP0 command FIFO, so reused screen coordinates cannot inherit an unrelated vertex's projection.
 4. Textured GPU polygons use perspective correction only when every authored vertex carries exact packet provenance. No screen-coordinate reverse lookup is used as a rendering fallback; that approach is ambiguous and can bend otherwise-correct world geometry.
-5. GL backends render exact GTE screen coordinates before PS1 integer snapping and place camera depth in clip-space `w`, which makes the GPU interpolate `u/w`, `v/w`, and `1/w`; vertex color is compensated so the games' original affine Gouraud lighting does not change.
+5. GL backends place camera depth in clip-space `w`, which makes the GPU interpolate `u/w`, `v/w`, and `1/w`; vertex color is compensated so the games' original affine Gouraud lighting does not change. At render scales above 1x, validated pre-rounded GTE X/Y are used to prevent console-resolution vertex snapping from becoming four-pixel texture swim and seam gaps. Fractional position survives packed-SXY arithmetic only when rounding it reproduces the exact submitted packet word, so moved or stale sidecars cannot change geometry.
 6. The software rasterizer evaluates the equivalent barycentric quotient per pixel.
 
 Screen-space HUD, sprites, menus, video, and CPU-authored effects have no camera-space
@@ -31,7 +31,7 @@ developer must explicitly build with `/p:EnableLegacyRenderer=true` and set
 - SM1 level `l1a1` completed native in-process 4:3 and 16:9 gameplay captures on the OpenGL 4.5 renderer at 4x render scale with FXAA.
 - SM2 level `e1m4` completed a native in-process 16:9 gameplay capture on the same renderer and settings; its HUD-free side completion no longer copies HUD or searches arbitrarily across scene pixels.
 - Runtime traces recorded hundreds of thousands of depth-corrected textured triangles in each game and confirmed that the large SM1 rooftop/building packets retain exact scratchpad-staged depth.
-- Adjacent SM1 rooftop frames confirm that pre-rounded screen coordinates remove the whole-pixel parapet stepping that becomes conspicuous at 4x internal resolution; native 4:3 controls and SM2 16:9/4:3 captures retain intact HUD and compass rendering.
+- Native 4:3 and widened 16:9 both classify GTE-authored primitives before any widescreen-only transformation, so both modes retain perspective-correct UV interpolation while sharing the game's submitted integer edges.
 - Every captured frame was inspected at full resolution for UV foldover, diagonal seams, shader/color changes, HUD distortion, and unstable geometry. The suitability of SM2's boundary continuation across every level remains part of the separate widescreen audit.
 
 Set `RECOMP_PERSPECTIVE_TRACE=1` only when diagnostic triangle counts are needed. It

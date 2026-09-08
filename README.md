@@ -27,9 +27,9 @@ replace full playthroughs or long-duration stability testing.
   entries. Imported suits use SM1 animations and copied SM1 ability profiles, with
   paired existing unlock events. The winged default SM2 suit is available from
   the start. Original SM1 default Spider-Man remains visually wingless.
-- **Data-only SM1 reskin mods:** external PNGs, custom names and comments, and a
-  choice of existing SM1 power profiles, all using the included DC default
-  Spider-Man model. Mod suits are always unlocked and do not replace built-ins.
+- **Data-only reskin mods in both games:** external PNGs, custom names and comments,
+  a choice of that game's existing power profiles, and one of six fixed built-in
+  Dreamcast models. Mod suits are always unlocked and do not replace built-ins.
 - **First-run disc setup:** published builds are self-contained executables with
   an embedded installer. Extraction runs inside the game window with progress
   and elapsed time, then subsequent launches use loose files.
@@ -44,7 +44,8 @@ the JSON name, `GAME POWERS:` from the selected SM1 ability profile, and
 `COMMENTS:` from the author's text.
 
 **Maximum: 12 custom mod costumes**, including Magenta Man, alongside the 20
-built-in suits (32 costumes total).
+built-in SM1 suits (32 costumes total). SM2 also supports 12 mod costumes alongside
+its 19 built-ins (31 total).
 
 1. Copy [Magenta Man](mods/samples/magenta-man) into
    `mods/suits/magenta-man` beside `SpiderMan.exe`.
@@ -52,12 +53,22 @@ built-in suits (32 costumes total).
    PNGs and edit `suit.json` to name your costume and choose its powers.
 3. Restart and select it under **SPECIAL → COSTUME VIEWER**.
 
+For SM2, use [the SM2 Magenta Man example](mods/samples/magenta-man-sm2) beside
+`SpiderMan2.exe` instead; its [instructions](mods/samples/magenta-man-sm2/instructions.txt)
+list SM2's power choices. It includes web wings. Texture layouts depend on the selected
+model, so use its matching example and Blender UV templates. Existing SM1 reskins
+can use the wingless SM1 body in SM2 by setting `"model": "spiderman"`.
+In SM2 the menu entry is **SPECIAL → COSTUMES**.
+
 The [TEMPLATE folder](mods/samples/magenta-man/TEMPLATE) contains texture copies
 stamped with Blender-exported UV layouts; `TEMPLATE/UV` contains the original SVG
 outlines for separate editing layers. The game ignores these guides. Keep their
 lines out of the finished textures.
 
-There is no model/donor field: reskins always use DC default Spider-Man.
+The optional `model` field accepts only `spiderman`, `scarlet-spider`, `symbiote`,
+`quick-change`, `peter-parker`, or `sm2-spiderman`; omitting it keeps the original
+per-game default. Model paths and
+custom model binaries are rejected, and each base accepts only its own material IDs.
 The mod-count maximum is an explicit selector capacity, not a texture-resolution limit. Only the
 active reskin's textures are decoded. PNGs can be up to 4096×4096 within a 64 MiB
 decoded-pixel budget per suit; Magenta Man includes a 2048×2048 example. That
@@ -66,7 +77,7 @@ example is enlarged source art, not newly painted HD detail.
 Textures stay in host memory and GPU storage rather than overwriting the game's
 original model or texture allocations. This reskin loader does not accept arbitrary
 models or executable code. See [developer notes](docs/magenta-man-mod-development.md)
-for validation rules and regression tests. This sample loader is currently **SM1 only**.
+for validation rules and regression tests.
 
 ## Run a published build
 

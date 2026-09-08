@@ -24,6 +24,7 @@ namespace Recompiled;
 ///   SPIDEY_EXIT=e1m0_t.trg+3400
 ///                              ...or relative to an archive load
 ///   SPIDEY_SCRIPT=120:start;300:cross:8
+///   SPIDEY_SCRIPT_EXCLUSIVE=1 ignore physical game-pad state during an armed test
 ///                              press a button at a frame, optionally for N frames
 ///   SPIDEY_SCRIPT=title.bmr+200:start:10
 ///                              ...or a number of frames after an archive file loads,
@@ -160,6 +161,9 @@ public static class Capture
         }
 
         // The frame counter feeds the watchdog, so listen even with nothing to capture.
+        Controller.ScriptExclusive = _active &&
+            Environment.GetEnvironmentVariable("SPIDEY_SCRIPT_EXCLUSIVE") == "1";
+        if (Controller.ScriptExclusive) Console.WriteLine("[capture] process-local input exclusive; physical game-pad state ignored");
         if (_active) Directory.CreateDirectory(_dir);
         Event.AddListener<VSyncEvent>(OnFrame);
         if (!_active) return;

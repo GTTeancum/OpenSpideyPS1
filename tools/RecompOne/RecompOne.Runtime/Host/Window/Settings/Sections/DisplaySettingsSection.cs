@@ -11,6 +11,36 @@ internal sealed class DisplaySettingsSection : ISettingsSection
 
     public void Draw()
     {
+        if (Hle.GpuHle.WidescreenSupported)
+        {
+            bool wide = ConfigManager.Game.Widescreen ?? Hle.GpuHle.WidescreenDefault;
+            string preview = Localization.T(wide
+                ? "settings.display.aspect_wide"
+                : "settings.display.aspect_standard");
+
+            ImGui.TextUnformatted(Localization.T("settings.display.aspect"));
+            ImGui.SetNextItemWidth(-1f);
+            if (ImGui.BeginCombo("##display-aspect", preview))
+            {
+                if (ImGui.Selectable(Localization.T("settings.display.aspect_standard"), !wide))
+                {
+                    ConfigManager.Game.Widescreen = false;
+                    ConfigManager.SaveGame();
+                    OutputPanel.RequestWindowAspect(Hle.GpuHle.BaseAspect);
+                }
+                if (ImGui.Selectable(Localization.T("settings.display.aspect_wide"), wide))
+                {
+                    ConfigManager.Game.Widescreen = true;
+                    ConfigManager.SaveGame();
+                    OutputPanel.RequestWindowAspect(16f / 9f);
+                }
+                ImGui.EndCombo();
+            }
+            if (ImGui.IsItemHovered())
+                ImGui.SetTooltip(Localization.T("settings.display.aspect_hint"));
+            ImGui.Spacing();
+        }
+
         bool fullscreen = ConfigManager.View.Fullscreen;
         if (ImGui.Checkbox(Localization.T("settings.display.fullscreen"), ref fullscreen))
         {

@@ -3,6 +3,10 @@
   "id": "magenta-man",
   "name": "Magenta Man",
   "comments": "Your friendly magenta neighborhood!",
+  // Built-in model: spiderman, scarlet-spider, symbiote, quick-change,
+  // peter-parker, or sm2-spiderman.
+  // This example's textures are made for spiderman.
+  "model": "spiderman",
   // Choose whose powers your costume uses:
   // spiderman, 2099, symbiote, captain-universe, unlimited, bagman,
   // scarlet, ben-reilly, quick-change, peter-parker.

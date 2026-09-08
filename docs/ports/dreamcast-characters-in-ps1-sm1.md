@@ -47,7 +47,13 @@ version-4 layout. `spiderman/tools/port_dc_character.py` performs these changes:
    page/CLUT key and samples this full-color host image directly, bypassing PS1
    5-bit framebuffer quantization and dithering. The same host path accepts
    arbitrary replacement dimensions for future HD packs.
-8. Emit a v4 container whose compatibility texture section is self-contained.
+8. Match retail SM1's enemy mesh-table length when a same-object-count layout
+   donor has a third distance tier. Dreamcast henchmen, lizard men, and thugs
+   contain two tiers, but SM1's distant-actor renderer addresses the third tier
+   without checking the converted container's shorter table. The converter
+   repeats the Dreamcast reduced tier for exactly the missing retail slots so
+   those reads remain valid instead of interpreting metadata as exploded geometry.
+9. Emit a v4 container whose compatibility texture section is self-contained.
 
 The output remains one loose `.psx` file per WAD entry. For Spider-Man, a matching
 loose `sp_tex00.psx` is also generated because the shell loads that companion
@@ -62,6 +68,10 @@ python spiderman/tools/port_dc_character.py `
   --texture-scale 4 `
   --output-model dreamcast/converted/blackcat/blackcat.psx
 ```
+
+For an enemy whose retail SM1 container defines additional distance tiers, add
+`--sm1-layout-donor spiderman/extracted/wad/<actor>.psx`. The all-character batch
+detects and applies this compatibility layout automatically.
 
 ## Donor-preserving, recipient-fitted web wings
 

@@ -442,6 +442,34 @@
             "ja-jp": "ディスプレイ",
             "cn-zh": "显示模式"
         },
+        "settings.display.aspect": {
+            "en": "Aspect ratio",
+            "pt-BR": "Proporção da tela",
+            "es-419": "Relación de aspecto",
+            "ja-jp": "アスペクト比",
+            "cn-zh": "画面比例"
+        },
+        "settings.display.aspect_standard": {
+            "en": "Standard (4:3)",
+            "pt-BR": "Padrão (4:3)",
+            "es-419": "Estándar (4:3)",
+            "ja-jp": "標準 (4:3)",
+            "cn-zh": "标准 (4:3)"
+        },
+        "settings.display.aspect_wide": {
+            "en": "Widescreen (16:9)",
+            "pt-BR": "Tela ampla (16:9)",
+            "es-419": "Pantalla panorámica (16:9)",
+            "ja-jp": "ワイドスクリーン (16:9)",
+            "cn-zh": "宽屏 (16:9)"
+        },
+        "settings.display.aspect_hint": {
+            "en": "Changes gameplay between the original 4:3 view and the native widened 16:9 view.",
+            "pt-BR": "Alterna a jogabilidade entre a visão original 4:3 e a visão nativa ampliada 16:9.",
+            "es-419": "Cambia el juego entre la vista 4:3 original y la vista 16:9 ampliada de forma nativa.",
+            "ja-jp": "ゲームプレイをオリジナルの4:3表示とネイティブに拡張された16:9表示で切り替えます。",
+            "cn-zh": "在原始 4:3 视图和原生扩展的 16:9 视图之间切换游戏画面。"
+        },
         "settings.display.fullscreen": {
             "en": "Fullscreen",
             "pt-BR": "Tela cheia",

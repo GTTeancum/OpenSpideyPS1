@@ -1,0 +1,33 @@
+{
+  "version": 1,
+  "id": "magenta-man",
+  "name": "Magenta Man",
+  "comments": "Your friendly magenta neighborhood!",
+  // Built-in model: spiderman, scarlet-spider, symbiote, quick-change,
+  // peter-parker, or sm2-spiderman.
+  // This example's textures are made for sm2-spiderman.
+  "model": "sm2-spiderman",
+  // Choose powers from: spiderman, spider-phoenix, prodigy, dusk, insulated,
+  // alex-ross-red, alex-ross-white, venom-earth-x, negative-zone, symbiote,
+  // 2099, captain-universe, unlimited, bagman, scarlet, ben-reilly,
+  // quick-change, peter-parker, battle-damaged. See instructions.txt.
+  "abilities": {
+    "profile": "spiderman"
+  },
+  "textures": {
+    "E9587C6D": "textures/E9587C6D.png",
+    "197BC27A": "textures/197BC27A.png",
+    "4E1E5E1A": "textures/4E1E5E1A.png",
+    "21AFE1A6": "textures/21AFE1A6.png",
+    "CEB60740": "textures/CEB60740.png",
+    "3BC194AE": "textures/3BC194AE.png",
+    "1527743E": "textures/1527743E.png",
+    "08BD6474": "textures/08BD6474.png",
+    "DC38D248": "textures/DC38D248.png",
+    "3ED5F30B": "textures/3ED5F30B.png",
+    "1A501534": "textures/1A501534.png",
+    "42985F7A": "textures/42985F7A.png",
+    "933EF22C": "textures/933EF22C.png",
+    "7FFB7AAD": "textures/7FFB7AAD.png"
+  }
+}

@@ -1,0 +1,89 @@
+MAKE YOUR OWN SPIDER-MAN 2 RESKIN
+
+Copy this entire folder into mods/suits beside SpiderMan2.exe. Give your copy
+a new folder name, such as my-spidey. Six built-in bases are available: default
+SM1 Spider-Man, Scarlet Spider, Symbiote Spider-Man, Quick Change, Peter Parker,
+and default SM2 Spider-Man with wings.
+No external model or disc is needed for the costume.
+
+1. Paint your costume
+
+Open the PNG pictures in textures in your image editor. Recolor or paint them,
+then save with the same names. Keep body parts and transparent areas in place.
+Larger pictures, including 2048 x 2048, work; keep the original proportions.
+The supplied enlarged picture tests this support; enlarging alone adds no detail.
+
+TEMPLATE contains painting guides made with Blender's UV Layout exporter.
+White outlines show the model faces. TEMPLATE/UV has separate outline layers.
+Paint the clean pictures in textures and leave guide lines out of the result.
+The game ignores TEMPLATE. SM1 and SM2 have different layouts: use this SM2
+template for the sm2-spiderman body. SM1 pictures also work in SM2 when
+you keep their matching SM1 model base; see README.md for migration details.
+
+2. Name it and choose its powers
+
+Open suit.json in Notepad and change the text inside quotation marks:
+
+  id        A unique label: lowercase letters, numbers and hyphens; no spaces.
+  name      The costume name in both panels (18 characters maximum).
+  comments  Your message under COMMENTS:. Keep it to three short lines.
+  model     The built-in model base. This example uses sm2-spiderman.
+  profile   A power choice below; it does not change your painted model.
+
+Leave version and textures alone. They match the sm2-spiderman base. Other model
+bases require their matching texture/template set. Keep the commas and quotation
+marks. You do not need an external model or another JSON file.
+
+Model choices:
+
+  spiderman         Default SM1 Dreamcast Spider-Man.
+  scarlet-spider    Dreamcast Scarlet Spider.
+  symbiote          Dreamcast Symbiote Spider-Man.
+  quick-change      Dreamcast Quick Change Spider-Man.
+  peter-parker      Dreamcast Peter Parker.
+  sm2-spiderman     Default SM2 Dreamcast Spider-Man, including web wings.
+
+Your painted appearance and powers donor are independent. For example, keep
+model "sm2-spiderman" and set profile "prodigy" for double jump, stronger attacks
+and better web swinging. "alex-ross-red" gives double jump alone; "alex-ross-white"
+gives better web swinging alone. "symbiote" gives unlimited webbing.
+"unlimited" is the Unlimited costume's STEALTH profile, not unlimited webbing.
+
+Choose ONE profile. You cannot mix donors or add enemy movesets with JSON.
+The original donor need not be unlocked. Changing powers leaves your PNGs alone.
+All 19 choices and a JSON example are in README.md.
+
+Power choices (the same powers as the corresponding original SM2 costume):
+
+  spiderman         Normal Spider-Man.
+  spider-phoenix    Invulnerability, stronger attacks and better web swinging.
+  prodigy           Double jump, stronger attacks and better web swinging.
+  dusk              Stealth.
+  insulated         Stronger attacks and electrical resistance.
+  alex-ross-red     Double jump.
+  alex-ross-white   Better web swinging.
+  venom-earth-x    Unlimited webbing and stronger attacks.
+  negative-zone    Normal Spider-Man.
+  symbiote         Unlimited webbing.
+  2099             Stronger attacks.
+  captain-universe Invulnerability, stronger attacks and unlimited webbing.
+  unlimited        Stealth.
+  bagman           No web belt.
+  scarlet          Normal Spider-Man.
+  ben-reilly       Normal Spider-Man.
+  quick-change     No web belt.
+  peter-parker     No web belt.
+  battle-damaged   Normal Spider-Man.
+
+GAME POWERS: is filled in automatically using the original costume wording.
+
+3. Try it and share it
+
+Restart the game and open SPECIAL, then COSTUMES. Select your costume;
+reskins are always unlocked. Up to 12 reskins can be installed at once,
+including this example, alongside the 19 original costumes. If a donor with more
+power lines makes your mod fail validation, shorten comments to fit the panel.
+
+If yours is missing, check its unique id, PNG files, commas and quotation
+marks. Shorten long comments. To share it, zip your folder with suit.json,
+instructions.txt and textures. Other players put it in their mods/suits.

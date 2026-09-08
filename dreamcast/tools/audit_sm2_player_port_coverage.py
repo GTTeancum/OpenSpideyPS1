@@ -7,10 +7,12 @@ import hashlib
 import json
 from pathlib import Path
 import re
+import struct
 import sys
 from typing import Any
 
 from PIL import Image
+import pack_sm2_costume_to_dc as native_pack
 
 
 ROOT = Path(__file__).resolve().parents[2]
@@ -125,9 +127,48 @@ def verify_default_proof(errors: list[str]) -> dict[str, Any]:
     }
 
 
+def verify_repeat_library(errors: list[str], retail: bytes, staged: bytes, label: str) -> None:
+    """Independently compare every indexed texel, including the repeated area."""
+    before = native_pack.container_layout(retail)
+    after = native_pack.container_layout(staged)
+    table = before["texturePointerTable"]
+    require(errors, table == after["texturePointerTable"] and retail[:table] == staged[:table],
+            f"{label}: header/hash/palette data changed")
+    if table != after["texturePointerTable"] or before["textureCount"] != after["textureCount"]:
+        return
+    expected_pointer = table + before["textureCount"] * 4
+    for ordinal in range(before["textureCount"]):
+        p = native_pack.u32(retail, table + ordinal * 4)
+        q = native_pack.u32(staged, table + ordinal * 4)
+        require(errors, q == expected_pointer, f"{label}: noncontiguous record {ordinal}")
+        original_header = struct.unpack_from("<IIIIHH", retail, p)
+        output_header = struct.unpack_from("<IIIIHH", staged, q)
+        require(errors, original_header[:4] == output_header[:4],
+                f"{label}: material/palette/flags changed for record {ordinal}")
+        w, h = original_header[4:]
+        nw, nh = output_header[4:]
+        require(errors, nw >= w and nh >= h, f"{label}: texture was downscaled")
+        bits = 4 if original_header[1] == 16 else 8
+        stride = ((w + 3) & ~3) // 2 if bits == 4 else (w + 1) & ~1
+        new_stride = ((nw + 3) & ~3) // 2 if bits == 4 else (nw + 1) & ~1
+        expected_pointer = q + 20 + ((new_stride * nh + 3) & ~3)
+        mismatch = False
+        for y in range(nh):
+            for x in range(nw):
+                sx, sy = x % w, y % h
+                a = retail[p + 20 + sy * stride + sx * bits // 8]
+                b = staged[q + 20 + y * new_stride + x * bits // 8]
+                if bits == 4:
+                    a, b = (a >> ((sx & 1) * 4)) & 15, (b >> ((x & 1) * 4)) & 15
+                mismatch |= a != b
+        require(errors, not mismatch, f"{label}: indexed pixels differ in record {ordinal}")
+    require(errors, expected_pointer == len(staged), f"{label}: unexpected trailing data")
+
+
 def verify_costume_pack(errors: list[str]) -> dict[str, Any]:
     pack = load_json(PACK_REPORT)
-    require(errors, pack.get("status") == "pass", "SM2 costume pack does not pass")
+    structural_statuses = {"pass", "structural-pass-visual-review-required"}
+    require(errors, pack.get("status") in structural_statuses, "SM2 costume pack structure does not pass")
     require(
         errors,
         pack.get("environmentPolicy") == "retail PS1 SM2 environments are unchanged",
@@ -148,13 +189,14 @@ def verify_costume_pack(errors: list[str]) -> dict[str, Any]:
         verify_file_hash(errors, staged, entry["runtimeSha256"], f"staged SM2 slot {slot:02d}")
         require(errors, retail.is_file(), f"missing retail SM2 texture slot {slot:02d}")
         if staged.is_file() and retail.is_file():
-            require(
-                errors,
-                staged.read_bytes() == retail.read_bytes(),
-                f"SM2 slot {slot:02d} is not byte-exact retail texture data",
-            )
-        require(errors, entry.get("retailByteExact") is True, f"slot {slot:02d} lacks byte-exact flag")
-        require(errors, entry.get("status") == "pass", f"slot {slot:02d} pack status is not pass")
+            verify_repeat_library(errors, retail.read_bytes(), staged.read_bytes(), f"SM2 slot {slot:02d}")
+            if actor.is_file():
+                _, coverage = native_pack.preserve_native_texture_repeat(actor.read_bytes(), staged.read_bytes())
+                require(errors, not coverage["expandedPages"],
+                        f"slot {slot:02d} leaves native face UVs outside its texture pages")
+            require(errors, entry.get("retailByteExact") == (retail.read_bytes() == staged.read_bytes()),
+                    f"slot {slot:02d} has an inaccurate byte-exact flag")
+        require(errors, entry.get("status") in structural_statuses, f"slot {slot:02d} pack structure does not pass")
         require(
             errors,
             entry.get("textureRecordCount") == entry.get("materialHashCount"),

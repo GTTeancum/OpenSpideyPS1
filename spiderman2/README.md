@@ -30,6 +30,16 @@ spiderman2/
   tools/                  the pipeline
 ```
 
+## Reskin mods
+
+Data-only reskins are available through **SPECIAL → COSTUMES**. Copy the
+[SM2 Magenta Man example](../mods/samples/magenta-man-sm2) under `mods/suits/`
+beside the published `SpiderMan2.exe`. Its user-facing instructions cover painting
+the external PNGs and naming a costume with a native SM2 power profile. Twelve
+mod slots are available in addition to the nineteen original costumes. The SM2
+example includes web wings and its own Blender-exported painting templates;
+SM1's texture layout is different.
+
 ## Building
 
 Needs .NET 10, Python 3 with `numpy`/`PIL`, and the disc at the repository root for the
@@ -236,7 +246,7 @@ for the player", which was the whole answer.
 emulated console drew, not what the desktop showed.
 
 ```
-SPIDEY_HZ=30               host presentation/GPU pacing budget; default 30 Hz
+SPIDEY_HZ=60               developer comparison override; player default 60 Hz
 SPIDEY_LEVEL=e3m1          boot straight into a level (44 prefixes)
 SPIDEY_CHEATS=all          the game's own cheats: everything, levels, costumes,
                            gallery, training, debug, bigfeet, bighead, whatif

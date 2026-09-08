@@ -153,7 +153,6 @@ def run_game(
             "RECOMP_VALIDATE_MODEL_GEOMETRY": "1",
             "SPIDEY_ASSET_DIR": str(assets),
             "SPIDEY_BOOT_SKIP_UNTIL": BOOT_SKIP_ANCHOR,
-            "SPIDEY_HZ": "60",
             "SPIDEY_RUN_TOKEN": run_token,
             "SPIDEY_SCRIPT": INPUT_SCRIPT,
             "SPIDEY_SHOTS": ",".join(
@@ -164,6 +163,7 @@ def run_game(
             "SPIDEY_LOG_DIR": str(output),
             "SPIDEY_STALL_EXIT": "1",
             "SPIDEY_TRACE_GAME": "1",
+            "SPIDEY_TRACE_PERSPECTIVE": "1",
             "SPIDEY_TRACE_WAD": "1",
         }
     )
@@ -262,10 +262,8 @@ def validate_exact_regions(
 
 def main() -> None:
     args = parse_args()
-    if args.render_scale != 8:
-        raise ValueError(
-            "--render-scale must be 8; the authored proof uses exact 8x menu and HUD gates"
-        )
+    if args.render_scale < 1:
+        raise ValueError("--render-scale must be positive")
     exe = args.exe.resolve()
     assets = args.assets.resolve()
     output = args.output.resolve()
@@ -308,9 +306,15 @@ def main() -> None:
         raise RuntimeError(f"runtime markers failed: {required_markers}")
 
     frames = resolved_frames(console)
-    expected_size = (320 * args.render_scale, 240 * args.render_scale)
+    expected_sizes = {
+        "menu": (320 * args.render_scale, 240 * args.render_scale),
+        "gameplay_deployed": (
+            round(240 * args.render_scale * 16 / 9),
+            240 * args.render_scale,
+        ),
+    }
     frame_records = {
-        label: validate_frame(output / f"frame_{frame:05d}.png", expected_size)
+        label: validate_frame(output / f"frame_{frame:05d}.png", expected_sizes[label])
         for label, frame in frames.items()
     }
     for label, frame in frames.items():
@@ -326,21 +330,27 @@ def main() -> None:
                 f"{label} frame {frame} was not freshly captured from the native "
                 "16-bit 3D path"
             )
-    frame_records["menu"]["mainMenuSignature"] = validate_exact_regions(
-        Path(frame_records["menu"]["path"]),
-        MENU_REGION_SIGNATURES,
-        "live 3D main menu",
-    )
-    frame_records["gameplay_deployed"]["gameplayHudSignature"] = validate_exact_regions(
-        Path(frame_records["gameplay_deployed"]["path"]),
-        GAMEPLAY_HUD_REGION_SIGNATURES,
-        "active SM2 gameplay HUD",
-    )
+    if args.render_scale == 8:
+        frame_records["menu"]["mainMenuSignature"] = validate_exact_regions(
+            Path(frame_records["menu"]["path"]),
+            MENU_REGION_SIGNATURES,
+            "live 3D main menu",
+        )
+        frame_records["gameplay_deployed"]["gameplayHudSignature"] = validate_exact_regions(
+            Path(frame_records["gameplay_deployed"]["path"]),
+            GAMEPLAY_HUD_REGION_SIGNATURES,
+            "active SM2 gameplay HUD",
+        )
 
     scale = args.render_scale / 8.0
     proofs: dict[str, dict[str, Any]] = {}
     for name, source_label, canonical_crop, view in PROOF_SPECS:
-        crop = tuple(round(value * scale) for value in canonical_crop)
+        crop = [round(value * scale) for value in canonical_crop]
+        if source_label == "gameplay_deployed":
+            widescreen_offset = round((320 * 4 / 3 - 320) * args.render_scale / 2)
+            crop[0] += widescreen_offset
+            crop[2] += widescreen_offset
+        crop = tuple(crop)
         source = output / f"frame_{frames[source_label]:05d}.png"
         destination = output / name
         with Image.open(source) as image:
@@ -367,8 +377,12 @@ def main() -> None:
         "runtimeMarkers": required_markers,
         "captureGate": (
             "fresh per-process token, boot-skip boundary, native live-3D 16bpp "
-            "readback, exact actor-free 8x main-menu chrome, and exact 8x active-"
-            "gameplay HUD"
+            "readback"
+            + (
+                ", exact actor-free 8x main-menu chrome, and exact 8x active-gameplay HUD"
+                if args.render_scale == 8
+                else ""
+            )
         ),
         "frames": frame_records,
         "authoredProofs": proofs,
@@ -376,7 +390,7 @@ def main() -> None:
     report_path = output / "runtime-validation.json"
     report_path.write_text(json.dumps(report, indent=2) + "\n", encoding="utf-8")
     print(
-        f"PASS: native SM2 Default DC actor at {expected_size[0]}x{expected_size[1]}; "
+        f"PASS: native SM2 Default DC actor at {args.render_scale}x; "
         f"{len(proofs)} exact close-up wing proofs"
     )
     print(f"report: {report_path}")

@@ -14,11 +14,58 @@ The selector aligns both columns' frames and first text lines, with eleven visib
 rows at the original 10-pixel pitch and scrolling for additional suits. Descriptions use the
 original `charbio.dat` palette: heading RGB (105,105,0), body (68,68,100).
 
-The model is fixed in the loader: the installed, approved **wingless SM1**
-Dreamcast default Spider-Man actor. No JSON donor field is accepted.
-No Dreamcast disc, additional PSX, or model rebuild is
-needed. The loader does not accept custom model files or executable code here.
-This example is currently for SM1, not SM2.
+The loader offers six fixed, bundled actors through `model`: `spiderman`,
+`scarlet-spider`, `symbiote`, `quick-change`, `peter-parker`, and
+`sm2-spiderman`. The last is default SM2 Spider-Man with web wings. Omitting
+`model` selects SM1 Spider-Man in SM1 and SM2
+Spider-Man in SM2 for backward compatibility. The JSON cannot supply a path, model
+binary, material allowlist, or executable code.
+This folder is the SM1 example. SM2 has its own `mods/samples/magenta-man-sm2`
+example, installed under `mods/suits/` beside `SpiderMan2.exe` and selected through
+**SPECIAL → COSTUMES**. Its approved default DC body includes web wings and uses
+the corrected fourteen-material SM2 texture layout. PNGs must match the selected
+model base: SM1 reskins can also run in SM2 when they explicitly retain their SM1
+model. The [SM2 sample README](../mods/samples/magenta-man-sm2/README.md) lists all
+19 donor powersets and examples of choosing powers independently of appearance.
+
+## SM2 implementation
+
+The SM1 default model bundled for SM2 uses private material `57494E47` for its
+transparent wing cutout. Keeping the original `DC38D248` ID collides with SM2's
+visible wing page when both actors are resident. `build_sm2_mod_actor.py` packages
+the SM1 actor with only that hash changed and refuses nontransparent donors. Run
+it after rebuilding the base SM2 asset bundle and before publishing the EXE.
+
+
+SM2 preserves its nineteen built-in records and adds up to twelve always-unlocked
+reskins (31 total), with the same JSON fields, stock description palette, eleven
+stock-spaced visible rows, external PNG validation and host-side texture lifetime.
+`SuitRules.cs` owns the nineteen native power profiles. The shared parser owns the
+six model names and their exact material allowlists; neither policy comes from JSON.
+
+The native selector byte at `800B31F2` remains a valid 0..18 power-profile proxy.
+The selected mod ID lives in the host-side selection file. The appearance loader
+uses the selected fixed actor independently of the power profile. After the texture
+load, the original one-based costume
+identity at `GP+AA8` is restored for Insulated Suit's electrical-resistance logic.
+The three power IDs and seven native flags are copied from the original selector's
+behavior; the JSON cannot supply guest addresses, model binaries or scripts.
+
+Recompile SM2 through `spiderman2/tools/build.py`: it applies the checked selector
+transform after generation. The transform relocates only the costume viewer table,
+leaving other retail tables bounded to native profile indices.
+
+Regression command: `dotnet run --project tools/RecompOne/tests/Sm2SuitModRegression -c Release -- <repo>`.
+It checks all nineteen profiles against the original game's power decoder, matches
+GAME POWERS text by original charbio key (not its differing storage order), confirms
+write bounds and unchanged stock unlocks, and tests wrong-game/unsafe manifests.
+
+Rebuild the SM2 sample with `build_sm2_magenta_sample.py --source <approved-spidey.glb>`.
+Generate that GLB with Neversoft Multitool from the currently bundled approved
+`spidey.psx`. The generator extracts the exported material PNGs without remapping,
+recolors fabric, and uses Blender's UV Layout SVG exporter plus Sharp for templates.
+The existing Blender compatibility helper removes only optional mixed-width `_PSX_*`
+diagnostic attributes; geometry, standard colors, UVs, joints and weights are unchanged.
 
 ## Edit the JSON and PNGs
 
@@ -43,7 +90,7 @@ mod falls back to default Spider-Man instead of selecting a different catalogue 
 
 These select complete existing behavior profiles, not independently combinable
 power switches. Both the construction configuration and the retail costume-dependent
-behavior select that profile, while the visible model remains DC Spider-Man. They
+behavior select that profile independently from the fixed `model` choice. They
 do not add SM2 abilities, animations or ammunition and do not unlock the stock donor
 costume. Change the profile and restart to reload the manifest.
 
@@ -102,3 +149,30 @@ The asset generator needs the developer's decoded DC source files; a player or
 reskin author only needs this folder and the game's installed donor. The smoke
 test uses private saves/settings, one game process, internal scripted input, and
 the game's native capture facility. It never sends desktop input.
+
+### Published player-layout smoke
+
+`dreamcast/tools/smoke_player_reskin.py` tests a published single-file executable
+outside the repository, using the real first-run installer and a dropped-in sample.
+Run `--phase setup` with `--exe`, `--cue` and a fresh external `--install` directory,
+then use that same directory for `--phase selection`, `--phase gameplay`, and
+optionally `--phase stock` (which moves only the test mod into the proof folder).
+No development asset/data paths, cheats, forced costume, copied saves or FMV-skip
+override are supplied. The fresh-save menu route differs from the cheat-enabled
+development harness: right from New Game, then one down to Special.
+
+The 2026-09-04 published-working-tree smoke passed fresh install, normal selection,
+restart persistence, opening-rooftop gameplay and missing-mod fallback. Logs,
+launch environments and individually reviewed native captures are retained locally
+under `proof_render/magenta-man/player-facing-smoke/`; `summary.md` records the
+exact binary hash, the failed initial navigation attempt, and coverage limitations.
+This is one default-profile mod's smoke pass, not a full playthrough or mod-count
+stress test. No host desktop input is generated by this harness.
+
+The equivalent SM2 run uses `--game sm2` and its published `SpiderMan2.exe`.
+It passed real windowed extraction, **SPECIAL → COSTUMES** selection, restart
+persistence, playable training-rooftop gameplay in 16:9, and selected-mod removal
+fallback. Evidence and failed timing attempts are retained locally under
+`proof_render/magenta-man/sm2-player-smoke/summary.md`. SM2 menu input is anchored
+to `charlite.dat`, since `title.bmr` loads before its intro sequence. Both games
+were run one at a time; neither smoke uses developer asset paths or forced suits.

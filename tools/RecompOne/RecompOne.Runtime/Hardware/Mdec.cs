@@ -29,6 +29,17 @@ public sealed class Mdec
     readonly byte[] _quantLuma = new byte[64];
     readonly byte[] _quantChroma = new byte[64];
     readonly short[] _scale = new short[64];
+    // Decoding is synchronous per MDEC instance. Reuse macroblock scratch storage:
+    // a movie decodes thousands of blocks per second, so per-block arrays generate
+    // sustained GC pressure even though no decoded frame is retained here.
+    readonly int[] _crBlock = new int[64];
+    readonly int[] _cbBlock = new int[64];
+    readonly int[] _yBlock = new int[64];
+    readonly long[] _idctTmp = new long[64];
+    readonly byte[] _rgb = new byte[16 * 16 * 4];
+    readonly ushort[] _color15 = new ushort[256];
+    readonly byte[] _color24 = new byte[256 * 3];
+    readonly byte[] _mono = new byte[64];
 
     int  _depth;
     bool _signed;
@@ -166,9 +177,6 @@ public sealed class Mdec
     {
         _readPos = 0;
         bool color = _depth >= 2;
-        var crBlock = new int[64];
-        var cbBlock = new int[64];
-        var yBlock = new int[64];
         int mbStart = _out.Count;
         int mbCount = 0;
 
@@ -176,21 +184,20 @@ public sealed class Mdec
         {
             if (color)
             {
-                var rgb = new byte[16 * 16 * 4];
-                if (!DecodeBlock(_quantChroma, crBlock)) break;
-                DecodeBlock(_quantChroma, cbBlock);
+                if (!DecodeBlock(_quantChroma, _crBlock)) break;
+                DecodeBlock(_quantChroma, _cbBlock);
                 for (int q = 0; q < 4; q++)
                 {
-                    DecodeBlock(_quantLuma, yBlock);
-                    YuvToRgb(crBlock, cbBlock, yBlock, (q & 1) * 8, (q >> 1) * 8, rgb);
+                    DecodeBlock(_quantLuma, _yBlock);
+                    YuvToRgb(_crBlock, _cbBlock, _yBlock, (q & 1) * 8, (q >> 1) * 8, _rgb);
                 }
-                PushColor(rgb);
+                PushColor(_rgb);
                 mbCount++;
             }
             else
             {
-                if (!DecodeBlock(_quantLuma, yBlock)) break;
-                PushMono(yBlock);
+                if (!DecodeBlock(_quantLuma, _yBlock)) break;
+                PushMono(_yBlock);
                 mbCount++;
             }
         }
@@ -230,7 +237,6 @@ public sealed class Mdec
 
     void IdctCore(int[] blk)
     {
-        var tmp = new long[64];
         for (int pass = 0; pass < 2; pass++)
         {
             for (int x = 0; x < 8; x++)
@@ -239,9 +245,9 @@ public sealed class Mdec
                     long sum = 0;
                     for (int z = 0; z < 8; z++)
                         sum += (long)blk[y + z * 8] * (_scale[x + z * 8] / 8);
-                    tmp[x + y * 8] = (sum + 0xFFF) / 0x2000;
+                    _idctTmp[x + y * 8] = (sum + 0xFFF) / 0x2000;
                 }
-            for (int i = 0; i < 64; i++) blk[i] = (int)tmp[i];
+            for (int i = 0; i < 64; i++) blk[i] = (int)_idctTmp[i];
         }
     }
 
@@ -272,7 +278,6 @@ public sealed class Mdec
     {
         if (_depth == 3)
         {
-            var px = new ushort[256];
             for (int i = 0; i < 256; i++)
             {
                 int r = rgb[i * 4 + 0] >> 3;
@@ -280,34 +285,34 @@ public sealed class Mdec
                 int b = rgb[i * 4 + 2] >> 3;
                 ushort v = (ushort)(r | (g << 5) | (b << 10));
                 if (_bit15) v |= 0x8000;
-                px[i] = v;
+                _color15[i] = v;
             }
             for (int i = 0; i < 256; i += 2)
-                _out.Enqueue((uint)(px[i] | (px[i + 1] << 16)));
+                _out.Enqueue((uint)(_color15[i] | (_color15[i + 1] << 16)));
         }
         else
         {
-            var bytes = new byte[256 * 3];
             for (int i = 0; i < 256; i++)
             {
-                bytes[i * 3 + 0] = rgb[i * 4 + 0];
-                bytes[i * 3 + 1] = rgb[i * 4 + 1];
-                bytes[i * 3 + 2] = rgb[i * 4 + 2];
+                _color24[i * 3 + 0] = rgb[i * 4 + 0];
+                _color24[i * 3 + 1] = rgb[i * 4 + 1];
+                _color24[i * 3 + 2] = rgb[i * 4 + 2];
             }
-            PackBytes(bytes);
+            PackBytes(_color24, _color24.Length);
         }
     }
 
     void PushMono(int[] y)
     {
-        var bytes = new byte[_depth == 0 ? 32 : 64];
+        int byteCount = _depth == 0 ? 32 : 64;
+        Array.Clear(_mono, 0, byteCount);
         if (_depth == 1)
         {
             for (int i = 0; i < 64; i++)
             {
                 int v = Math.Clamp(y[i], -128, 127);
                 if (!_signed) v ^= 0x80;
-                bytes[i] = (byte)v;
+                _mono[i] = (byte)v;
             }
         }
         else
@@ -317,16 +322,16 @@ public sealed class Mdec
                 int v = Math.Clamp(y[i], -128, 127);
                 if (!_signed) v ^= 0x80;
                 int nib = (v & 0xFF) >> 4;
-                if ((i & 1) == 0) bytes[i / 2] = (byte)nib;
-                else bytes[i / 2] |= (byte)(nib << 4);
+                if ((i & 1) == 0) _mono[i / 2] = (byte)nib;
+                else _mono[i / 2] |= (byte)(nib << 4);
             }
         }
-        PackBytes(bytes);
+        PackBytes(_mono, byteCount);
     }
 
-    void PackBytes(byte[] bytes)
+    void PackBytes(byte[] bytes, int length)
     {
-        for (int i = 0; i < bytes.Length; i += 4)
+        for (int i = 0; i < length; i += 4)
             _out.Enqueue((uint)(bytes[i] | (bytes[i + 1] << 8) | (bytes[i + 2] << 16) | (bytes[i + 3] << 24)));
     }
 

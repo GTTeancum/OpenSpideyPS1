@@ -126,6 +126,7 @@ public static class Program
         // presented frame: together they give 30 frames and 30 ticks a second.
         int hz = TargetHz();
         RecompOne.Runtime.GpuBusy.FrameBudgetMs = 1000.0 / hz;
+        Console.WriteLine($"[timing] {hz} Hz presentation/GPU budget");
 
         // How long a frame lasts: 2 vblanks, so 30 presented frames a second.
         //

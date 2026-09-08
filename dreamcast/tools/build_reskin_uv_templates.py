@@ -12,6 +12,7 @@ from pathlib import Path
 import shutil
 import subprocess
 import sys
+import tempfile
 
 ROOT = Path(__file__).resolve().parents[2]
 
@@ -22,7 +23,13 @@ def blender_export(source, mod):
 
     bpy.ops.wm.read_factory_settings(use_empty=True)
     addon_utils.enable('io_mesh_uv_layout', default_set=False)
-    bpy.ops.import_scene.gltf(filepath=str(source.resolve()))
+    # Multitool's optional _PSX_* diagnostics have mixed accessor widths; reuse
+    # the established Blender compatibility helper. Actual UVs and geometry stay intact.
+    sys.path.insert(0, str(Path(__file__).resolve().parent))
+    from export_tpose_glb import blender_compatible_glb
+    with tempfile.TemporaryDirectory(prefix='reskin-blender-import-') as temporary:
+        compatible = blender_compatible_glb(str(source.resolve()), temporary)
+        bpy.ops.import_scene.gltf(filepath=compatible)
     meshes = [o for o in bpy.context.scene.objects
               if o.type == 'MESH' and o.data.uv_layers.active and o.data.materials]
     if not meshes:

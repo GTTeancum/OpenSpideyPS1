@@ -83,12 +83,22 @@ internal static unsafe class Audio
 
     static void MixerLoop()
     {
-        while (_running)
+        // An OpenAL context is current on a thread, not merely on a process.  The
+        // source and buffers are created on the startup thread, but every streaming
+        // operation happens here.  Without making the context current here OpenAL
+        // Soft accepts the calls far enough for the SPU probe to show mixed samples,
+        // while the device can remain silent because no valid source is being fed.
+        _alc!.MakeContextCurrent(_context);
+        try
         {
-            var spu = _spu;
-            if (spu != null) FillBuffers(spu);
-            Thread.Sleep(3);
+            while (_running)
+            {
+                var spu = _spu;
+                if (spu != null) FillBuffers(spu);
+                Thread.Sleep(3);
+            }
         }
+        finally { _alc.MakeContextCurrent(null); }
     }
 
     static void FillBuffers(Spu spu)
@@ -116,6 +126,7 @@ internal static unsafe class Audio
         if (_alc == null) return;
         _running = false;
         _mixerThread?.Join();
+        _alc.MakeContextCurrent(_context);
         if (_al != null)
         {
             _al.SourceStop(_source);

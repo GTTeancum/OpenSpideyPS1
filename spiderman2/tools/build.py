@@ -41,6 +41,10 @@ def recompile():
     if p.returncode != 0:
         print(p.stdout[-2000:] + p.stderr[-2000:])
         raise SystemExit('recompile failed')
+    patch = sh([sys.executable, 'tools/patch_costume_viewer.py'])
+    print(patch.stdout.strip())
+    if patch.returncode:
+        raise SystemExit(patch.stderr)
 
 
 def closure():

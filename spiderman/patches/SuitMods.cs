@@ -43,7 +43,7 @@ public static class SuitMods
                 if (Catalogue.Any(m => m.Id == mod.Id)) throw new InvalidDataException("duplicate suit id");
                 if (Catalogue.Count >= MaxCount - StockCount) throw new InvalidDataException("suit selector is full (12 mod entries)");
                 Catalogue.Add(mod);
-                Console.WriteLine($"[suit-mod] registered {mod.Id}: {mod.Name}; SM1 profile {SuitManifest.Profiles[mod.AbilityProfile]}; {mod.Textures.Count} external PNGs; always unlocked");
+                Console.WriteLine($"[suit-mod] registered {mod.Id}: {mod.Name}; model {mod.Model}; SM1 profile {SuitManifest.Profiles[mod.AbilityProfile]}; {mod.Textures.Count} external PNGs; always unlocked");
             }
             catch (Exception e) { Console.Error.WriteLine($"[suit-mod] rejected {file}: {e.Message}"); }
         }

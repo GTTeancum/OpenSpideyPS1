@@ -18,6 +18,104 @@ public static class HostWindow
     static ImGuiController? _imgui;
     static bool _headless;
     static Gpu? _gpu;
+    static string _baseTitle = "";
+    static long _fpsWindowStart;
+    static int _fpsFrames;
+    static double _lastFps;
+
+    static void ApplyTitle()
+    {
+        if (_window == null) return;
+        _window.Title = _lastFps > 0
+            ? $"{_baseTitle} - {_lastFps:F1} FPS"
+            : _baseTitle;
+    }
+
+    /// <summary>Count real game frames, excluding host-only service redraws.</summary>
+    public static void NoteGameFrame()
+    {
+        if (_window == null) return;
+        long now = System.Diagnostics.Stopwatch.GetTimestamp();
+        if (_fpsWindowStart == 0)
+        {
+            _fpsWindowStart = now;
+            _fpsFrames = 1;
+            return;
+        }
+        _fpsFrames++;
+        double elapsed = (double)(now - _fpsWindowStart) / System.Diagnostics.Stopwatch.Frequency;
+        if (elapsed < 1.0) return;
+        _lastFps = _fpsFrames / elapsed;
+        _fpsFrames = 0;
+        _fpsWindowStart = now;
+        ApplyTitle();
+    }
+
+    // Private soak diagnostic: leave normal rendering untouched until native/process
+    // memory crosses the probe threshold, then distinguish managed retention from
+    // outstanding GL work. This is not a user-facing renderer setting or a fix.
+    static readonly bool _queueProbe = Environment.GetEnvironmentVariable("RECOMP_GPU_QUEUE_PROBE") == "1";
+    static long _queueProbeNext;
+    static bool _queueProbeTriggered;
+
+    // Private, bounded fault-injection test. Repeat only the existing presentation
+    // work; do not change gameplay, assets, window state, or physical input. Normal
+    // launches have one pass and never enter the diagnostic timing/logging path.
+    static readonly int _presentStressPasses =
+        int.TryParse(Environment.GetEnvironmentVariable("RECOMP_PRESENT_STRESS_PASSES"), out var passes)
+            ? Math.Clamp(passes, 1, 256) : 1;
+    static readonly long _presentStressStarted = Environment.TickCount64;
+    static bool _presentStressReported, _presentStressEnded;
+
+    static int PresentationPasses()
+    {
+        if (_presentStressPasses == 1) return 1;
+        long elapsed = Environment.TickCount64 - _presentStressStarted;
+        if (elapsed < 45000) return 1;
+        if (elapsed >= 85000)
+        {
+            if (!_presentStressEnded)
+            {
+                _presentStressEnded = true;
+                Console.WriteLine("[present-stress] ended; normal presentation restored");
+            }
+            return 1;
+        }
+        if (!_presentStressReported)
+        {
+            _presentStressReported = true;
+            Console.WriteLine($"[present-stress] started {_presentStressPasses} passes per host render for 40 seconds");
+        }
+        return _presentStressPasses;
+    }
+
+    static void ProbeGpuQueue(GL gl)
+    {
+        if (!_queueProbe) return;
+        if (_queueProbeTriggered) gl.Finish();
+        long now = Environment.TickCount64;
+        if (now < _queueProbeNext) return;
+        _queueProbeNext = now + 5000;
+        using var process = System.Diagnostics.Process.GetCurrentProcess();
+        void Report(string stage)
+        {
+            process.Refresh();
+            var gc = GC.GetGCMemoryInfo();
+            Console.WriteLine($"[gpu-queue-probe] {stage} private={process.PrivateMemorySize64} " +
+                $"managed={GC.GetTotalMemory(false)} heap={gc.HeapSizeBytes} committed={gc.TotalCommittedBytes}");
+        }
+        if (!_queueProbeTriggered && process.PrivateMemorySize64 > 900L * 1024 * 1024)
+        {
+            _queueProbeTriggered = true;
+            Report("threshold");
+            GC.Collect(GC.MaxGeneration, GCCollectionMode.Forced, blocking: true, compacting: true);
+            Report("after-gc");
+            var timer = System.Diagnostics.Stopwatch.StartNew();
+            gl.Finish();
+            Report($"after-finish-{timer.Elapsed.TotalMilliseconds:F1}ms");
+        }
+        else Report(_queueProbeTriggered ? "finish-enabled" : "observing");
+    }
 
     static uint _displayTex;
     static uint _vramTex;
@@ -123,7 +221,12 @@ public static class HostWindow
 
     public static void Initialize(string title)
     {
+        Diagnostics.NativeAllocationProbe.Initialize();
         ConfigManager.Load();
+        _baseTitle = title ?? "";
+        _fpsWindowStart = 0;
+        _fpsFrames = 0;
+        _lastFps = 0;
 
         foreach (var api in ApiChain())
         {
@@ -132,7 +235,7 @@ public static class HostWindow
                 var options = WindowOptions.Default with
                 {
                     Size = new Vector2D<int>(ConfigManager.View.WindowWidth, ConfigManager.View.WindowHeight),
-                    Title = title,
+                    Title = _baseTitle,
                     VSync = ConfigManager.View.VSync,
                     UpdatesPerSecond = 0,
                     FramesPerSecond = 0,
@@ -161,8 +264,12 @@ public static class HostWindow
 
     public static string Title
     {
-        get => _window?.Title ?? "";
-        set { if (_window != null) _window.Title = value ?? ""; }
+        get => _baseTitle;
+        set
+        {
+            _baseTitle = value ?? "";
+            ApplyTitle();
+        }
     }
 
     public static void SetTitle(string title) => Title = title;
@@ -391,6 +498,8 @@ public static class HostWindow
         if (fxaaOverride == "0") fxaa = false;
         else if (fxaaOverride == "1") fxaa = true;
         Hle.GpuHle.FxaaEnabled = fxaa;
+        Console.WriteLine($"[Gpu] modern presentation: {renderScale}x render scale; " +
+                          $"FXAA {(fxaa ? "on" : "off")}; perspective correction on");
 
         _glBackend = (Hle.GlCore)Hle.GpuBackendFactory.Create(_gl,
             Hle.GpuBackendFactory.RequestedBackend());
@@ -465,6 +574,7 @@ public static class HostWindow
 
     static void OnRender(double dt)
     {
+        Diagnostics.NativeAllocationProbe.Phase(3);
         var gl = _gl!;
         _imgui!.Update((float)dt);
     
@@ -492,6 +602,12 @@ public static class HostWindow
                     gpu.DisplayWidth, gpu.DisplayHeight,
                     gpu.Display24Bit,
                     outW: wf.X, outH: wf.Y);
+                int presentationPasses = PresentationPasses();
+                for (int pass = 1; pass < presentationPasses; pass++)
+                    _glBackend.PresentDisplay(
+                        gpu.DisplayX, gpu.DisplayY,
+                        gpu.DisplayWidth, gpu.DisplayHeight,
+                        gpu.Display24Bit, outW: wf.X, outH: wf.Y);
                 if (tex != 0) OutputPanel.SetTexture(tex, tw, th, aspect);
                 gl.BindFramebuffer(FramebufferTarget.Framebuffer, 0);
                 gl.Viewport(0, 0, (uint)wf.X, (uint)wf.Y);
@@ -521,6 +637,9 @@ public static class HostWindow
         gl.BindFramebuffer(FramebufferTarget.Framebuffer, 0);
         gl.Viewport(0, 0, (uint)fbDef.X, (uint)fbDef.Y);
         _imgui.Render();
+        ProbeGpuQueue(gl);
+        Diagnostics.NativeAllocationProbe.Flush();
+        Diagnostics.NativeAllocationProbe.Phase(4); // following native window swap
     }
 
     static void DrawDockspace()
@@ -577,6 +696,7 @@ public static class HostWindow
         _gl?.DeleteTexture(_displayTex);
         _gl?.DeleteTexture(_vramTex);
         _gl?.DeleteTexture(_ramTex);
+        Diagnostics.NativeAllocationProbe.Flush(force: true);
     }
 
     public static uint UploadPng(byte[] png)

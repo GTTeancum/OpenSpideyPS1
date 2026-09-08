@@ -209,9 +209,21 @@
     },
     {
       "overlay": "main",
+      "function": "func_800706E8",
+      "mode": "pre",
+      "target": "Recompiled.OverlayPatches.HeapShrink"
+    },
+    {
+      "overlay": "main",
       "function": "func_8004E4BC",
       "mode": "pre",
       "target": "Recompiled.Costume.SelectTextureLibrary"
+    },
+    {
+      "overlay": "main",
+      "function": "func_8004E4BC",
+      "mode": "post",
+      "target": "Recompiled.Costume.TextureLibraryLoaded"
     },
     {
       "overlay": "main",

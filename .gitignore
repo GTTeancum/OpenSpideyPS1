@@ -25,6 +25,8 @@ logs/
 *.sav
 
 # Extracted disc data
+/spiderman/assets/
+/spiderman2/assets/
 spiderman/extracted/
 spiderman2/extracted/
 dreamcast/extracted/

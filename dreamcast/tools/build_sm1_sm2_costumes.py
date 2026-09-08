@@ -191,6 +191,9 @@ def main() -> None:
     output = args.output.resolve()
     output.mkdir(parents=True, exist_ok=True)
     results = []
+    default_mapping = args.mappings.resolve() / "sp2default.json"
+    if not default_mapping.is_file():
+        raise FileNotFoundError(f"default web-wing face map is missing: {default_mapping}")
 
     with tempfile.TemporaryDirectory(prefix="sm1-sm2-costumes-") as temporary:
         temporary_root = Path(temporary)
@@ -211,6 +214,8 @@ def main() -> None:
             str(args.sm1_skeleton.resolve()),
             "--sm2-textures",
             str(prepared_default_path),
+            "--mapping",
+            str(default_mapping),
             "--output-model",
             str(actor_path),
             "--output-textures",
@@ -260,7 +265,7 @@ def main() -> None:
                 "--output-model",
                 str(runtime_path),
                 "--output-textures",
-                str(temporary_root / f"{runtime_stem}-textures.psx"),
+                str(texture_path),
                 "--report",
                 str(pack_report_path),
             ]
@@ -279,7 +284,8 @@ def main() -> None:
                     "runtimeBytes": runtime_path.stat().st_size,
                     "runtimeSha256": sha256(runtime_path.read_bytes()),
                     "textureLibrary": str(texture_path),
-                    "textureLibrarySha256": sha256(prepared),
+                    "textureLibrarySha256": sha256(texture_path.read_bytes()),
+                    "textureRepeat": json.loads(pack_report_path.read_text(encoding="utf-8"))["textureRepeat"],
                     "nativeFaceMap": str(mapping_path),
                     "nativeFaceMapSha256": sha256(mapping_path.read_bytes()),
                     "packReport": str(pack_report_path),
@@ -303,6 +309,8 @@ def main() -> None:
             "packReport": str(pack_report),
         },
         "defaultWingedCostume": {
+            "nativeFaceMap": str(default_mapping),
+            "nativeFaceMapSha256": sha256(default_mapping.read_bytes()),
             "runtimeFile": str(default_actor_path),
             "runtimeBytes": default_actor_path.stat().st_size,
             "runtimeSha256": sha256(default_actor_path.read_bytes()),

@@ -6,7 +6,7 @@ using RecompOne.Runtime.Memory;
 namespace Recompiled;
 
 /// <summary>
-/// Selects one of SM2's nineteen Spider-Man texture libraries without menu input.
+/// SM2 retail costume appearance, dedicated actors and data-only reskin bindings.
 ///
 /// The actor is shared: func_8004E4BC receives a one-based costume number and uses it
 /// to index the retail sp_tex00.psx ... sp_tex18.psx table at 0x800B30E4.  A pre-hook
@@ -16,10 +16,10 @@ namespace Recompiled;
 ///     SPIDEY_COSTUME=0       SPIDEY_COSTUME=18
 ///     SPIDEY_COSTUME=default SPIDEY_COSTUME=prodigy
 ///
-/// This is process-local instrumentation only. It does not send input to Windows and
-/// it is entirely inactive unless SPIDEY_COSTUME is set.
+/// SPIDEY_COSTUME is developer-only process-local selection. Normal player reskins
+/// are discovered beside the executable and selected through the retail viewer.
 /// </summary>
-public static class Costume
+public static partial class Costume
 {
     const int CostumeCount = 19;
     const uint ResourceTable = 0x800ACED8u;
@@ -35,6 +35,8 @@ public static class Costume
     {
         (13, "spbagdc", "spidey-slot13.psx", ScratchName),
         (17, "spparkdc", "spidey-slot17.psx", ScratchName + 0x20u),
+        (100, "spmod01", "spidey-mod-sm1.psx", ScratchName + 0x40u),
+        (101, "spmodqc", "spidey-mod-quick.psx", ScratchName + 0x60u),
     };
 
     /// <summary>The retail costume viewer order.</summary>
@@ -113,6 +115,8 @@ public static class Costume
         {
             "spbagdc.psx" => "spidey-slot13.psx",
             "spparkdc.psx" => "spidey-slot17.psx",
+            "spmod01.psx" => "spidey-mod-sm1.psx",
+            "spmodqc.psx" => "spidey-mod-quick.psx",
             "sp_tex13.psx" when _slot == 13 => "sp_tex13-dc.psx",
             "sp_tex17.psx" when _slot == 17 => "sp_tex17-dc.psx",
             _ => requestedName,
@@ -124,6 +128,7 @@ public static class Costume
 
     public static void Install()
     {
+        SuitMods.Install();
         var spec = Environment.GetEnvironmentVariable("SPIDEY_COSTUME");
         if (string.IsNullOrWhiteSpace(spec)) return;
         spec = spec.Trim();
@@ -148,6 +153,16 @@ public static class Costume
     /// <summary>Pre-hook on func_8004E4BC(actor data, one-based costume).</summary>
     public static void SelectTextureLibrary(CpuContext c, IMemory m)
     {
+        SuitMods.Observe(m);
+        LoadedCostume = -1;
+        if (SuitMods.Active >= 0 && !_forced)
+        {
+            ApplyModPowers(m);
+            _slot = 0; // Appearance stays default even for Bag-Man/Peter power profiles.
+            c.A1 = 1;
+            ActivateActor(c, m, 0, SuitMods.At(SuitMods.Active).Model);
+            return;
+        }
         if (_forced)
             c.A1 = (uint)(_slot + 1);
         else if (c.A1 >= 1 && c.A1 <= CostumeCount)
@@ -161,6 +176,16 @@ public static class Costume
         Console.WriteLine(
             $"[costume] selected {Names[_slot]} through retail loader slot {_slot:D2} " +
             $"-> sp_tex{_slot:D2}.psx");
+    }
+
+    public static int LoadedCostume { get; private set; } = -1;
+
+    public static void TextureLibraryLoaded(CpuContext c, IMemory m)
+    {
+        if (SuitMods.Active < 0 || _forced) return;
+        LoadedCostume = SuitMods.Active;
+        // Retail uses this value for Insulated Suit's electrical resistance, too.
+        m.WriteU32(c.GP + 0xAA8, (uint)SuitMods.At(SuitMods.Active).AbilityProfile + 1);
     }
 
     static uint ResourceEntry(int index)
@@ -245,7 +270,7 @@ public static class Costume
     /// the retail texture loader runs. This works for ordinary interactive selection as
     /// well as the process-local proof selector and avoids a test-only pre-load alias.
     /// </summary>
-    static void ActivateActor(CpuContext c, IMemory m, int slot)
+    static void ActivateActor(CpuContext c, IMemory m, int slot, string modModel = "")
     {
         int spideyIndex = m.ReadU8(SpideyResourceIndex);
         if (spideyIndex < 0 || spideyIndex >= 40) return;
@@ -254,7 +279,13 @@ public static class Costume
             _genericBinding = ReadBinding(m, spideyEntry);
         if (_genericBinding[2] == 0) return;
 
-        int actorSlot = slot == 13 || slot == 17 ? slot : 0;
+        int actorSlot = modModel switch
+        {
+            RecompOne.Runtime.Assets.Suits.SuitManifest.Sm1SpiderMan => 100,
+            RecompOne.Runtime.Assets.Suits.SuitManifest.QuickChange => 101,
+            RecompOne.Runtime.Assets.Suits.SuitManifest.PeterParker => 17,
+            _ => slot == 13 || slot == 17 ? slot : 0,
+        };
         if (_activeActorSlot == actorSlot) return;
         uint[] binding = _genericBinding;
         if (actorSlot != 0 && !SpecialActorResources.TryGetValue(actorSlot, out int resource))

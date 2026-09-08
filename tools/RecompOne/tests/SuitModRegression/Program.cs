@@ -38,8 +38,24 @@ void Reject(Action<JsonNode> mutate, string label)
 }
 Check(SuitManifest.Read(Path.Combine(sample, "suit.json")).Decode().Values.Any(t => t.Width == 2048 && t.Height == 2048), "real 2048 PNG decoded at full dimensions");
 Check(document["donor"] == null, "DC default Spider-Man is implicit; sample has no donor field");
+var noModel = JsonNode.Parse(clean)!;
+noModel.AsObject().Remove("model");
+File.WriteAllText(manifest, noModel.ToJsonString());
+Check(SuitManifest.Read(manifest).Model == SuitManifest.Sm1SpiderMan,
+    "missing model remains backward-compatible with SM1/DC Spider-Man");
+File.WriteAllText(manifest, clean);
+foreach (var (modelId, materials) in SuitManifest.PlayerModels)
+{
+    var modelDoc = JsonNode.Parse(clean)!;
+    modelDoc["model"] = modelId;
+    modelDoc["textures"] = new JsonObject { [materials.First().ToString("X8")] = "small.png" };
+    File.WriteAllText(manifest, modelDoc.ToJsonString());
+    Check(SuitManifest.Read(manifest).Model == modelId, "fixed player model accepted: " + modelId);
+}
+File.WriteAllText(manifest, clean);
 Check(TextureResolver.TextureWindowExtent(63) == 64 && TextureResolver.TextureWindowExtent(31) == 32 && TextureResolver.TextureWindowExtent(255) == 256, "PS1 texture window mask yields correct replacement extent (not 193/225)");
 Reject(d => d["donor"] = "../../unsafe.psx", "arbitrary model files rejected");
+Reject(d => d["model"] = "../../unsafe.psx", "model selector rejects paths and arbitrary identifiers");
 Reject(d => d["address"] = "0x80010000", "raw address fields rejected");
 Reject(d => d["abilities"]!["profile"] = "sm2-electric-web", "unknown ability profile rejected");
 Reject(d => d["name"] = "BAD\u0002TEXT", "selector control bytes rejected");
@@ -81,6 +97,21 @@ var memory = new PSMemory(0x800000);
 const uint selected = 0x800A5704, unlocks = 0x800A5708, player = 0x80100000;
 memory.WriteU32(unlocks, 1);
 Check(Costume.IsUnlocked(memory, 20) && !Costume.IsUnlocked(memory, 1), "mod unlocked with only default stock suit unlocked");
+foreach (var (modelId, asset) in new[]
+{
+    (SuitManifest.Sm1SpiderMan, "spidey.psx"),
+    (SuitManifest.ScarletSpider, "spscar.psx"),
+    (SuitManifest.Symbiote, "spsymbi.psx"),
+    (SuitManifest.QuickChange, "spquick.psx"),
+    (SuitManifest.PeterParker, "sppark.psx"),
+    (SuitManifest.Sm2SpiderMan, "sp2default.psx"),
+})
+{
+    SuitMods.Catalogue[0] = SuitMods.Catalogue[0] with { Model = modelId };
+    Costume.WriteSelected(memory, 20);
+    Check(Costume.DreamcastAssetFor("spidey.psx", memory) == asset,
+        "mod routes to fixed bundled actor: " + modelId);
+}
 uint[] configs = [0x00202040,0x00402020,0x00200000,0x00404040,0x00402020,0x00403030,0x00202040,0x00402020,0x00200000,0x00200000];
 for (byte i = 0; i < 10; i++)
 {
@@ -89,7 +120,7 @@ for (byte i = 0; i < 10; i++)
     byte[] before = memory.Ram.ToArray();
     Costume.WriteSelected(memory, 20);
     Costume.ApplyAbilityProfile(new CpuContext { V0 = player }, memory);
-    Check(Costume.ReadSelected(memory) == 20 && memory.ReadU8(selected) == i && memory.ReadU8(selected + 1) == 0 && memory.ReadU32(player + 0x584) == configs[i], "profile copied, safe uninstall fallback: " + SuitManifest.Profiles[i]);
+    Check(Costume.ReadSelected(memory) == 20 && memory.ReadU8(selected) == 0 && memory.ReadU8(selected + 1) == 0 && memory.ReadU32(player + 0x584) == configs[i], "profile copied without loading a retail costume overlay, safe uninstall fallback: " + SuitManifest.Profiles[i]);
     bool confined = true;
     for (int p = 0; p < before.Length; p++)
         if (before[p] != memory.Ram[p] && !(p >= 0xA5704 && p < 0xA5708) && !(p >= 0x100584 && p < 0x100588)) confined = false;

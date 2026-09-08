@@ -4,7 +4,7 @@
 The Blender GLB is only a UV/material proof.  This tool rebuilds the native v4
 actor from the original Dreamcast v6 geometry, applies the proven per-face
 mapping to the native face records, restores the SM2 hierarchy/animation data,
-and embeds the original SM2 texture library.  Both open/closed hand variants
+and embeds texel-preserving, repeat-safe SM2 texture pages. Both open/closed hand variants
 are mapped by their stable mesh names even though a static GLB shows only one.
 """
 
@@ -37,11 +37,9 @@ DEFAULT_SM2_TEXTURES = ROOT / "spiderman2" / "extracted" / "wad" / "sp_tex00.psx
 DEFAULT_MAPPING = (
     ROOT
     / "dreamcast"
-    / "converted"
-    / "sm2-costume-tests"
-    / "ports"
-    / "default"
-    / "native-face-map.json"
+    / "manifests"
+    / "sm1-sm2-costume-native-maps"
+    / "sp2default.json"
 )
 DEFAULT_OUTPUT_ROOT = (
     ROOT / "dreamcast" / "converted" / "sm2-costume-tests" / "runtime" / "default"
@@ -639,6 +637,94 @@ def rewrite_faces(
     return bytes(output), dict(counters)
 
 
+def preserve_native_texture_repeat(actor: bytes, library: bytes) -> tuple[bytes, dict[str, Any]]:
+    """Bake repeated texels into native pages without moving any face UVs.
+
+    Blender repeats outside an image's dimensions, whereas retail relocates UVs
+    into a shared atlas. An out-of-page byte coordinate there reads a neighbour,
+    not a repeated texel. Tile only the pages that need the extra coverage. The
+    original texel density, palette, semantic indices, and record order survive.
+    This addresses native byte-UV assets, not the host HD-texture size policy.
+    """
+    layout = container_layout(library)
+    count = layout["textureCount"]
+    maxima = [[0, 0] for _ in range(count)]
+    face_count = 0
+    for pointer in container_layout(actor)["meshPointers"]:
+        vertices, normals, faces = struct.unpack_from("<HHH", actor, pointer + 2)
+        cursor = pointer + 28 + (vertices + normals) * 8
+        for _ in range(faces):
+            flags, length = struct.unpack_from("<HH", actor, cursor)
+            corners = 3 if flags & 0x10 else 4
+            if length < 20 + corners * 2 or cursor + length > len(actor):
+                raise ValueError("invalid native face packet in repeat-page audit")
+            index = u32(actor, cursor + 16)
+            if index >= count:
+                raise ValueError(f"face texture index {index} exceeds library count {count}")
+            for corner in range(corners):
+                for axis in range(2):
+                    maxima[index][axis] = max(
+                        maxima[index][axis], actor[cursor + 20 + corner * 2 + axis]
+                    )
+            cursor += length
+            face_count += 1
+
+    # The native loader walks from the pointer-table end using adjacent pointer
+    # differences as strides. Merely appending replacement records is NOT valid.
+    table = layout["texturePointerTable"]
+    output = bytearray(library[:table + count * 4])
+    seen: set[int] = set()
+    changes = []
+    source_end = table + count * 4
+    for ordinal in range(count):
+        pointer = u32(library, table + ordinal * 4)
+        if pointer != source_end:
+            raise ValueError(f"noncontiguous native texture record {ordinal}")
+        flags, palette_size, palette_id, index, width, height = struct.unpack_from(
+            "<IIIIHH", library, pointer
+        )
+        if index >= count or index in seen:
+            raise ValueError(f"invalid or duplicate texture index {index}")
+        seen.add(index)
+        if not width or not height or palette_size not in (16, 256):
+            raise ValueError(f"unsupported native indexed texture {index}")
+        bits = 4 if palette_size == 16 else 8
+        row = ((width + 3) & ~3) // 2 if bits == 4 else (width + 1) & ~1
+        payload_size = (row * height + 3) & ~3
+        if pointer + 20 + payload_size > len(library):
+            raise ValueError(f"truncated texture payload {index}")
+        source_end = pointer + 20 + payload_size
+        new_width = max(width, 1 << maxima[index][0].bit_length())
+        new_height = max(height, 1 << maxima[index][1].bit_length())
+        while len(output) % 4:
+            output.append(0)
+        struct.pack_into("<I", output, table + ordinal * 4, len(output))
+        if (new_width, new_height) == (width, height):
+            output.extend(library[pointer:pointer + 20 + payload_size])
+            continue
+        new_row = ((new_width + 3) & ~3) // 2 if bits == 4 else (new_width + 1) & ~1
+        pixels = bytearray((new_row * new_height + 3) & ~3)
+        for y in range(new_height):
+            for x in range(new_width):
+                sx, sy = x % width, y % height
+                packed = library[pointer + 20 + sy * row + sx * bits // 8]
+                value = (packed >> ((sx & 1) * 4)) & 15 if bits == 4 else packed
+                destination = y * new_row + x * bits // 8
+                if bits == 4:
+                    pixels[destination] |= value << ((x & 1) * 4)
+                else:
+                    pixels[destination] = value
+        output.extend(struct.pack("<IIIIHH", flags, palette_size, palette_id, index, new_width, new_height))
+        output.extend(pixels)
+        changes.append({"index": index, "from": [width, height],
+                        "to": [new_width, new_height], "maxUV": maxima[index]})
+    if source_end != len(library):
+        raise ValueError("unexpected trailing native texture data; refusing to discard it")
+    return bytes(output), {"policy": "periodic-indexed-texels-native-pages",
+                           "facesAudited": face_count, "expandedPages": changes,
+                           "faceUVsUnchanged": True, "paletteBytesUnchanged": True}
+
+
 def replace_texture_section(
     model: bytes,
     output_hashes: tuple[int, ...],
@@ -869,6 +955,7 @@ def main() -> None:
         output_hashes,
         hide_wings=args.hide_wings,
     )
+    texture_library, repeat_report = preserve_native_texture_repeat(rewritten, texture_library)
     packed = replace_texture_section(
         rewritten,
         output_hashes,
@@ -910,6 +997,7 @@ def main() -> None:
         "sm2TextureLibrary": str(args.sm2_textures.resolve()),
         "animationMetadata": metadata_mode,
         "staticMapping": str(args.mapping.resolve()),
+        "staticMappingSha256": sha256(args.mapping.read_bytes()),
         "outputModel": str(args.output_model.resolve()),
         "outputTextureLibrary": str(args.output_textures.resolve()),
         "outputModelBytes": len(packed),
@@ -920,6 +1008,7 @@ def main() -> None:
         "finalFaceCount": final_face_count,
         "staticProof": static_report,
         "faceMapping": face_report,
+        "textureRepeat": repeat_report,
         "wingPolicy": "dedicated-private-magenta-key" if args.hide_wings else "source-authored",
         "alternateHandMeshNames": [
             f"0x{value:08X}" for value in sorted(HAND_MESH_NAMES)

@@ -63,9 +63,11 @@ def main():
             ('CdWadRead', 'pre',  'RecompOne.Runtime.Assets.LooseWadOverrides.Read'),
             ('HeapAlloc', 'pre',  'Recompiled.OverlayPatches.HeapAlloc'),
             ('HeapFree',  'pre',  'Recompiled.OverlayPatches.HeapFree'),
+            ('func_800706E8', 'pre', 'Recompiled.OverlayPatches.HeapShrink'),
             # Verified at 0x8004E4BC: its second argument is one-based and indexes
             # the nineteen-entry sp_tex00..18 filename table at 0x800B30E4.
             ('func_8004E4BC', 'pre', 'Recompiled.Costume.SelectTextureLibrary'),
+            ('func_8004E4BC', 'post', 'Recompiled.Costume.TextureLibraryLoaded'),
             # The retail Bag-Man/Peter path copies fixed low-detail coordinates into
             # mesh 7. Dedicated high-detail DC actors already have the right head.
             ('func_8004EC34', 'pre', 'Recompiled.Costume.SkipRetailSpecialHeadMorph'),

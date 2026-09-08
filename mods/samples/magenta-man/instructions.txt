@@ -2,7 +2,8 @@ MAKE YOUR OWN SPIDER-MAN RESKIN
 
 Start with a copy of this entire folder. Give the copy a new folder name,
 such as my-spidey, and put it in mods/suits beside SpiderMan.exe.
-Every reskin uses the Dreamcast Spider-Man model already included in the game.
+The game includes six safe model bases: Spider-Man, Scarlet Spider, Symbiote
+Spider-Man, Quick Change, Peter Parker, and Spider-Man 2's default Spider-Man.
 
 1. Paint your costume
 
@@ -28,10 +29,22 @@ Open suit.json in Notepad. Change only the text inside the quotation marks:
   name      Your costume's name in the list and under COSTUME: (18 characters max).
   comments  Your own message under COMMENTS:. Keep it short; three short
             lines will fit with any power choice. Text wraps automatically.
+  model     The built-in model base. This example uses spiderman.
   profile   Whose powers to copy, using one of the choices below.
 
-Leave version and the textures entries as they are. Keep the commas
-and quotation marks in place. You do not need another JSON file.
+Leave version and the textures entries as they are. Those texture names match
+the spiderman base. Any other base reskin must start with that model's matching
+texture/template set. Keep the commas and quotation
+marks in place. You do not need another JSON file or a model file.
+
+Model choices:
+
+  spiderman         Default SM1 Dreamcast Spider-Man.
+  scarlet-spider    Dreamcast Scarlet Spider.
+  symbiote          Dreamcast Symbiote Spider-Man.
+  quick-change      Dreamcast Quick Change Spider-Man.
+  peter-parker      Dreamcast Peter Parker.
+  sm2-spiderman     Default SM2 Dreamcast Spider-Man, including web wings.
 
 Power choices:
 

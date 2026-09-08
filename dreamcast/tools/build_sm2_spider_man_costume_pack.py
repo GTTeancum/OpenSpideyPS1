@@ -3,9 +3,9 @@
 
 SM2 uses one animated ``spidey.psx`` actor and chooses one of nineteen
 ``sp_texNN.psx`` texture libraries.  The texture libraries do not share one fixed
-record order, so this tool preserves every retail library byte-for-byte instead of
-normalizing or transcoding it.  Audit-only merged actors let Multitool prove that each
-library is structurally usable without changing the files supplied to the game.
+record order. Preserve their semantic indices, palettes, and original texel density;
+tile pages where the actor's UVs require repeat sampling in the native atlas.
+Audit-only merged actors check each staged library's structure, not visual approval.
 """
 
 from __future__ import annotations
@@ -25,15 +25,7 @@ import pack_sm2_costume_to_dc as native_pack
 
 
 ROOT = Path(__file__).resolve().parents[2]
-DEFAULT_ACTOR = (
-    ROOT
-    / "dreamcast"
-    / "converted"
-    / "sm2-costume-tests"
-    / "runtime"
-    / "default"
-    / "spidey.psx"
-)
+DEFAULT_MAPPING = native_pack.DEFAULT_MAPPING
 DEFAULT_TEXTURES = ROOT / "spiderman2" / "extracted" / "wad"
 DEFAULT_OUTPUT = ROOT / "dreamcast" / "converted" / "sm2-spider-man-runtime"
 COSTUME_COUNT = 19
@@ -42,7 +34,8 @@ SPECIAL_BUILDER = ROOT / "dreamcast" / "tools" / "build_sm2_special_dc_costumes.
 
 def parse_args() -> argparse.Namespace:
     parser = argparse.ArgumentParser()
-    parser.add_argument("--actor", type=Path, default=DEFAULT_ACTOR)
+    parser.add_argument("--actor", type=Path, help="explicit prebuilt actor; otherwise rebuild from the corrected default face map")
+    parser.add_argument("--mapping", type=Path, default=DEFAULT_MAPPING)
     parser.add_argument("--textures", type=Path, default=DEFAULT_TEXTURES)
     parser.add_argument("--output", type=Path, default=DEFAULT_OUTPUT)
     parser.add_argument("--multitool", type=Path)
@@ -109,7 +102,6 @@ def texture_records(data: bytes, layout: dict[str, Any]) -> list[dict[str, Any]]
 
 def main() -> None:
     args = parse_args()
-    actor = args.actor.resolve()
     texture_root = args.textures.resolve()
     output = args.output.resolve()
     audit_root = output / "audit-models"
@@ -117,10 +109,33 @@ def main() -> None:
     audit_root.mkdir(parents=True, exist_ok=True)
 
     multitool = native_pack.resolve_multitool(args.multitool)
+    # Do not silently stage an old proof conversion. Default builds regenerate the
+    # native actor from the checked-in Blender-oracle face map every time.
+    if args.actor is None:
+        actor = output / "source-actor" / "spidey.psx"
+        subprocess.run([
+            sys.executable, str(Path(native_pack.__file__).resolve()),
+            "--mapping", str(args.mapping.resolve()),
+            "--sm2-textures", str(texture_root / "sp_tex00.psx"),
+            "--output-model", str(actor),
+            "--output-textures", str(actor.parent / "sp_tex00.psx"),
+            "--report", str(actor.parent / "pack-report.json"),
+            "--multitool", str(multitool),
+        ], check=True)
+    else:
+        actor = args.actor.resolve()
     actor_data = actor.read_bytes()
     actor_layout = native_pack.container_layout(actor_data)
+    # A supplied actor may predate repeat-page baking. Its embedded default must
+    # match the separately loaded slot-zero library, including menu previews.
+    default_library, _ = native_pack.preserve_native_texture_repeat(
+        actor_data, (texture_root / "sp_tex00.psx").read_bytes()
+    )
+    actor_data = native_pack.replace_texture_section(
+        actor_data, actor_layout["textureHashes"], default_library
+    )
     actor_destination = output / "spidey.psx"
-    shutil.copyfile(actor, actor_destination)
+    actor_destination.write_bytes(actor_data)
 
     entries: list[dict[str, Any]] = []
     expected_face_count: int | None = None
@@ -129,7 +144,8 @@ def main() -> None:
         for slot in range(COSTUME_COUNT):
             name = f"sp_tex{slot:02d}.psx"
             source = texture_root / name
-            library_data = source.read_bytes()
+            retail_data = source.read_bytes()
+            library_data, repeat_report = native_pack.preserve_native_texture_repeat(actor_data, retail_data)
             layout = native_pack.container_layout(library_data)
             if len(layout["textureHashes"]) != len(actor_layout["textureHashes"]):
                 raise ValueError(
@@ -144,7 +160,7 @@ def main() -> None:
 
             records = texture_records(library_data, layout)
             destination = output / name
-            shutil.copyfile(source, destination)
+            destination.write_bytes(library_data)
             if destination.read_bytes() != library_data:
                 raise ValueError(f"{name} changed while staging")
 
@@ -185,14 +201,16 @@ def main() -> None:
                     "runtimeFile": str(destination),
                     "runtimeBytes": len(library_data),
                     "runtimeSha256": sha256(library_data),
-                    "retailByteExact": True,
+                    "retailByteExact": library_data == retail_data,
+                    "retailSha256": sha256(retail_data),
+                    "textureRepeat": repeat_report,
                     "materialHashCount": len(layout["textureHashes"]),
                     "textureRecordCount": layout["textureCount"],
                     "recordsByIndex": records,
                     "auditModel": str(audit_model),
                     "auditModelSha256": sha256(audit_data),
                     "auditFaceCount": face_count,
-                    "status": "pass",
+                    "status": "structural-pass-visual-review-required",
                 }
             )
 
@@ -210,15 +228,17 @@ def main() -> None:
 
     report = {
         "schemaVersion": 1,
-        "status": "pass",
+        "status": "structural-pass-visual-review-required",
         "scope": "SM2 Spider-Man and costumes only; NPC and enemy actors remain retail SM2 assets",
         "runtimePolicy": (
-            "one native Dreamcast-mesh spidey.psx plus nineteen byte-exact retail "
-            "sp_texNN.psx libraries; topology-changing slots 13 and 17 additionally "
+            "one native Dreamcast-mesh spidey.psx plus nineteen texel-preserving "
+            "repeat-safe sp_texNN.psx libraries; topology-changing slots 13 and 17 additionally "
             "stage dedicated Dreamcast actors and texture companions"
         ),
         "environmentPolicy": "retail PS1 SM2 environments are unchanged",
         "actor": {
+            "nativeFaceMap": str(args.mapping.resolve()) if args.actor is None else None,
+            "nativeFaceMapSha256": sha256(args.mapping.read_bytes()) if args.actor is None else None,
             "source": str(actor),
             "runtimeFile": str(actor_destination),
             "bytes": len(actor_data),

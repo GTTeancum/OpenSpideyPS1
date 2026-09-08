@@ -336,6 +336,12 @@ def main() -> None:
                 skeleton_donor = skeleton_donors[name]
             elif name in skeleton_donors:
                 tagged_chunks = skeleton_donors[name].tagged_chunks
+            sm1_layout = sm1_skeleton_root / f"{name.lower()}.psx"
+            single_lod = (
+                converter.sm1_requires_single_lod(model, sm1_layout)
+                if sm1_layout.is_file()
+                else False
+            )
             converted = converter.build_character(
                 model,
                 texture_dir,
@@ -346,6 +352,7 @@ def main() -> None:
                 supplemental_textures=(
                     player_support_textures if name in PLAYABLE else ()
                 ),
+                sm1_single_lod=single_lod,
             )
             destination.write_bytes(converted)
             converted_models[name] = model
@@ -487,7 +494,9 @@ def main() -> None:
                     "source": str(source),
                     "output": str(destination),
                     "objects": model.object_count,
-                    "meshes": model.mesh_count,
+                    "meshes": model.mesh_count + len(far_lod_sources),
+                    "sourceMeshes": model.mesh_count,
+                    "sm1FarLodCopies": len(far_lod_sources),
                     "vertices": vertices,
                     "normals": normals,
                     "faces": faces,

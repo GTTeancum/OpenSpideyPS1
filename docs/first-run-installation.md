@@ -47,14 +47,28 @@ packs come from a deterministic ZIP resource inside the executable and are repai
 updated automatically under `assets/builtin`. Neither executable asks for a Dreamcast
 disc or for the other Spider-Man game.
 
+Bundle updates retire obsolete files only when their hashes still match the previous
+bundle's ownership manifest. Retired bytes are kept under `assets/builtin/.retired/`,
+outside the active pack folders, for recovery; modified obsolete files and unowned
+files are preserved. Files still owned by the current bundle are repaired as needed.
+The previous manifest is kept until retirement finishes, so interrupted updates can
+resume safely. Repeated startup also verifies content hashes, not just file lengths.
+
 ## Release maintenance
 
 Rebuild both embedded asset payloads after an approved conversion changes:
 
 ```powershell
 python dreamcast/tools/build_bundled_runtime_assets.py
+python dreamcast/tools/build_sm2_mod_actor.py
 dotnet publish spiderman/port/SpiderMan.csproj -c Release
 dotnet publish spiderman2/port/SpiderMan2.csproj -c Release
+```
+
+Regression checks for upgrades, recovery, ownership and real embedded payloads:
+
+```powershell
+dotnet run --project tools/RecompOne/tests/BundledAssetsRegression/BundledAssetsRegression.csproj -c Release -- --real-bundles .
 ```
 
 The asset builder includes only root runtime `.psx` files and the selected texture-pack

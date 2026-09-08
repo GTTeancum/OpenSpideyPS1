@@ -178,6 +178,7 @@ public static class Runtime
         Diagnostics.CallRing.NoteFrame();
         long __t0 = System.Diagnostics.Stopwatch.GetTimestamp();
         HostWindow.Present(Gpu);
+        HostWindow.NoteGameFrame();
         Audio.Attach(Spu);
         long __t1 = System.Diagnostics.Stopwatch.GetTimestamp();
         FrameClock.Throttle();

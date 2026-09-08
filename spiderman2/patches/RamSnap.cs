@@ -17,12 +17,15 @@ namespace Recompiled;
 ///
 ///     SPIDEY_SNAP=2560,2680     write ram_02560.bin and ram_02680.bin
 ///
-/// 3 MB: the 2 MB the game allocates from, plus the fixed overlay region above it --
-/// the menu lives in the shell overlay, so its variables are up there.
+/// Normally includes 3 MB (retail RAM and fixed overlays). SPIDEY_SNAP_EXTENDED=1
+/// includes all 8 MB so converted actors in the host replacement arena can be
+/// compared before/after the game's resource and texture loaders.
 /// </summary>
 public static class RamSnap
 {
-    const uint Base = 0x80000000, Size = 0x00300000;   // includes the overlay region at 0x80200000
+    const uint Base = 0x80000000;
+    static uint Size => Environment.GetEnvironmentVariable("SPIDEY_SNAP_EXTENDED") == "1"
+        ? 0x00800000u : 0x00300000u;
 
     static readonly HashSet<long> _frames = new();
     static string _dir = "snaps";

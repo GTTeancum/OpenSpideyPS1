@@ -38,6 +38,7 @@ internal sealed class OutputPanel : IPanel
         {
             var avail = ImGui.GetContentRegionAvail();
             FitWindowOnce(avail);
+            FitRequestedWindow(avail);
             var imageSize = FitAspect(new Vector2(_aspect, 1f), avail);
             var offset = (avail - imageSize) * 0.5f;
             ImGui.SetCursorPos(ImGui.GetCursorPos() + offset);
@@ -51,6 +52,15 @@ internal sealed class OutputPanel : IPanel
     }
 
     static bool _fitted;
+    static float _requestedWindowAspect;
+
+    /// <summary>
+    /// Resize a windowed host when the player explicitly changes the gameplay aspect.
+    /// This is separate from the presented texture because game menus remain authored
+    /// at 4:3 even when gameplay is configured for 16:9.
+    /// </summary>
+    public static void RequestWindowAspect(float aspect)
+        => _requestedWindowAspect = aspect > 0f ? aspect : Hle.GpuHle.BaseAspect;
 
     /// <summary>
     /// Shape the window to the aspect being presented, once, on the first widescreen
@@ -68,6 +78,24 @@ internal sealed class OutputPanel : IPanel
         int dx = (int)MathF.Round(avail.Y * want - avail.X);
         Console.WriteLine(
             $"[Host] fitting window to {want:F3} output from {avail.X:F0}x{avail.Y:F0} panel");
+        if (dx != 0) HostWindow.GrowWindow(dx, 0);
+    }
+
+    static void FitRequestedWindow(Vector2 avail)
+    {
+        float want = _requestedWindowAspect;
+        if (want <= 0f || avail.X < 16f || avail.Y < 16f) return;
+        _requestedWindowAspect = 0f;
+        _fitted = true;
+
+        // A fullscreen viewport belongs to the monitor. Letter/pillarboxing it is the
+        // correct response; changing the monitor mode behind a settings choice is not.
+        if (Config.ConfigManager.View.Fullscreen) return;
+
+        int dx = (int)MathF.Round(avail.Y * want - avail.X);
+        Console.WriteLine(
+            $"[Host] fitting window to selected {want:F3} gameplay aspect from " +
+            $"{avail.X:F0}x{avail.Y:F0} panel");
         if (dx != 0) HostWindow.GrowWindow(dx, 0);
     }
 

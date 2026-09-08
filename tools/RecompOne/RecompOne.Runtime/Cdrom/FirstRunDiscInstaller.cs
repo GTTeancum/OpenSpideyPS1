@@ -1,5 +1,4 @@
 using System.Diagnostics;
-using System.IO.Compression;
 using System.Numerics;
 using System.Reflection;
 using System.Security.Cryptography;
@@ -335,69 +334,5 @@ public static class FirstRunDiscInstaller
     sealed class InlineProgress<T>(Action<T> action) : IProgress<T>
     {
         public void Report(T value) => action(value);
-    }
-}
-
-public static class BundledAssets
-{
-    const string MarkerName = ".payload-sha256";
-
-    public static void Extract(
-        Stream payload,
-        string targetDirectory,
-        IProgress<LooseDiscImporter.Progress>? progress,
-        CancellationToken cancellationToken)
-    {
-        using var memory = new MemoryStream();
-        payload.CopyTo(memory);
-        byte[] bytes = memory.ToArray();
-        string hash = Convert.ToHexString(SHA256.HashData(bytes));
-        string target = Path.GetFullPath(targetDirectory);
-        string marker = Path.Combine(target, MarkerName);
-        Directory.CreateDirectory(target);
-        using var archive = new ZipArchive(new MemoryStream(bytes, writable: false), ZipArchiveMode.Read);
-        if (File.Exists(marker) &&
-            File.ReadAllText(marker).Trim().Equals(hash, StringComparison.OrdinalIgnoreCase) &&
-            archive.Entries.Where(entry => !entry.FullName.EndsWith('/')).All(entry =>
-            {
-                string installed = Path.Combine(target, entry.FullName.Replace('/', Path.DirectorySeparatorChar));
-                return File.Exists(installed) && new FileInfo(installed).Length == entry.Length;
-            }))
-            return;
-        long total = archive.Entries.Sum(entry => entry.Length);
-        long completed = 0;
-        int files = 0;
-        string prefix = target.EndsWith(Path.DirectorySeparatorChar) ? target : target + Path.DirectorySeparatorChar;
-        foreach (var entry in archive.Entries)
-        {
-            cancellationToken.ThrowIfCancellationRequested();
-            if (entry.FullName.EndsWith('/')) continue;
-            string destination = Path.GetFullPath(Path.Combine(target, entry.FullName.Replace('/', Path.DirectorySeparatorChar)));
-            if (!destination.StartsWith(prefix, StringComparison.OrdinalIgnoreCase))
-                throw new InvalidDataException($"bundled asset escapes its root: {entry.FullName}");
-            Directory.CreateDirectory(Path.GetDirectoryName(destination)!);
-            string temporary = destination + ".partial";
-            using (Stream source = entry.Open())
-            using (var output = File.Create(temporary))
-            {
-                byte[] buffer = new byte[128 * 1024];
-                int count;
-                while ((count = source.Read(buffer, 0, buffer.Length)) > 0)
-                {
-                    cancellationToken.ThrowIfCancellationRequested();
-                    output.Write(buffer, 0, count);
-                    completed += count;
-                    progress?.Report(new(
-                        "Installing bundled upgrades", entry.FullName, files, archive.Entries.Count,
-                        completed, total));
-                }
-            }
-            File.Move(temporary, destination, true);
-            files++;
-        }
-
-        string temporaryMarker = marker + ".tmp";
-        File.WriteAllText(temporaryMarker, hash);
-        File.Move(temporaryMarker, marker, true);
     }
 }

@@ -81,7 +81,7 @@ public static class Costume
         "Quick Change Spidey", "Peter Parker", "Spider-Phoenix", "Prodigy", "Dusk",
         "Insulated Suit", "Alex Ross - Red", "Alex Ross - White",
         "Venom 2 - Earth X", "Negative Zone", "Battle Damaged",
-        "Spider-Man - Wings",
+        "Spider-Man - SM2",
     };
 
     static readonly string[][] ImportedPowerText =
@@ -162,7 +162,19 @@ public static class Costume
     static int _loadedCostume = -1;
     public static int LoadedCostume => _loadedCostume;
     public static uint ViewerCount => (uint)(Names.Length + SuitMods.Catalogue.Count);
-    static string ModelFor(int selected) => SuitMods.IsMod(selected) ? "spidey.psx" : DreamcastModels[selected];
+    static string ModelFor(int selected)
+    {
+        if (!SuitMods.IsMod(selected)) return DreamcastModels[selected];
+        return SuitMods.At(selected).Model switch
+        {
+            RecompOne.Runtime.Assets.Suits.SuitManifest.ScarletSpider => "spscar.psx",
+            RecompOne.Runtime.Assets.Suits.SuitManifest.Symbiote => "spsymbi.psx",
+            RecompOne.Runtime.Assets.Suits.SuitManifest.QuickChange => "spquick.psx",
+            RecompOne.Runtime.Assets.Suits.SuitManifest.PeterParker => "sppark.psx",
+            RecompOne.Runtime.Assets.Suits.SuitManifest.Sm2SpiderMan => "sp2default.psx",
+            _ => "spidey.psx",
+        };
+    }
     public static bool IsUnlocked(IMemory memory, uint index) => index < ViewerCount &&
         (SuitMods.IsMod((int)index) || (memory.ReadU32(Unlocks) & (1u << (int)index)) != 0);
     static bool _selfTest;
@@ -226,6 +238,13 @@ public static class Costume
         if (reloadedSlot != slot)
             throw new InvalidOperationException(
                 $"costume viewer model slot moved from {slot} to {reloadedSlot}");
+
+        // Main's initial LoadLevel marks spidey as persistent at cache-entry +0x0B.
+        // The shell's model cleanup respects that bit. A viewer-driven unload clears
+        // the complete entry, so restore the same lifetime marker after reloading;
+        // otherwise leaving the viewer frees the selected actor and gameplay later
+        // interprets the vacant entry's 0xFFFF part count as a 1.5 MiB allocation.
+        memory.WriteU8(modelEntry + 0x0Bu, 1);
         if (selected >= OriginalCostumeCount)
             Console.WriteLine(
                 "[costume] skipped SM1 retail texture overlay for baked imported actor");
@@ -436,10 +455,13 @@ public static class Costume
             if (SuitMods.Select(selected))
             {
                 // Persist identity on the host, never a catalogue index in a retail save.
-                byte proxy = (byte)SuitMods.At(selected).AbilityProfile;
+                // All external suits reskin DC default Spider-Man, so their retail visual
+                // proxy must remain zero. Using the ability donor here makes gameplay load
+                // cost99/costsym/etc over the DC actor; the port applies the chosen ability
+                // word independently in ApplyAbilityProfile.
                 memory.WriteU8(ExtendedSelected, 0); // stock fallback if the mod is later removed
                 memory.WriteU16(ExtendedSelectionMarker, ExtendedSelectionMagic);
-                memory.WriteU8(Selected, proxy);
+                memory.WriteU8(Selected, 0);
                 return;
             }
             selected = 0;

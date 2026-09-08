@@ -182,4 +182,15 @@ public static class OverlayPatches
         if (RecompOne.Runtime.Assets.LooseWadOverrides.TryFree(c.A0)) return false;
         return !(c.A0 >= RegionLo && c.A0 < RegionHi);
     }
+
+    /// <summary>
+    /// Expanded-RAM override blocks have no retail-heap header. Retain their
+    /// sector-rounded tail instead of letting the retail shrink routine splice an
+    /// out-of-range address into the PS1 heap; the override arena reclaims the full
+    /// block when the actor is unloaded.
+    /// </summary>
+    public static bool HeapShrink(CpuContext c, IMemory m)
+    {
+        return !RecompOne.Runtime.Assets.LooseWadOverrides.OwnsAllocation(c.A0);
+    }
 }
