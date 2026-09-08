@@ -75,6 +75,22 @@ public static class FunctionEmitter
             if (ctx.Labels.Contains(instr.Vram))
                 sb.AppendLine($"        L{instr.Vram:X8}: ;");
 
+            if (instr.Vram != func.Start && ctx.InteriorHooks.TryGetValue(instr.Vram, out var interiorHook))
+            {
+                // Hand-written renderer routines have overlapping symbol ranges.
+                // A local jump into another function must still run its hooks.
+                // Resume the native RA continuation rather than returning from the
+                // enclosing managed method and skipping its remaining work/epilogue.
+                sb.AppendLine($"{ind}{interiorHook}(c, m);");
+                sb.AppendLine($"{ind}switch (c.RA)");
+                sb.AppendLine($"{ind}{{");
+                foreach (uint back in ctx.LocalReturns.OrderBy(a => a))
+                    sb.AppendLine($"{ind}    case 0x{back:X8}u: goto L{back:X8};");
+                sb.AppendLine($"{ind}    default: return;");
+                sb.AppendLine($"{ind}}}");
+                continue;
+            }
+
             if (instr.HasDelaySlot)
             {
                 var delaySlot = i + 1 < instrs.Length ? instrs[i + 1] : null;

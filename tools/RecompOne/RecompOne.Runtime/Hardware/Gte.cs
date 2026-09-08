@@ -207,23 +207,24 @@ public static class Gte
         int ny = SatY((int)(sy >> 16));
         SX[0] = SX[1]; SX[1] = SX[2]; SX[2] = (short)nx;
         SY[0] = SY[1]; SY[1] = SY[2]; SY[2] = (short)ny;
-        ScreenZ[0] = ScreenZ[1]; ScreenZ[1] = ScreenZ[2]; ScreenZ[2] = SZ[3];
+        ScreenZ[0] = ScreenZ[1]; ScreenZ[1] = ScreenZ[2];
         ScreenX[0] = ScreenX[1]; ScreenX[1] = ScreenX[2];
         ScreenY[0] = ScreenY[1]; ScreenY[1] = ScreenY[2];
-        ScreenNative[0] = ScreenNative[1]; ScreenNative[1] = ScreenNative[2]; ScreenNative[2] = 0;
-        ScreenPrecise[0] = ScreenPrecise[1]; ScreenPrecise[1] = ScreenPrecise[2]; ScreenPrecise[2] = sz > 0;
-        // Keep native SXY saturation above for game logic. The host rasterizer
-        // must clip the original projection: clamping an offscreen endpoint
-        // first changes interpolation across the visible portion of its face.
+        ScreenNative[0] = ScreenNative[1]; ScreenNative[1] = ScreenNative[2];
+        ScreenPrecise[0] = ScreenPrecise[1]; ScreenPrecise[1] = ScreenPrecise[2];
+        ScreenPrecise[2] = m3 > 0;
+        ScreenZ[2] = (float)(m3 / 4096.0);
         ScreenX[2] = ProjectionFloat(sx);
         ScreenY[2] = ProjectionFloat(sy);
-        if (sz > 0 && sz * 2 <= H)
+        ScreenNative[2] = 0;
+        if (m3 > 0)
         {
-            // The console caps the perspective reciprocal at almost 2. Near
-            // vertices still need their true projection for host interpolation;
-            // otherwise a subdivided floor bends toward the camera and opens up.
-            ScreenX[2] = (float)((double)H * IR1 / sz * Hle.GpuHle.FovNum / Hle.GpuHle.FovDen + OFX / 65536.0);
-            ScreenY[2] = (float)((double)H * IR2 / sz + OFY / 65536.0);
+            // Use one homogeneous transform for host position AND depth. Rounding
+            // IR/SZ or using the console's approximate reciprocal makes a projected
+            // midpoint disagree with the line between its original endpoints.
+            // Native registers, reciprocal saturation and flags above stay intact.
+            ScreenX[2] = (float)((double)H * m1 / m3 * Hle.GpuHle.FovNum / Hle.GpuHle.FovDen + OFX / 65536.0);
+            ScreenY[2] = (float)((double)H * m2 / m3 + OFY / 65536.0);
             ScreenNative[2] = 0x80000000u | ((uint)(ushort)(short)nx & 0x7FFu) | (((uint)(ushort)(short)ny & 0x7FFu) << 16);
         }
 

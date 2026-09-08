@@ -315,6 +315,8 @@ public static class OverlayWriter
                 FuncStart = func.Start,
                 FuncEnd = func.End,
                 KnownFunctions = knownFuncs,
+                InteriorHooks = funcs.Where(f => f.PreHookTargets.Count > 0 || f.PostHookTargets.Count > 0)
+                    .GroupBy(f => f.Start).ToDictionary(g => g.Key, g => knownFuncs[g.Key]),
                 Labels = labels,
                 LocalReturns = Analysis.LabelManager.LocalReturns(func),
                 LocalReturnJrs = Analysis.LabelManager.LocalReturnJrs(func),

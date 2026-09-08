@@ -337,6 +337,7 @@ public sealed class FunctionContext
     public uint FuncStart;
     public uint FuncEnd;
     public Dictionary<uint, string> KnownFunctions = [];
+    public Dictionary<uint, string> InteriorHooks = [];
     public HashSet<uint> Labels = [];
     public HashSet<uint> LocalReturns = [];
     public HashSet<uint> LocalReturnJrs = [];

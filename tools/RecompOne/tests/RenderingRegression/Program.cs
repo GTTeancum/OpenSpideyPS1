@@ -132,6 +132,30 @@ bool nearPass = (short)cpu[12] == 359 && (short)(cpu[12] >> 16) == 319 &&
     !GteScreen.ValidatePacketVertex(cpu[12]+1, nearTag).HasSubpixel;
 Console.WriteLine($"Near reciprocal saturation: native=({(short)cpu[12]},{(short)(cpu[12]>>16)}) host={nearTag} {(nearPass?"PASS":"FAIL")}");
 if(!nearPass)failures++;
+// A rotated straight edge must remain straight when an adjacent face uses its
+// authored midpoint instead of the same subdivision. Compare in homogeneous
+// coordinates; rounded IR/SZ and the native reciprocal break this identity.
+RecompOne.Runtime.Gte.WriteControl(0, 3547);
+RecompOne.Runtime.Gte.WriteControl(1, 2048);
+RecompOne.Runtime.Gte.WriteControl(2, 4096);
+RecompOne.Runtime.Gte.WriteControl(3, unchecked((ushort)(short)-2048));
+RecompOne.Runtime.Gte.WriteControl(4, 3547);
+var lineA = Project(-130, 107, 802);
+uint nativeLineA = cpu[12];
+var lineB = Project(274, 107, 1206);
+uint nativeLineB = cpu[12];
+var lineMid = Project(72, 107, 1004);
+uint nativeLineMid = cpu[12];
+double midX = (lineA.ScreenX * (double)lineA.Depth + lineB.ScreenX * (double)lineB.Depth) / (lineA.Depth + lineB.Depth);
+double midY = (lineA.ScreenY * (double)lineA.Depth + lineB.ScreenY * (double)lineB.Depth) / (lineA.Depth + lineB.Depth);
+bool linePass = nativeLineA == 0x009C0101 && nativeLineB == 0x0096018D && nativeLineMid == 0x0098014D && Math.Abs(lineMid.ScreenX - midX) < 0.00002 && Math.Abs(lineMid.ScreenY - midY) < 0.00002 &&
+    Math.Abs(lineMid.Depth - (lineA.Depth + lineB.Depth) / 2) < 0.0001;
+Console.WriteLine($"Rotated authored/subdivided edge: deviation=({lineMid.ScreenX-midX:R},{lineMid.ScreenY-midY:R}) native={nativeLineA:X8},{nativeLineB:X8},{nativeLineMid:X8} {(linePass ? "PASS" : "FAIL")}");
+if (!linePass) failures++;
+RecompOne.Runtime.Gte.WriteControl(0, 4096);
+RecompOne.Runtime.Gte.WriteControl(1, 0);
+RecompOne.Runtime.Gte.WriteControl(3, 0);
+RecompOne.Runtime.Gte.WriteControl(4, 4096);
 var planeA = Project(0, 0, 512);
 var planeB = Project(4096, 0, 512);
 var planeC = Project(0, 4096, 1024);
@@ -159,7 +183,8 @@ Console.WriteLine($"visible texture sample: old={oldSample} new={newSample} " +
 if (!planePass) failures++;
 RecompOne.Runtime.Gte.WriteControl(24, (274u << 16) - 1);
 var boundaryTag = Project(0, 0, 512);
-bool boundaryPass = (short)cpu[12] == 273 && boundaryTag.HasSubpixel && boundaryTag.ScreenX < 274;
+bool boundaryPass = (short)cpu[12] == 273 && boundaryTag.HasSubpixel && Math.Abs(boundaryTag.ScreenX - (274 - 1.0 / 65536)) < 0.00002 &&
+    !GteScreen.ValidatePacketVertex(cpu[12] + 1, boundaryTag).HasSubpixel;
 Console.WriteLine($"projection boundary: nativeX={(short)cpu[12]} renderX={boundaryTag.ScreenX:R} " +
     $"subpixel={boundaryTag.HasSubpixel} {(boundaryPass ? "PASS" : "FAIL")}");
 if (!boundaryPass) failures++;

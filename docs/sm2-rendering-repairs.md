@@ -29,25 +29,41 @@ After regenerating each game's code, run:
 ```powershell
 dotnet run --project tools/RecompOne/tests/RenderingRegression -c Release
 dotnet run --project tools/RecompOne/tests/Sm2RenderingRegression -c Release
+dotnet run --project tools/RecompOne/tests/InteriorHookRegression -c Release
 ```
 
-Both suites pass. They exercise each game's actual native routines, including
+The two rendering suites and the hook execution regression pass. They exercise
+each game's actual native routines, including
 subdivision clamps and projective midpoints, packed edge borrowing, shared edges
 at near and distant depths, ray/plane texture samples, thin joint triangles, and
 4:3 versus widened bounds admission with exact GTE matrix restoration.
 
 Native GPU captures on 2026-09-08 reproduced the stepped crate seams in the old
-SM2 Shocker warehouse build. Inspected repaired warehouse views in 16:9 and 4:3,
-plus outdoor e1m0 rooftop views before and after movement, retain straight crate
-edges and continuous visible roofs/parapets. All nine captured stills were inspected;
-this is sampled scene verification, not an exhaustive review of every animation
-frame or level. Combat moved the camera differently between runs, so the warehouse
-stills are not exact matched-pose comparisons.
+SM2 Shocker warehouse build. A solid-floor diagnostic then exposed an intermittent
+crack left by the first repair. The remaining cause was the host projection using
+rounded IR/SZ coordinates and the native approximate reciprocal. Host X/Y and depth
+now come from the same unrounded homogeneous GTE transform; native registers and
+flags remain intact. A rotated-edge regression fails before this change and passes
+afterward, with identical native screen words. This also removes the normal
+reciprocal approximation from perspective texture interpolation.
 
-A small dotted floor line appeared in one repaired warehouse still. A subsequent
-native triangle trace found overlapping floor coverage at the suspected boundaries,
-and the traced still was continuous. Its appearance across every camera pose has
-not been established; do not treat this as proof that every possible seam is gone.
+The matched warehouse pose at frame 4498 shows the floor crack before the exact
+projection and a continuous floor afterward. In the unobstructed floor rectangle
+x=340..599, y=645..704, nonwhite pixels fall from 363 to zero. Both neighboring
+captures, 4502 and 4506, were inspected and remain continuous. Four normal-texture
+warehouse captures were also inspected. These are native GPU readbacks; the solid
+floor mode changes only material flags/color, leaving submitted geometry intact.
+Two outdoor widescreen views retain visible roof/parapet coverage before and after
+the camera turns. Two 4:3 warehouse views also retain continuous crate edges.
+This establishes the reproduced defects, not every animation frame or level.
+
+Overlapping native symbol ranges also permit local jumps into hooked helpers.
+The recompiler now invokes the hooked entry on those paths and resumes the native
+return address inside the enclosing function. Its execution regression verifies
+one hook invocation, the caller's remaining work, restored stack, and preserved
+return address. This routing correction alone did not remove the captured floor
+crack; the homogeneous projection change did. Regenerate both games to receive
+the routing correction.
 
 Ordinary late gameplay measurements were approximately 28–29.5 presented FPS
 against the 30 FPS target. The first detailed perspective-trace run was slower;
