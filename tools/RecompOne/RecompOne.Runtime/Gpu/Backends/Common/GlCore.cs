@@ -24,6 +24,8 @@ public sealed class GlCore : IGpuBackend
     readonly GlDisplayRt?[] _rts = new GlDisplayRt?[2];
     long _rtStamp;
     long _frame;
+    static readonly bool AuditComposite = Environment.GetEnvironmentVariable("RECOMP_AUDIT_COMPOSITE") == "1";
+    long _lastCompositeAudit = -1;
 
     uint _vao, _vbo, _presentVao, _presentVbo, _progPrim, _progPresent, _progPresent24;
     bool _drewSincePresent;
@@ -91,6 +93,9 @@ public sealed class GlCore : IGpuBackend
     public unsafe void InitGl()
     {
         _vram.Init();
+        bool ditherWasEnabled = _gl.IsEnabled(EnableCap.Dither);
+        _gl.Disable(EnableCap.Dither);
+        Console.WriteLine($"[Gpu] dithering: before={ditherWasEnabled} after={_gl.IsEnabled(EnableCap.Dither)}");
 
         string primVs = _legacy ? GlShaders.PrimVs120 : GlShaders.PrimVs;
         string primFs = _legacy ? GlShaders.PrimFs120 : GlShaders.PrimFs;
@@ -496,8 +501,9 @@ public sealed class GlCore : IGpuBackend
         _gl.TexParameter(TextureTarget.Texture2D, TextureParameterName.TextureMagFilter, (int)GLEnum.Linear);
         _gl.TexParameter(TextureTarget.Texture2D, TextureParameterName.TextureWrapS, (int)GLEnum.ClampToEdge);
         _gl.TexParameter(TextureTarget.Texture2D, TextureParameterName.TextureWrapT, (int)GLEnum.ClampToEdge);
+        byte[] upload = PremultiplyAlpha(tex.Rgba);
         _gl.TexImage2D<byte>(TextureTarget.Texture2D, 0, InternalFormat.Rgba8, (uint)tex.Width, (uint)tex.Height, 0,
-            PixelFormat.Rgba, PixelType.UnsignedByte, tex.Rgba);
+            PixelFormat.Rgba, PixelType.UnsignedByte, upload);
         _gl.GenerateMipmap(TextureTarget.Texture2D);
         _gl.ActiveTexture(TextureUnit.Texture0);
 
@@ -507,6 +513,26 @@ public sealed class GlCore : IGpuBackend
         _repBytes += bytes;
         if (_repBytes > RepTextureBudget) EvictReplacements();
         return handle;
+    }
+
+    /// <summary>
+    /// Linear filtering must not mix the RGB stored in transparent source texels into
+    /// an actor silhouette. Dreamcast pages retain magenta-key RGB under alpha zero;
+    /// filtering that straight-alpha data produces a colored fringe around Spider-Man
+    /// at 4x. Upload premultiplied RGB and undo it after sampling in the primitive
+    /// shader so both base-level filtering and generated mipmaps have clean edges.
+    /// </summary>
+    static byte[] PremultiplyAlpha(byte[] source)
+    {
+        byte[] result = (byte[])source.Clone();
+        for (int i = 0; i + 3 < result.Length; i += 4)
+        {
+            int alpha = result[i + 3];
+            result[i] = (byte)((result[i] * alpha + 127) / 255);
+            result[i + 1] = (byte)((result[i + 1] * alpha + 127) / 255);
+            result[i + 2] = (byte)((result[i + 2] * alpha + 127) / 255);
+        }
+        return result;
     }
 
     /// <summary>
@@ -1269,7 +1295,43 @@ public sealed class GlCore : IGpuBackend
                 RecompOne.Runtime.Diagnostics.DrawEnvWarn.TintBackground ? 1f : 0f);
         _gl.DrawArrays(PrimitiveType.TriangleStrip, 0, 4);
         _gl.ActiveTexture(TextureUnit.Texture0);
+        if (AuditComposite && _frame != _lastCompositeAudit)
+        {
+            _lastCompositeAudit = _frame;
+            AuditWideComposite(src, w, h);
+        }
         return _wideCompleteTex;
+    }
+
+    unsafe void AuditWideComposite(GlDisplayRt src, int w, int h)
+    {
+        // Numeric framebuffer invariants only. No images are written or exposed.
+        byte[] Read(uint fbo)
+        {
+            byte[] pixels = new byte[checked(w * h * 4)];
+            _gl.BindFramebuffer(FramebufferTarget.Framebuffer, fbo);
+            fixed (byte* pointer = pixels)
+                _gl.ReadPixels(0, 0, (uint)w, (uint)h, PixelFormat.Rgba, PixelType.UnsignedByte, pointer);
+            return pixels;
+        }
+        var before = Read(_presentFbo);
+        var after = Read(_wideCompleteFbo);
+        var coverage = Read(src.CoverageFbo);
+        long changed = 0, drawnChanged = 0, worldChanged = 0, drawn = 0;
+        for (int i = 0; i < before.Length; i += 4)
+        {
+            bool visible = coverage[i] >= 128;
+            if (visible) drawn++;
+            int delta = Math.Max(Math.Abs(before[i] - after[i]),
+                Math.Max(Math.Abs(before[i + 1] - after[i + 1]), Math.Abs(before[i + 2] - after[i + 2])));
+            if (delta <= 1) continue;
+            changed++;
+            if (visible) drawnChanged++;
+            if (visible && coverage[i + 1] >= 128) worldChanged++;
+        }
+        Console.WriteLine($"[composite-audit] render-frame={_frame} size={w}x{h} " +
+            $"changed={changed} drawn={drawn} drawn-changed={drawnChanged} world-changed={worldChanged}");
+        _gl.BindFramebuffer(FramebufferTarget.Framebuffer, _wideCompleteFbo);
     }
 
     unsafe uint ApplyFxaa(uint srcTex, int w, int h)

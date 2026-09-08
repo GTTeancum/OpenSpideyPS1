@@ -8,9 +8,12 @@ public static class Gte
     static int IR0, IR1, IR2, IR3;
     static readonly short[] SX = new short[3];
     static readonly short[] SY = new short[3];
-    static readonly ushort[] ScreenZ = new ushort[3];
+    static readonly float[] ScreenZ = new float[3];
     static readonly float[] ScreenX = new float[3];
     static readonly float[] ScreenY = new float[3];
+    static readonly uint[] ScreenNative = new uint[3];
+    static readonly bool[] ScreenPrecise = new bool[3];
+    public static long PreciseCullCorrections;
     static readonly ushort[] SZ = new ushort[4];
     static readonly uint[] RGB = new uint[3];
     static uint RES1;
@@ -207,8 +210,22 @@ public static class Gte
         ScreenZ[0] = ScreenZ[1]; ScreenZ[1] = ScreenZ[2]; ScreenZ[2] = SZ[3];
         ScreenX[0] = ScreenX[1]; ScreenX[1] = ScreenX[2];
         ScreenY[0] = ScreenY[1]; ScreenY[1] = ScreenY[2];
-        ScreenX[2] = Math.Clamp(sx / 65536f, -1024f, 1023f);
-        ScreenY[2] = Math.Clamp(sy / 65536f, -1024f, 1023f);
+        ScreenNative[0] = ScreenNative[1]; ScreenNative[1] = ScreenNative[2]; ScreenNative[2] = 0;
+        ScreenPrecise[0] = ScreenPrecise[1]; ScreenPrecise[1] = ScreenPrecise[2]; ScreenPrecise[2] = sz > 0;
+        // Keep native SXY saturation above for game logic. The host rasterizer
+        // must clip the original projection: clamping an offscreen endpoint
+        // first changes interpolation across the visible portion of its face.
+        ScreenX[2] = ProjectionFloat(sx);
+        ScreenY[2] = ProjectionFloat(sy);
+        if (sz > 0 && sz * 2 <= H)
+        {
+            // The console caps the perspective reciprocal at almost 2. Near
+            // vertices still need their true projection for host interpolation;
+            // otherwise a subdivided floor bends toward the camera and opens up.
+            ScreenX[2] = (float)((double)H * IR1 / sz * Hle.GpuHle.FovNum / Hle.GpuHle.FovDen + OFX / 65536.0);
+            ScreenY[2] = (float)((double)H * IR2 / sz + OFY / 65536.0);
+            ScreenNative[2] = 0x80000000u | ((uint)(ushort)(short)nx & 0x7FFu) | (((uint)(ushort)(short)ny & 0x7FFu) << 16);
+        }
 
         // What the world looks like on screen, recorded so a widescreen hack can tell
         // world geometry from the HUD by where it came from rather than by its shape.
@@ -241,6 +258,19 @@ public static class Gte
                 break;
             case 0x06:
                 MAC0 = (int)CheckMac0((long)SX[0] * (SY[1] - SY[2]) + (long)SX[1] * (SY[2] - SY[0]) + (long)SX[2] * (SY[0] - SY[1]));
+                if (ScreenPrecise[0] && ScreenPrecise[1] && ScreenPrecise[2])
+                {
+                    double area = ((double)ScreenX[1] - ScreenX[0]) * ((double)ScreenY[2] - ScreenY[0]) -
+                        ((double)ScreenY[1] - ScreenY[0]) * ((double)ScreenX[2] - ScreenX[0]);
+                    // Retain the native magnitude used for subdivision thresholds.
+                    // Only correct winding when integer SXY rounding disagrees with
+                    // the precise geometry that the host will actually rasterize.
+                    if (Math.Abs(area) > 1e-8 && Math.Sign(area) != Math.Sign(MAC0))
+                    {
+                        MAC0 = area > 0 ? 1 : -1;
+                        PreciseCullCorrections++;
+                    }
+                }
                 break;
             case 0x2D:
                 MAC0 = (int)CheckMac0((long)ZSF3 * (SZ[1] + SZ[2] + SZ[3]));
@@ -389,6 +419,16 @@ public static class Gte
         }
     }
 
+    static float ProjectionFloat(long fixedPoint)
+    {
+        float result = (float)(fixedPoint / 65536.0);
+        // A float can round a value just below an integer up to that integer.
+        // Keep it in the native SXY bin, or final provenance validation drops
+        // the fractions and causes a full-pixel snap at that boundary.
+        if (Math.Floor(result) > (fixedPoint >> 16)) result = MathF.BitDecrement(result);
+        return result;
+    }
+
     public static void ReadTo(Context.CpuContext context, int cpuRegister, int gteRegister)
     {
         uint value = Read(gteRegister);
@@ -399,11 +439,12 @@ public static class Gte
             14 or 15 => ScreenZ[2],
             _ => 0f,
         };
-        bool screen = gteRegister is 12 or 13 or 14 or 15 && depth > 0f;
         int screenIndex = gteRegister switch { 12 => 0, 13 => 1, _ => 2 };
+        bool screen = gteRegister is 12 or 13 or 14 or 15 && depth > 0f && ScreenPrecise[screenIndex];
         context.SetGteRead(cpuRegister, value, new Hardware.GteScreen.VertexTag(depth,
             screen ? ScreenX[screenIndex] : 0f,
-            screen ? ScreenY[screenIndex] : 0f, screen));
+            screen ? ScreenY[screenIndex] : 0f, screen)
+            { NativeScreen = screen ? ScreenNative[screenIndex] : 0u });
     }
 
     static uint ReadScreen(int screenIndex)
@@ -414,6 +455,11 @@ public static class Gte
 
     public static void Write(int reg, uint val)
     {
+        if (reg is >= 12 and <= 14) ScreenPrecise[reg - 12] = false;
+        else if (reg == 15)
+        {
+            ScreenPrecise[0] = ScreenPrecise[1]; ScreenPrecise[1] = ScreenPrecise[2]; ScreenPrecise[2] = false;
+        }
         switch (reg)
         {
             case 0: V[0] = (short)val; V[1] = (short)(val >> 16); break;
@@ -428,14 +474,15 @@ public static class Gte
             case 9: IR1 = (short)val; break;
             case 10: IR2 = (short)val; break;
             case 11: IR3 = (short)val; break;
-            case 12: SX[0] = (short)val; SY[0] = (short)(val >> 16); ScreenZ[0] = 0; ScreenX[0] = ScreenY[0] = 0; break;
-            case 13: SX[1] = (short)val; SY[1] = (short)(val >> 16); ScreenZ[1] = 0; ScreenX[1] = ScreenY[1] = 0; break;
-            case 14: SX[2] = (short)val; SY[2] = (short)(val >> 16); ScreenZ[2] = 0; ScreenX[2] = ScreenY[2] = 0; break;
+            case 12: SX[0] = (short)val; SY[0] = (short)(val >> 16); ScreenZ[0] = 0; ScreenX[0] = ScreenY[0] = 0; ScreenNative[0] = 0; break;
+            case 13: SX[1] = (short)val; SY[1] = (short)(val >> 16); ScreenZ[1] = 0; ScreenX[1] = ScreenY[1] = 0; ScreenNative[1] = 0; break;
+            case 14: SX[2] = (short)val; SY[2] = (short)(val >> 16); ScreenZ[2] = 0; ScreenX[2] = ScreenY[2] = 0; ScreenNative[2] = 0; break;
             case 15:
                 SX[0] = SX[1]; SY[0] = SY[1]; SX[1] = SX[2]; SY[1] = SY[2];
                 ScreenZ[0] = ScreenZ[1]; ScreenZ[1] = ScreenZ[2];
                 ScreenX[0] = ScreenX[1]; ScreenX[1] = ScreenX[2];
                 ScreenY[0] = ScreenY[1]; ScreenY[1] = ScreenY[2];
+                ScreenNative[0] = ScreenNative[1]; ScreenNative[1] = ScreenNative[2]; ScreenNative[2] = 0;
                 SX[2] = (short)val; SY[2] = (short)(val >> 16);
                 ScreenZ[2] = 0;
                 ScreenX[2] = ScreenY[2] = 0;
@@ -548,6 +595,9 @@ public static class Gte
 
     public static void LoadWord(int reg, uint val) => Write(reg, val);
 
+    public static void WriteFrom(Context.CpuContext context, int reg, int source)
+        => WriteProjected(reg, context[source], context.GetGteVertexTag(source));
+
     /// <summary>
     /// Load a GTE data register while preserving the exact projection depth attached
     /// to an SXY word previously stored in RAM. Games commonly stage projected
@@ -560,12 +610,19 @@ public static class Gte
         Hardware.GteScreen.VertexTag tag = memory is Memory.PSMemory ps &&
             ps.TryGetGteVertex(address, value, out var found) ? found : default;
 
+        WriteProjected(reg, value, tag);
+    }
+
+    static void WriteProjected(int reg, uint value, Hardware.GteScreen.VertexTag tag)
+    {
         // Write first so register 15 performs its normal SXY FIFO shift, then attach
         // the recovered depth to the same destination slot as the loaded coordinate.
         Write(reg, value);
         if (tag.Depth <= 0f) return;
 
-        ushort screenDepth = (ushort)Math.Clamp(tag.Depth, 1f, ushort.MaxValue);
+        float screenDepth = tag.Depth;
+        if (reg is >= 12 and <= 15) ScreenPrecise[Math.Min(reg - 12, 2)] = tag.HasSubpixel;
+        if (reg is >= 12 and <= 15) ScreenNative[Math.Min(reg - 12, 2)] = tag.NativeScreen;
         switch (reg)
         {
             case 12: ScreenZ[0] = screenDepth; if (tag.HasSubpixel) { ScreenX[0] = tag.ScreenX; ScreenY[0] = tag.ScreenY; } break;
@@ -587,12 +644,13 @@ public static class Gte
             14 or 15 => ScreenZ[2],
             _ => 0f,
         };
-        bool screen = gteRegister is 12 or 13 or 14 or 15 && depth > 0f;
         int screenIndex = gteRegister switch { 12 => 0, 13 => 1, _ => 2 };
+        bool screen = gteRegister is 12 or 13 or 14 or 15 && depth > 0f && ScreenPrecise[screenIndex];
         Hardware.GteScreen.StoreU32(memory, address, value,
             new Hardware.GteScreen.VertexTag(depth,
                 screen ? ScreenX[screenIndex] : 0f,
-                screen ? ScreenY[screenIndex] : 0f, screen));
+                screen ? ScreenY[screenIndex] : 0f, screen)
+                { NativeScreen = screen ? ScreenNative[screenIndex] : 0u });
     }
     public static bool GetCondition() => false;
 }

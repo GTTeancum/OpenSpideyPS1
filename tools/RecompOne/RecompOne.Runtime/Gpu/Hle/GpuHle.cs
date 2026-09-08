@@ -14,6 +14,13 @@ public static class GpuHle
     public static float TargetAspect { get; set; } = 4f / 3f;
     public const float BaseAspect = 4f / 3f;
 
+    /// <summary>
+    /// Set by a title patch when its projection and HUD paths support a player-facing
+    /// 4:3/16:9 switch. The generic runtime does not offer a fake stretch mode.
+    /// </summary>
+    public static bool WidescreenSupported { get; set; }
+    public static bool WidescreenDefault { get; set; }
+
     /// <summary>Apply FXAA to the final host-resolution frame. Enabled by default.</summary>
     public static bool FxaaEnabled { get; set; } = true;
 
@@ -24,6 +31,8 @@ public static class GpuHle
     public static long PerspectiveTriangles, NoDepthTextureTriangles;
     public static long WorldPerspectiveTriangles, WorldNoDepthTextureTriangles;
     public static long ScreenTextureTriangles;
+    public static long WorldDepthFlatTriangles, WorldDepthVaryingTriangles;
+    public static long WorldDepthExtremeTriangles, WorldSubpixelVertices, WorldVertices;
     static readonly bool TracePerspective =
         Environment.GetEnvironmentVariable("RECOMP_PERSPECTIVE_TRACE") == "1";
 
@@ -51,12 +60,37 @@ public static class GpuHle
                               $"gte-loads={Volatile.Read(ref Hardware.GteScreen.TaggedLoads)} " +
                               $"packet-reads={Volatile.Read(ref Hardware.GteScreen.PacketReads)} " +
                               $"gp0-depth={Volatile.Read(ref Gpu.PacketWordsWithDepth)} " +
+                              $"mixed-depth-prims={Volatile.Read(ref Gpu.MixedDepthPrimitives)} " +
+                              $"depth-flat/varying/extreme=" +
+                              $"{Volatile.Read(ref WorldDepthFlatTriangles)}/" +
+                              $"{Volatile.Read(ref WorldDepthVaryingTriangles)}/" +
+                              $"{Volatile.Read(ref WorldDepthExtremeTriangles)} " +
+                              $"subpixel-verts={Volatile.Read(ref WorldSubpixelVertices)}/" +
+                              $"{Volatile.Read(ref WorldVertices)} " +
+                              $"oversize-accepted-x/y=" +
+                              $"{Volatile.Read(ref Gpu.WideSpanAccepted)}/" +
+                              $"{Volatile.Read(ref Gpu.TallSpanAccepted)} " +
                               $"world-depth-verts=" +
                               $"{Volatile.Read(ref Gpu.WorldDepthVertexCounts[0])}/" +
                               $"{Volatile.Read(ref Gpu.WorldDepthVertexCounts[1])}/" +
                               $"{Volatile.Read(ref Gpu.WorldDepthVertexCounts[2])}/" +
                               $"{Volatile.Read(ref Gpu.WorldDepthVertexCounts[3])}/" +
                               $"{Volatile.Read(ref Gpu.WorldDepthVertexCounts[4])}");
+    }
+
+    internal static void NoteWorldGeometry(float z0, float z1, float z2,
+        bool subpixel0, bool subpixel1, bool subpixel2)
+    {
+        if (!TracePerspective) return;
+        float lo = MathF.Min(z0, MathF.Min(z1, z2));
+        float hi = MathF.Max(z0, MathF.Max(z1, z2));
+        if (hi - lo < 0.5f) Interlocked.Increment(ref WorldDepthFlatTriangles);
+        else Interlocked.Increment(ref WorldDepthVaryingTriangles);
+        if (lo > 0f && hi / lo >= 8f)
+            Interlocked.Increment(ref WorldDepthExtremeTriangles);
+        Interlocked.Add(ref WorldSubpixelVertices,
+            (subpixel0 ? 1 : 0) + (subpixel1 ? 1 : 0) + (subpixel2 ? 1 : 0));
+        Interlocked.Add(ref WorldVertices, 3);
     }
 
     /// <summary>

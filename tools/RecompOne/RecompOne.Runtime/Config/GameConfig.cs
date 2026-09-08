@@ -68,6 +68,11 @@ public class GameConfig
     public float SpuVolume { get; set; } = 1.0f;
     public float XaVolume { get; set; } = 1.0f;
     public bool Muted { get; set; } = false;
+    /// <summary>
+    /// Player-selected gameplay aspect ratio. Null lets each title supply its intended
+    /// default while keeping older settings files compatible.
+    /// </summary>
+    public bool? Widescreen { get; set; }
     public KeyBindings Keys { get; set; } = new();
     public KeyBindings Keys2 { get; set; } = KeyBindings.Empty();
     public GamepadBindings Pad { get; set; } = new();

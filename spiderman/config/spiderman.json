@@ -221,6 +221,12 @@
     },
     {
       "overlay": "main",
+      "function": "func_80065584",
+      "mode": "pre",
+      "target": "Recompiled.OverlayPatches.HeapShrink"
+    },
+    {
+      "overlay": "main",
       "function": "func_80018800",
       "mode": "pre",
       "target": "Recompiled.LevelSwitch.SelectDescriptor"
@@ -416,6 +422,60 @@
       "function": "func_80074C98",
       "mode": "post",
       "target": "Recompiled.ModelDiagnostics.ParseExit"
+    },
+    {
+      "overlay": "main",
+      "function": "func_8007B1B4",
+      "mode": "pre",
+      "target": "Recompiled.WorldFrustum.Enter"
+    },
+    {
+      "overlay": "main",
+      "function": "func_8007B1B4",
+      "mode": "post",
+      "target": "Recompiled.WorldFrustum.Exit"
+    },
+    {
+      "overlay": "main",
+      "function": "func_8007C2AC",
+      "mode": "pre",
+      "target": "Recompiled.WorldGeometryTrace.TransformEnter"
+    },
+    {
+      "overlay": "main",
+      "function": "func_8007C2AC",
+      "mode": "post",
+      "target": "Recompiled.WorldGeometryTrace.TransformExit"
+    },
+    {
+      "overlay": "main",
+      "function": "func_8007D2D8",
+      "mode": "pre",
+      "target": "Recompiled.WorldSubpixel.SetSubdivisionCorners"
+    },
+    {
+      "overlay": "main",
+      "function": "func_8007D534",
+      "mode": "pre",
+      "target": "Recompiled.WorldSubpixel.EdgeEnter"
+    },
+    {
+      "overlay": "main",
+      "function": "func_8007D534",
+      "mode": "post",
+      "target": "Recompiled.WorldSubpixel.EdgeExit"
+    },
+    {
+      "overlay": "main",
+      "function": "func_8007D33C",
+      "mode": "pre",
+      "target": "Recompiled.WorldSubpixel.SubdivisionEnter"
+    },
+    {
+      "overlay": "main",
+      "function": "func_8007D33C",
+      "mode": "post",
+      "target": "Recompiled.WorldSubpixel.SubdivisionExit"
     },
     {
       "overlay": "main",

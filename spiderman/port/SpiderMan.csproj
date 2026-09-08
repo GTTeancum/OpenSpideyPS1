@@ -69,7 +69,10 @@
 
     <ItemGroup>
         <!-- Deterministic ship payload; materialized beside the executable on first run. -->
-        <EmbeddedResource Include="bundled\runtime-assets.zip">
+        <EmbeddedResource Include="bundled\runtime-assets.zip" Condition="'$(BundledAssetPayload)' == ''">
+            <LogicalName>OpenSpidey.BundledAssets.zip</LogicalName>
+        </EmbeddedResource>
+        <EmbeddedResource Include="$(BundledAssetPayload)" Condition="'$(BundledAssetPayload)' != ''">
             <LogicalName>OpenSpidey.BundledAssets.zip</LogicalName>
         </EmbeddedResource>
     </ItemGroup>

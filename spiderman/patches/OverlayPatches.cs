@@ -160,4 +160,16 @@ public static class OverlayPatches
         if (RecompOne.Runtime.Assets.LooseWadOverrides.TryFree(c.A0)) return false;
         return !(c.A0 >= RegionLo && c.A0 < RegionHi);
     }
+
+    /// <summary>
+    /// The model loader shrinks each WAD allocation after relocating its contents.
+    /// Expanded-RAM overrides have no retail-heap header, so letting the retail
+    /// shrink routine process one inserts an out-of-range block into the PS1 heap's
+    /// free lists. Keep the harmless sector-rounded tail until the actor is freed;
+    /// LooseWadOverrides owns and reclaims the complete allocation.
+    /// </summary>
+    public static bool HeapShrink(CpuContext c, IMemory m)
+    {
+        return !RecompOne.Runtime.Assets.LooseWadOverrides.OwnsAllocation(c.A0);
+    }
 }

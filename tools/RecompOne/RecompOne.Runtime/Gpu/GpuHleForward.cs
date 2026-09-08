@@ -4,6 +4,9 @@ namespace RecompOne.Runtime;
 
 public sealed partial class Gpu
 {
+    // Opt-in geometry-only inspection: remove texture cutouts from one CLUT's
+    // triangles without changing vertex positions, culling or primitive ordering.
+    static readonly int SolidGeometryClut = int.TryParse(Environment.GetEnvironmentVariable("RECOMP_SOLID_GEOMETRY_CLUT"), out var solidClut) ? solidClut : -1;
     static bool HleOn => GpuHle.Active && GpuHle.Backend is { Ready: true };
 
     int CurTPage() => ((_texPageX / 64) & 0xf) | (((_texPageY / 256) & 1) << 4)
@@ -18,6 +21,10 @@ public sealed partial class Gpu
 
     static HleVertex HV(in Vert v) => new()
     {
+        // At 4x, retaining only the PS1 packet's integer SXY magnifies vertex snapping
+        // into visible texture swim and cracks between adjacent polygons. The sidecar
+        // reaches this point only when its rounded SXY was validated against the exact
+        // packet word, so a derived or moved coordinate cannot reuse stale geometry.
         X = v.HasSubpixel ? v.RenderX : v.X,
         Y = v.HasSubpixel ? v.RenderY : v.Y,
         R = (byte)v.R, G = (byte)v.G, B = (byte)v.B, U = (short)v.U, V = (short)v.V,
@@ -42,12 +49,24 @@ public sealed partial class Gpu
         int spanY = Math.Max(a.Y, Math.Max(b.Y, c.Y)) - Math.Min(a.Y, Math.Min(b.Y, c.Y));
         if (RejectSpan(spanX, spanY)) return;
 
+        if (tex && world)
+            GpuHle.NoteWorldGeometry(a.Z, b.Z, c.Z,
+                a.HasSubpixel, b.HasSubpixel, c.HasSubpixel);
+
         var be = GpuHle.Backend!;
         be.SetDrawEnv(CurEnv());
         if (tex) GpuHle.NoteTextureTriangle(a.HasGteZ && b.HasGteZ && c.HasGteZ, world);
-        be.DrawTri(HV(a), HV(b), HV(c),
-            PrimOf(tex, semi, raw, clut, gouraud, world, hud, background,
-                ignoreCoverage));
+        var flags = PrimOf(tex, semi, raw, clut, gouraud, world, hud, background, ignoreCoverage);
+        GeometryTrace.Triangle(HV(a), HV(b), HV(c), CurEnv(), flags);
+        if (world && tex && clut == SolidGeometryClut)
+        {
+            var va = HV(a); var vb = HV(b); var vc = HV(c);
+            va.R = va.G = va.B = vb.R = vb.G = vb.B = vc.R = vc.G = vc.B = 255;
+            flags.Textured = false; flags.Gouraud = false; flags.SemiTrans = false;
+            be.DrawTri(va, vb, vc, flags);
+            return;
+        }
+        be.DrawTri(HV(a), HV(b), HV(c), flags);
     }
 
     void HleRect(int x, int y, int w, int h, int u, int v, int clut, int r,

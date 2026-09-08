@@ -455,7 +455,8 @@ internal static class GlShaders
                 vec2 t = (fuv - uRepRect.xy) / uRepRect.zw;
                 vec4 img = texture(uRepTex, t);
                 if (img.a < 0.5) discard;
-                ivec3 e8 = (ivec3(img.rgb * 255.0 + 0.5) * ivec3(affineColor.rgb * 255.0 + 0.5)) >> 7;
+                vec3 straightRgb = img.rgb / max(img.a, 0.000001);
+                ivec3 e8 = (ivec3(straightRgb * 255.0 + 0.5) * ivec3(affineColor.rgb * 255.0 + 0.5)) >> 7;
                 float stp = img.a < 0.95 ? 1.0 : 0.0;
                 // Replacement art is host-GPU data, not PS1 VRAM data. Keep
                 // the full 8-bit result instead of applying console-era
@@ -967,7 +968,8 @@ internal static class GlShaders
                     vec2 t = (fuv - uRepRect.xy) / uRepRect.zw;
                     vec4 img = texture2D(uRepTex, t);
                     if (img.a < 0.5) discard;
-                    rgb = floor(img.rgb * 255.0 + 0.5) * floor(affineColor.rgb * 255.0 + 0.5) / 128.0;
+                    vec3 straightRgb = img.rgb / max(img.a, 0.000001);
+                    rgb = floor(straightRgb * 255.0 + 0.5) * floor(affineColor.rgb * 255.0 + 0.5) / 128.0;
                     stp = img.a < 0.95 ? 1.0 : 0.0;
                     mask = max(stp, uSetMask);
                     hostReplacement = 1.0;

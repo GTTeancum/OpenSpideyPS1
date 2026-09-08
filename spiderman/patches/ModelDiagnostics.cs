@@ -19,7 +19,14 @@ public static class ModelDiagnostics
         !string.IsNullOrWhiteSpace(Environment.GetEnvironmentVariable("RECOMP_TRACE_MODEL_STITCHES"));
     static readonly bool ValidationEnabled =
         !string.IsNullOrWhiteSpace(Environment.GetEnvironmentVariable("RECOMP_VALIDATE_MODEL_GEOMETRY"));
-    static readonly bool Enabled = TraceEnabled || ValidationEnabled;
+    static readonly bool LightingEnabled =
+        Environment.GetEnvironmentVariable("RECOMP_AUDIT_PLAYER_LIGHTING") == "1";
+    static readonly string LayoutFilter =
+        Environment.GetEnvironmentVariable("RECOMP_TRACE_MODEL_LAYOUT")?.Trim() ?? "";
+    static readonly bool LayoutEnabled = LayoutFilter.Length != 0;
+    static readonly bool Enabled = TraceEnabled || ValidationEnabled || LayoutEnabled || LightingEnabled;
+
+    readonly record struct MeshIdentity(uint Slot, string ModelName, int MeshIndex, int MeshCount);
 
     static uint _parseSlot;
     static uint _sourceBase;
@@ -31,9 +38,16 @@ public static class ModelDiagnostics
     static uint _activeVertexCount;
     static uint _activeOutputPointer;
     static int _activePlayerMesh = -1;
+    static MeshIdentity? _activeIdentity;
     static readonly Dictionary<uint, int> _playerVertexPointers = [];
+    static readonly Dictionary<uint, MeshIdentity> _meshVertexPointers = [];
     static readonly HashSet<long> _auditedFaceBatches = [];
     static readonly HashSet<uint> _seenMeshes = [];
+    static bool _layoutSequenceMatched;
+    static int _layoutSequenceTransforms;
+    static int _layoutMinX = int.MaxValue, _layoutMaxX = int.MinValue;
+    static int _layoutMinY = int.MaxValue, _layoutMaxY = int.MinValue;
+    static int _layoutMinZ = int.MaxValue, _layoutMaxZ = int.MinValue;
 
     public static void ParseEnter(CpuContext c, IMemory m)
     {
@@ -49,6 +63,7 @@ public static class ModelDiagnostics
         uint pointerTable = m.ReadU32(entry + 0x10u);
         if (pointerTable < 4) return;
         uint meshCount = m.ReadU32(pointerTable - 4u);
+        string modelName = ReadCString(m, entry, 16);
         int sources = 0;
         int references = 0;
         int malformed = 0;
@@ -57,12 +72,15 @@ public static class ModelDiagnostics
         {
             uint model = m.ReadU32(pointerTable + mesh * 4u);
             uint vertexCount = m.ReadU16(model + 2u);
+            uint vertices = model + 0x1Cu;
+            if (LayoutEnabled || LightingEnabled)
+                _meshVertexPointers[vertices] = new MeshIdentity(
+                    _parseSlot, modelName, checked((int)mesh), checked((int)meshCount));
             // Spider-Man moves from title slot 2 to level slot 12 in L1A1.
             // Other 18-part actors (notably Black Cat) use different face packet
             // layouts, so including them creates false player-geometry failures.
             if (meshCount == 18)
             {
-                uint vertices = model + 0x1Cu;
                 if (_parseSlot == 2 || _parseSlot == 12)
                     _playerVertexPointers[vertices] = checked((int)mesh);
                 else
@@ -78,7 +96,6 @@ public static class ModelDiagnostics
             {
                 if (TraceEnabled)
                 {
-                    uint vertices = model + 0x1Cu;
                     string samples = vertexCount > 95
                         ? $" 60={RawPoint(m, vertices, 60)} " +
                           $"93={RawPoint(m, vertices, 93)} " +
@@ -107,6 +124,10 @@ public static class ModelDiagnostics
             Console.WriteLine(
                 $"[model-stitch] parsed slot={_parseSlot} meshes={meshCount} " +
                 $"sources={sources} refs={references} max-ref={maxReference} malformed={malformed}");
+        if (LayoutEnabled && ModelMatches(modelName))
+            Console.WriteLine(
+                $"[model-layout-loaded] slot={_parseSlot} name={modelName} meshes={meshCount} " +
+                $"parts={m.ReadU16(entry + 0x34u)} pointer-table=0x{pointerTable:X8}");
     }
 
     public static void TransformEnter(CpuContext c, IMemory m)
@@ -116,6 +137,7 @@ public static class ModelDiagnostics
         uint sourcePointer = m.ReadU32(0x800B5940u);
         if (_sourceBase == 0 || sourcePointer > _lastSourcePointer)
         {
+            FlushLayoutSequence();
             _sourceBase = sourcePointer;
             _sequence++;
             _call = 0;
@@ -130,6 +152,9 @@ public static class ModelDiagnostics
         _activePlayerMesh = _playerVertexPointers.TryGetValue(c.A0, out int playerMesh)
             ? playerMesh
             : -1;
+        _activeIdentity = _meshVertexPointers.TryGetValue(c.A0, out MeshIdentity identity)
+            ? identity
+            : null;
 
         if (_activePlayerMesh == 7 && TraceEnabled)
             DumpHeadTransform(c, m);
@@ -161,25 +186,69 @@ public static class ModelDiagnostics
                 $"source-ptr=0x{sourcePointer:X8} vertices-ptr=0x{c.A0:X8}");
         }
 
+        if (LayoutEnabled && _activeIdentity is MeshIdentity layout && ModelMatches(layout.ModelName))
+            Console.WriteLine(
+                $"[model-layout-stitches] sequence={_sequence} mesh={layout.MeshIndex} " +
+                $"caller=0x{c.RA:X8} output=0x{_activeOutputPointer:X8} " +
+                $"source=0x{sourcePointer:X8} prior={priorSources} sources={localSources} " +
+                $"refs={references} max-ref={maxReference} premature={premature}");
+
         _call++;
         _lastSourcePointer = sourcePointer - checked((uint)localSources * 8u);
     }
 
     public static void TransformExit(CpuContext c, IMemory m)
     {
-        if (!TraceEnabled || _activePlayerMesh < 0 || _activeVertexCount == 0) return;
+        bool tracePlayer = TraceEnabled && _activePlayerMesh >= 0;
+        MeshIdentity identity = _activeIdentity.GetValueOrDefault();
+        bool traceLayout = LayoutEnabled && _activeIdentity.HasValue && ModelMatches(identity.ModelName);
+        if ((!tracePlayer && !traceLayout) || _activeVertexCount == 0) return;
+
+        if (traceLayout && m is PSMemory ps)
+        {
+            int stitches = 0, nativeMismatch = 0, projectionMismatch = 0, missingProjection = 0;
+            float maxDelta = 0;
+            for (uint index = 0; index < _activeVertexCount; index++)
+            {
+                uint input = _activeVertexPointer + index * 8u;
+                if ((m.ReadU16(input + 6u) & 2) == 0) continue;
+                stitches++;
+                // The transform's T3 is outputBase+0x1F38. Parsed stitch X is
+                // the byte offset subtracted from this fixed source origin.
+                uint source = _activeOutputPointer + 0x1F38u - m.ReadU16(input);
+                uint output = _activeOutputPointer + index * 8u;
+                uint sourceWord = m.ReadU32(source), outputWord = m.ReadU32(output);
+                if (sourceWord != outputWord || m.ReadU32(source + 4u) != m.ReadU32(output + 4u)) nativeMismatch++;
+                bool hasSource = ps.TryGetGteVertex(source, sourceWord, out var sourceTag) && sourceTag.HasSubpixel;
+                bool hasOutput = ps.TryGetGteVertex(output, outputWord, out var outputTag) && outputTag.HasSubpixel;
+                if (!hasSource || !hasOutput) missingProjection++;
+                else
+                {
+                    if (sourceTag != outputTag) projectionMismatch++;
+                    maxDelta = Math.Max(maxDelta, Math.Max(Math.Abs(sourceTag.ScreenX - outputTag.ScreenX),
+                        Math.Abs(sourceTag.ScreenY - outputTag.ScreenY)));
+                }
+            }
+            if (stitches != 0)
+                Console.WriteLine($"[model-shared-vertices] sequence={_sequence} name={identity.ModelName} mesh={identity.MeshIndex} " +
+                    $"stitches={stitches} native-mismatch={nativeMismatch} projection-mismatch={projectionMismatch} " +
+                    $"missing-projection={missingProjection} max-screen-delta={maxDelta:R}");
+        }
 
         int outliers = 0;
         int rigidMinX = int.MaxValue, rigidMaxX = int.MinValue;
         int rigidMinY = int.MaxValue, rigidMaxY = int.MinValue;
         int stitchMinX = int.MaxValue, stitchMaxX = int.MinValue;
         int stitchMinY = int.MaxValue, stitchMaxY = int.MinValue;
+        int minZ = int.MaxValue, maxZ = int.MinValue;
         for (uint index = 0; index < _activeVertexCount; index++)
         {
             uint input = _activeVertexPointer + index * 8u;
             uint output = _activeOutputPointer + index * 8u;
             short x = unchecked((short)m.ReadU16(output));
             short y = unchecked((short)m.ReadU16(output + 2u));
+            short z = unchecked((short)m.ReadU16(output + 4u));
+            minZ = Math.Min(minZ, z); maxZ = Math.Max(maxZ, z);
             ushort flags = m.ReadU16(input + 6u);
             if ((flags & 2) != 0)
             {
@@ -194,12 +263,13 @@ public static class ModelDiagnostics
             if (x >= -640 && x <= 960 && y >= -480 && y <= 720) continue;
 
             ushort stitchOffset = m.ReadU16(input);
-            Console.WriteLine(
-                $"[model-mesh] sequence={_sequence} mesh={_activePlayerMesh} vertex={index} xy=({x},{y}) " +
-                $"type={(flags & 3)} stitch={(flags & 2) != 0} offset={stitchOffset}");
+            if (tracePlayer)
+                Console.WriteLine(
+                    $"[model-mesh] sequence={_sequence} mesh={_activePlayerMesh} vertex={index} xy=({x},{y}) " +
+                    $"type={(flags & 3)} stitch={(flags & 2) != 0} offset={stitchOffset}");
             outliers++;
         }
-        if (outliers != 0)
+        if (tracePlayer && outliers != 0)
             Console.WriteLine(
                 $"[model-mesh] sequence={_sequence} mesh={_activePlayerMesh} outliers={outliers}/{_activeVertexCount}");
 
@@ -207,7 +277,19 @@ public static class ModelDiagnostics
         int maxX = Math.Max(rigidMaxX, stitchMaxX);
         int minY = Math.Min(rigidMinY, stitchMinY);
         int maxY = Math.Max(rigidMaxY, stitchMaxY);
-        if (_sequence <= 3 || maxX - minX > 320 || maxY - minY > 320)
+        if (traceLayout)
+        {
+            _layoutSequenceMatched = true;
+            _layoutSequenceTransforms++;
+            _layoutMinX = Math.Min(_layoutMinX, minX); _layoutMaxX = Math.Max(_layoutMaxX, maxX);
+            _layoutMinY = Math.Min(_layoutMinY, minY); _layoutMaxY = Math.Max(_layoutMaxY, maxY);
+            _layoutMinZ = Math.Min(_layoutMinZ, minZ); _layoutMaxZ = Math.Max(_layoutMaxZ, maxZ);
+            Console.WriteLine(
+                $"[model-layout-transform] sequence={_sequence} slot={identity.Slot} name={identity.ModelName} " +
+                $"mesh={identity.MeshIndex}/{identity.MeshCount} vertices={_activeVertexCount} " +
+                $"xyz=({minX},{minY},{minZ})..({maxX},{maxY},{maxZ})");
+        }
+        if (tracePlayer && (_sequence <= 3 || maxX - minX > 320 || maxY - minY > 320))
         {
             Console.WriteLine(
                 $"[model-mesh-bounds] sequence={_sequence} mesh={_activePlayerMesh} all=({minX},{minY})..({maxX},{maxY}) " +
@@ -224,6 +306,9 @@ public static class ModelDiagnostics
 
     public static void DrawFacesEnter(CpuContext c, IMemory m)
     {
+        if (LightingEnabled && _activeIdentity is MeshIdentity actor &&
+            actor.ModelName.Equals("spidey", StringComparison.OrdinalIgnoreCase))
+            AuditLighting(c, m, actor);
         if (!Enabled || _activePlayerMesh < 0 || _activeVertexCount == 0 || c.A2 == 0)
             return;
         long batchKey = ((long)_sequence << 32) | (uint)_activePlayerMesh;
@@ -305,12 +390,96 @@ public static class ModelDiagnostics
         }
     }
 
+    static void AuditLighting(CpuContext c, IMemory m, MeshIdentity actor)
+    {
+        // Mirror DrawPrimSet's input color selection before depth cueing. Keep
+        // actor identity explicit: model arenas can reuse a previous player's address.
+        uint table = m.ReadU32(0x800B5914u);
+        uint faceMask = m.ReadU32(0x1F8003F4u);
+        uint face = c.A0;
+        long sumR = 0, sumG = 0, sumB = 0;
+        long shadeR = 0, shadeG = 0, shadeB = 0;
+        int shadeSamples = 0, shadeBlack = 0;
+        int samples = 0, black = 0, min = 765, max = 0, smooth = 0;
+        uint hash = 2166136261u;
+        for (uint i = 0; i < c.A2; i++)
+        {
+            ushort flags = m.ReadU16(face), length = m.ReadU16(face + 2u);
+            if (length < 16 || length > 256) break;
+            flags = (ushort)((flags & (faceMask >> 16)) | (faceMask & 65535u));
+            uint colors = m.ReadU32(face + 8u);
+            bool indexed = (flags & 0x0800) != 0;
+            int count = indexed ? ((flags & 0x20) != 0 ? 4 : 3) : 1;
+            if (indexed) smooth++;
+            for (int k = 0; k < count; k++)
+            {
+                uint rgb = indexed ? m.ReadU32(table + ((colors >> (k * 8)) & 255u) * 4u) : colors;
+                int r = (int)(rgb & 255), g = (int)((rgb >> 8) & 255), b = (int)((rgb >> 16) & 255);
+                sumR += r; sumG += g; sumB += b; samples++;
+                min = Math.Min(min, r + g + b); max = Math.Max(max, r + g + b);
+                if (r + g + b == 0) black++;
+                hash = unchecked((hash ^ (rgb & 0xffffffu)) * 16777619u);
+            }
+            // The 0xC mode reads packed vertex lighting from the parallel
+            // transformed buffer, not from the face's constant base color.
+            if ((flags & 0xC) == 0xC)
+            {
+                int corners = (flags & 0x20) != 0 ? 4 : 3;
+                for (int k = 0; k < corners; k++)
+                {
+                    uint index = m.ReadU8(face + 4u + (uint)k);
+                    if (index >= _activeVertexCount) continue;
+                    uint packed = m.ReadU32(_activeOutputPointer + index * 8u + 0x1F44u);
+                    int r = (ushort)(packed << 5), g = (ushort)(packed >> 6), b = (ushort)(packed >> 17);
+                    shadeR += r; shadeG += g; shadeB += b; shadeSamples++;
+                    if (r + g + b == 0) shadeBlack++;
+                }
+            }
+            face += length;
+        }
+        Console.WriteLine($"[player-lighting] sequence={_sequence} slot={actor.Slot} mesh={actor.MeshIndex} " +
+            $"faces={c.A2} smooth={smooth} samples={samples} sums={sumR},{sumG},{sumB} " +
+            $"range={min},{max} black={black} hash={hash:X8} table={table:X8} " +
+            $"shade-samples={shadeSamples} shade-sums={shadeR},{shadeG},{shadeB} shade-black={shadeBlack} " +
+            $"uniform-shade={m.ReadU32(0x1F8003E4u):X8} " +
+            $"fog-start={m.ReadU16(0x1F800284u)} fog-shift={m.ReadU16(0x1F800294u)} " +
+            $"face-mask={m.ReadU32(0x1F8003F4u):X8}");
+    }
+
     static string ScreenPoint(IMemory m, uint outputBase, uint index)
     {
         uint output = outputBase + index * 8u;
         short x = unchecked((short)m.ReadU16(output));
         short y = unchecked((short)m.ReadU16(output + 2u));
         return $"({x},{y})";
+    }
+
+    static bool ModelMatches(string modelName) =>
+        modelName.Contains(LayoutFilter, StringComparison.OrdinalIgnoreCase);
+
+    static string ReadCString(IMemory m, uint address, int max)
+    {
+        var chars = new char[max];
+        int length = 0;
+        for (; length < max; length++)
+        {
+            byte value = m.ReadU8(address + (uint)length);
+            if (value == 0) break;
+            chars[length] = value is >= 32 and <= 126 ? (char)value : '?';
+        }
+        return new string(chars, 0, length);
+    }
+
+    static void FlushLayoutSequence()
+    {
+        if (!_layoutSequenceMatched) return;
+        Console.WriteLine(
+            $"[model-layout-sequence] sequence={_sequence} transforms={_layoutSequenceTransforms} " +
+            $"xyz=({_layoutMinX},{_layoutMinY},{_layoutMinZ})..({_layoutMaxX},{_layoutMaxY},{_layoutMaxZ})");
+        _layoutSequenceMatched = false;
+        _layoutSequenceTransforms = 0;
+        _layoutMinX = _layoutMinY = _layoutMinZ = int.MaxValue;
+        _layoutMaxX = _layoutMaxY = _layoutMaxZ = int.MinValue;
     }
 
     static string RawPoint(IMemory m, uint inputBase, uint index)

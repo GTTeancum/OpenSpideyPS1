@@ -113,7 +113,9 @@ public static class InstructionEmitter
             {
                 0 => rt == 0 ? "" : $"RecompOne.Runtime.Gte.ReadTo(c, {rt}, {rd});",
                 2 => rt == 0 ? "" : $"{RT} = RecompOne.Runtime.Gte.ReadControl({rd});",
-                4 => $"RecompOne.Runtime.Gte.Write({rd}, {RT});",
+                4 => rd is >= 12 and <= 15
+                    ? $"RecompOne.Runtime.Gte.WriteFrom(c, {rd}, {rt});"
+                    : $"RecompOne.Runtime.Gte.Write({rd}, {RT});",
                 6 => $"RecompOne.Runtime.Gte.WriteControl({rd}, {RT});",
                 _ => $"/* COP2 rs={cop2rs} */"
             };

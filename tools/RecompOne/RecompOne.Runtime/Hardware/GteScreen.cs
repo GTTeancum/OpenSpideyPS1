@@ -30,10 +30,14 @@ public static class GteScreen
     public readonly record struct VertexTag(float Depth, float ScreenX, float ScreenY,
         bool HasSubpixel)
     {
+        // Explicitly certified native coordinate after a game's software clamp.
+        // Bit31 marks presence; only the GPU's signed11-bit coordinate bits matter.
+        public uint NativeScreen { get; init; }
         public static VertexTag DepthOnly(float depth) => new(depth, 0f, 0f, false);
     }
 
     public static long TaggedStores, TaggedLoads, PacketReads;
+    public static Func<uint, uint, VertexTag, VertexTag>? RamVertexTransform;
     /// <summary>
     /// Always enabled: projection provenance now supplies camera-space depth to the
     /// shared renderer as well as distinguishing world geometry from HUD primitives.
@@ -53,9 +57,11 @@ public static class GteScreen
     static readonly Dictionary<int, int>[] _depths =
         [new(8192), new(8192), new(8192), new(8192)];
     static int _cur;
+    static readonly bool TraceLoss = Environment.GetEnvironmentVariable("RECOMP_TRACE_SUBPIXEL_LOSS") == "1";
+    static readonly Dictionary<uint, int> _lossSamples = new();
 
-    readonly record struct RamDepth(uint Value, ushort Z, float ScreenX, float ScreenY,
-        bool HasSubpixel);
+    readonly record struct RamDepth(uint Value, float Z, float ScreenX, float ScreenY,
+        bool HasSubpixel, uint NativeScreen);
     static readonly Dictionary<uint, RamDepth> _ramDepths = new(32768);
 
     static int Key(int x, int y) => ((x & 0xFFFF) << 16) | (y & 0xFFFF);
@@ -66,8 +72,43 @@ public static class GteScreen
     public static void StoreU32(Memory.IMemory memory, uint address, uint value, VertexTag tag)
     {
         memory.WriteU32(address, value);
+        // Scratch intermediates can contain clipping flags or unpacked coordinates.
+        // Preserve provenance through those reversible encodings. Validate the final
+        // GPU coordinate, not every temporary representation of its source.
         if (tag.Depth > 0f && memory is Memory.PSMemory ps)
             ps.TagGteVertex(address, value, tag);
+    }
+
+    public static VertexTag ValidatePacketVertex(uint value, VertexTag tag)
+    {
+        if (tag.HasSubpixel && !MatchesPackedScreen(value, tag))
+        {
+            if (TraceLoss)
+            {
+                uint caller = Runtime.Cpu?.RA ?? 0;
+                _lossSamples.TryGetValue(caller, out int samples);
+                if (samples < 8)
+                {
+                    _lossSamples[caller] = samples + 1;
+                    Console.WriteLine($"[subpixel-packet-loss] caller=0x{caller:X8} " +
+                        $"word=0x{value:X8} xy=({(short)value},{(short)(value >> 16)}) " +
+                        $"projection=({tag.ScreenX:R},{tag.ScreenY:R},{tag.Depth:R})");
+                }
+            }
+            tag = VertexTag.DepthOnly(tag.Depth);
+        }
+        return tag;
+    }
+
+    static bool MatchesPackedScreen(uint value, VertexTag tag)
+    {
+        if ((tag.NativeScreen & 0x80000000u) != 0)
+            return (value & 0x07FF07FFu) == (tag.NativeScreen & 0x07FF07FFu);
+        int x = Math.Clamp((int)MathF.Floor(tag.ScreenX), -1024, 1023);
+        int y = Math.Clamp((int)MathF.Floor(tag.ScreenY), -1024, 1023);
+        uint packed = (uint)((ushort)(short)x | ((uint)(ushort)(short)y << 16));
+        // GP0 consumes signed 11-bit coordinates; the other bits are not position.
+        return (value & 0x07FF07FFu) == (packed & 0x07FF07FFu);
     }
 
     public static void LoadU32(Context.CpuContext context, int cpuRegister,
@@ -86,10 +127,9 @@ public static class GteScreen
     {
         ushort raw = memory.ReadU16(address);
         uint value = signed ? (uint)(short)raw : raw;
-        float depth = memory is Memory.PSMemory ps && ps.TryGetContainingGteDepth(address, out float z)
-            ? z : 0f;
-        if (depth > 0f) Interlocked.Increment(ref TaggedLoads);
-        context.SetGteRead(cpuRegister, value, VertexTag.DepthOnly(depth));
+        VertexTag tag = ContainingVertex(memory, address);
+        if (tag.Depth > 0f) Interlocked.Increment(ref TaggedLoads);
+        context.SetGteRead(cpuRegister, value, tag);
     }
 
     public static void LoadU8(Context.CpuContext context, int cpuRegister,
@@ -97,10 +137,22 @@ public static class GteScreen
     {
         byte raw = memory.ReadU8(address);
         uint value = signed ? (uint)(sbyte)raw : raw;
-        float depth = memory is Memory.PSMemory ps && ps.TryGetContainingGteDepth(address, out float z)
-            ? z : 0f;
-        if (depth > 0f) Interlocked.Increment(ref TaggedLoads);
-        context.SetGteRead(cpuRegister, value, VertexTag.DepthOnly(depth));
+        VertexTag tag = ContainingVertex(memory, address);
+        if (tag.Depth > 0f) Interlocked.Increment(ref TaggedLoads);
+        context.SetGteRead(cpuRegister, value, tag);
+    }
+
+    static VertexTag ContainingVertex(Memory.IMemory memory, uint address)
+    {
+        // Mesh packet builders also copy SXY as separate X/Y halfwords. Retain
+        // the common projection while those parts are unpacked and recombined;
+        // ValidatePacketVertex checks the final packed coordinate before using it.
+        // Dropping the fractions here makes adjacent packets disagree depending
+        // on which copy instructions their primitive format happens to use.
+        uint aligned = address & ~3u;
+        return memory is Memory.PSMemory ps &&
+            ps.TryGetGteVertex(aligned, memory.ReadU32(aligned), out VertexTag tag)
+                ? tag : default;
     }
 
     public static void Note(int x, int y, ushort z)
@@ -121,9 +173,10 @@ public static class GteScreen
     {
         if (tag.Depth > 0f)
         {
+            if (RamVertexTransform is { } transform) tag = transform(physicalAddress, value, tag);
             _ramDepths[physicalAddress] = new RamDepth(value,
-                (ushort)Math.Clamp(tag.Depth, 1f, ushort.MaxValue),
-                tag.ScreenX, tag.ScreenY, tag.HasSubpixel);
+                tag.Depth,
+                tag.ScreenX, tag.ScreenY, tag.HasSubpixel, tag.NativeScreen);
             Interlocked.Increment(ref TaggedStores);
         }
     }
@@ -151,7 +204,7 @@ public static class GteScreen
         {
             Interlocked.Increment(ref PacketReads);
             tag = new VertexTag(stored.Z, stored.ScreenX, stored.ScreenY,
-                stored.HasSubpixel);
+                stored.HasSubpixel) { NativeScreen = stored.NativeScreen };
             return true;
         }
         tag = default;

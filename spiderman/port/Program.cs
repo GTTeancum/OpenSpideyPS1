@@ -161,7 +161,9 @@ public static class Program
         Costume.Install();
         Rates.Install();
 
-        Wide.Install(completeBackdrop: true);
+        // Precise projected geometry supplies the wide view. Repeating pixels
+        // from the old 4:3 boundary invents stretched surfaces in uncovered areas.
+        Wide.Install();
         Replay.Install();
         Harness.Install();
 

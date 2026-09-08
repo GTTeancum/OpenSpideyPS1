@@ -7,6 +7,7 @@ public sealed class CpuContext
     private readonly float[] _gteScreenX = new float[32];
     private readonly float[] _gteScreenY = new float[32];
     private readonly bool[] _gteHasSubpixel = new bool[32];
+    private readonly uint[] _gteNativeScreen = new uint[32];
 
     uint Get(int index) => _gpr[index];
     void Set(int index, uint value)
@@ -20,6 +21,7 @@ public sealed class CpuContext
         _gteDepth[index] = 0f;
         _gteScreenX[index] = _gteScreenY[index] = 0f;
         _gteHasSubpixel[index] = false;
+        _gteNativeScreen[index] = 0;
     }
 
     public uint At { get => Get(1); set => Set(1, value); }
@@ -78,6 +80,7 @@ public sealed class CpuContext
         _gteScreenX[index] = tag.ScreenX;
         _gteScreenY[index] = tag.ScreenY;
         _gteHasSubpixel[index] = tag.HasSubpixel;
+        _gteNativeScreen[index] = tag.NativeScreen;
     }
 
     public void MoveGpr(int destination, int source)
@@ -88,6 +91,7 @@ public sealed class CpuContext
         _gteScreenX[destination] = source == 0 ? 0f : _gteScreenX[source];
         _gteScreenY[destination] = source == 0 ? 0f : _gteScreenY[source];
         _gteHasSubpixel[destination] = source != 0 && _gteHasSubpixel[source];
+        _gteNativeScreen[destination] = source == 0 ? 0u : _gteNativeScreen[source];
     }
 
     public void SetDerived(int destination, uint value, int source)
@@ -95,8 +99,10 @@ public sealed class CpuContext
         if (destination == 0) return;
         _gpr[destination] = value;
         _gteDepth[destination] = source == 0 ? 0f : _gteDepth[source];
-        _gteScreenX[destination] = _gteScreenY[destination] = 0f;
-        _gteHasSubpixel[destination] = false;
+        _gteScreenX[destination] = source == 0 ? 0f : _gteScreenX[source];
+        _gteScreenY[destination] = source == 0 ? 0f : _gteScreenY[source];
+        _gteHasSubpixel[destination] = source != 0 && _gteHasSubpixel[source];
+        _gteNativeScreen[destination] = source == 0 ? 0u : _gteNativeScreen[source];
     }
 
     public void SetDerived(int destination, uint value, int sourceA, int sourceB)
@@ -106,8 +112,18 @@ public sealed class CpuContext
         float a = sourceA == 0 ? 0f : _gteDepth[sourceA];
         float b = sourceB == 0 ? 0f : _gteDepth[sourceB];
         _gteDepth[destination] = a <= 0f ? b : b <= 0f || a == b ? a : 0f;
-        _gteScreenX[destination] = _gteScreenY[destination] = 0f;
-        _gteHasSubpixel[destination] = false;
+        bool hasA = sourceA != 0 && _gteHasSubpixel[sourceA];
+        bool hasB = sourceB != 0 && _gteHasSubpixel[sourceB];
+        bool sameProjection = hasA && hasB &&
+            _gteScreenX[sourceA] == _gteScreenX[sourceB] &&
+            _gteScreenY[sourceA] == _gteScreenY[sourceB] &&
+            _gteNativeScreen[sourceA] == _gteNativeScreen[sourceB];
+        int projectionSource = hasA && (!hasB || sameProjection) ? sourceA
+            : hasB && !hasA ? sourceB : 0;
+        _gteScreenX[destination] = projectionSource == 0 ? 0f : _gteScreenX[projectionSource];
+        _gteScreenY[destination] = projectionSource == 0 ? 0f : _gteScreenY[projectionSource];
+        _gteHasSubpixel[destination] = projectionSource != 0;
+        _gteNativeScreen[destination] = projectionSource == 0 ? 0u : _gteNativeScreen[projectionSource];
     }
 
     public float GetGteDepth(int index) => index == 0 ? 0f : _gteDepth[index];
@@ -115,7 +131,7 @@ public sealed class CpuContext
     public Hardware.GteScreen.VertexTag GetGteVertexTag(int index) => index == 0
         ? default
         : new(_gteDepth[index], _gteScreenX[index], _gteScreenY[index],
-            _gteHasSubpixel[index]);
+            _gteHasSubpixel[index]) { NativeScreen = _gteNativeScreen[index] };
 
     public (uint[] gpr, uint hi, uint lo) Snapshot() => ((uint[])_gpr.Clone(), HI, LO);
 
@@ -126,6 +142,7 @@ public sealed class CpuContext
         Array.Clear(_gteScreenX);
         Array.Clear(_gteScreenY);
         Array.Clear(_gteHasSubpixel);
+        Array.Clear(_gteNativeScreen);
         HI = s.hi;
         LO = s.lo;
     }

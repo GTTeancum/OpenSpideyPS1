@@ -63,6 +63,7 @@ def main():
             ('CdWadRead', 'pre',  'Recompiled.AssetOverrides.CdWadRead'),
             ('HeapAlloc', 'pre',  'Recompiled.OverlayPatches.HeapAlloc'),
             ('HeapFree',  'pre',  'Recompiled.OverlayPatches.HeapFree'),
+            ('func_80065584', 'pre', 'Recompiled.OverlayPatches.HeapShrink'),
             # Direct level tests must select the full retail descriptor, not only
             # substitute its filenames. See patches/LevelSwitch.cs.
             ('func_80018800', 'pre', 'Recompiled.LevelSwitch.SelectDescriptor')):
@@ -113,6 +114,15 @@ def main():
             # makes the Dreamcast compatibility audit reproducible.
             ('func_80074C98', 'pre',  'Recompiled.ModelDiagnostics.ParseEnter'),
             ('func_80074C98', 'post', 'Recompiled.ModelDiagnostics.ParseExit'),
+            ('func_8007B1B4', 'pre', 'Recompiled.WorldFrustum.Enter'),
+            ('func_8007B1B4', 'post', 'Recompiled.WorldFrustum.Exit'),
+            ('func_8007C2AC', 'pre', 'Recompiled.WorldGeometryTrace.TransformEnter'),
+            ('func_8007C2AC', 'post', 'Recompiled.WorldGeometryTrace.TransformExit'),
+            ('func_8007D2D8', 'pre', 'Recompiled.WorldSubpixel.SetSubdivisionCorners'),
+            ('func_8007D534', 'pre', 'Recompiled.WorldSubpixel.EdgeEnter'),
+            ('func_8007D534', 'post', 'Recompiled.WorldSubpixel.EdgeExit'),
+            ('func_8007D33C', 'pre', 'Recompiled.WorldSubpixel.SubdivisionEnter'),
+            ('func_8007D33C', 'post', 'Recompiled.WorldSubpixel.SubdivisionExit'),
             ('func_8007B798', 'pre',  'Recompiled.ModelDiagnostics.TransformEnter'),
             ('func_8007B798', 'post', 'Recompiled.ModelDiagnostics.TransformExit'),
             ('func_8007B9CC', 'pre',  'Recompiled.ModelDiagnostics.TransformEnter'),

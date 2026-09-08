@@ -90,6 +90,12 @@ public static class LooseWadOverrides
         return true;
     }
 
+    /// <summary>
+    /// True when the address is the base of a live expanded-RAM override allocation.
+    /// The game's heap must never splice these blocks into its own free lists.
+    /// </summary>
+    public static bool OwnsAllocation(uint address) => _arenaUsed.ContainsKey(address);
+
     static Dictionary<string, string> Index(string directory, bool required)
     {
         if (!Directory.Exists(directory))

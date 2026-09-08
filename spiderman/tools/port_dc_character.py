@@ -2068,6 +2068,7 @@ def build_character(
     tagged_chunks: bytes | None = None,
     skeleton_donor: SkeletonDonor | None = None,
     supplemental_textures: tuple[Ps1TextureRecord, ...] = (),
+    sm1_single_lod: bool = False,
 ) -> bytes:
     if skeleton_donor is not None and tagged_chunks is not None:
         raise ValueError("use either a complete skeleton donor or tagged chunks, not both")
@@ -2096,26 +2097,36 @@ def build_character(
         if skeleton_donor is None
         else skeleton_mesh_order(model, skeleton_donor)
     )
+    if sm1_single_lod and (skeleton_donor is not None or wing_transfer is not None):
+        raise ValueError("single-LOD actor conversion cannot be combined with a skeleton or wing donor")
+    emitted_mesh_order = mesh_order[:model.object_count] if sm1_single_lod else mesh_order
     attachment_remap = attachment_reorder_map(model, mesh_order, wing_transfer)
-    output_mesh_names = (
+    base_mesh_names = (
         model.mesh_names
         if skeleton_donor is None
         else skeleton_donor.mesh_names
     )
+    output_mesh_names = base_mesh_names[:model.object_count] if sm1_single_lod else base_mesh_names
     output_tagged_chunks = (
         tagged_chunks
         if skeleton_donor is None
         else skeleton_donor.tagged_chunks
     )
     first_mesh_offset = min(model.mesh_pointers)
-    output = bytearray(model.data[:first_mesh_offset])
+    old_pointer_table_end = model.mesh_pointer_table_offset + model.mesh_count * 4
+    if old_pointer_table_end > first_mesh_offset:
+        raise ValueError("mesh pointer table overlaps the first mesh")
+    output = bytearray(model.data[:model.mesh_pointer_table_offset])
+    struct.pack_into("<I", output, model.mesh_pointer_table_offset - 4, len(emitted_mesh_order))
+    output.extend(b"\0" * (len(emitted_mesh_order) * 4))
+    output.extend(model.data[old_pointer_table_end:first_mesh_offset])
     struct.pack_into("<H", output, 0, 4)
     if skeleton_donor is not None:
         object_table = b"".join(skeleton_donor.objects)
         output[12 : 12 + len(object_table)] = object_table
     mesh_offsets: list[int] = []
     default_face_lighting = JAMESON_FACE_LIGHTING if is_jameson_model(model) else None
-    for mesh_index in mesh_order:
+    for mesh_index in emitted_mesh_order:
         mesh_name = model.mesh_names[mesh_index]
         face_lighting: bytes | tuple[bytes, ...] | None = default_face_lighting
         if skeleton_donor is not None and mesh_name in SCORPION_TAIL_MESH_NAMES:
@@ -2136,7 +2147,14 @@ def build_character(
             face_lighting,
             is_jameson_model(model),
         )
-        output.extend(remap_attachment_references(converted_mesh, attachment_remap))
+        converted_mesh = remap_attachment_references(converted_mesh, attachment_remap)
+        if sm1_single_lod:
+            converted_mesh = bytearray(converted_mesh)
+            # ParsePSX counts terminal LOD links to derive the body-part count.
+            # Emit exactly one terminal mesh per bone, with no reduced-tier data
+            # for the runtime to traverse or include as additional body parts.
+            struct.pack_into("<HH", converted_mesh, 24, 32767, 0xFFFF)
+        output.extend(converted_mesh)
     for index, mesh_offset in enumerate(mesh_offsets):
         struct.pack_into("<I", output, model.mesh_pointer_table_offset + index * 4, mesh_offset)
 
@@ -2206,6 +2224,49 @@ def sha256(data: bytes) -> str:
     return hashlib.sha256(data).hexdigest()
 
 
+def sm1_requires_single_lod(model: ParsedModel, layout_donor: Path) -> bool:
+    """Keep full-detail stitched actors compatible with SM1's per-part LOD loop.
+
+    DC reduced meshes index a file-wide stitch table, including preceding tiers.
+    SM1 resets the transformed-source table per actor and chooses an LOD for each
+    part independently. Rebased reduced indices cannot support mixed tiers with
+    different source counts. Retain the complete first-tier geometry instead.
+    Duplicating terminal meshes is also invalid: ParsePSX counts terminal links
+    as body parts, causing it to read additional matrices beyond the skeleton.
+    """
+    data = layout_donor.read_bytes()
+    if len(data) < 16:
+        raise ValueError(f"SM1 layout donor is too small: {layout_donor}")
+    version, magic = struct.unpack_from("<HH", data, 0)
+    if version not in (3, 4) or magic != 2:
+        raise ValueError(
+            f"expected SM1 v3/v4 magic 0002 layout donor, got v{version} magic {magic:04X}"
+        )
+    object_count = u32(data, 8)
+    mesh_count_offset = 12 + object_count * 36
+    if mesh_count_offset + 4 > len(data):
+        raise ValueError(f"SM1 layout donor has an invalid object table: {layout_donor}")
+    if object_count != model.object_count:
+        return False
+    if model.mesh_count != object_count * 2:
+        return False
+    reduced_stitches = any(
+        u16(vertex, 6) & 2
+        for pointer in model.mesh_pointers[object_count:]
+        for vertex in mesh_parts(model.data, pointer)[1]
+    )
+    if not reduced_stitches:
+        return False
+    sources = 0
+    for pointer in model.mesh_pointers[:object_count]:
+        for vertex in mesh_parts(model.data, pointer)[1]:
+            if u16(vertex, 6) & 2 and u16(vertex, 2) >= sources:
+                raise ValueError("first LOD references an attachment not yet emitted")
+            if u16(vertex, 6) & 1:
+                sources += 1
+    return True
+
+
 def parse_args() -> argparse.Namespace:
     parser = argparse.ArgumentParser()
     parser.add_argument("--model", type=Path, required=True)
@@ -2228,6 +2289,11 @@ def parse_args() -> argparse.Namespace:
         default=1,
         help="integer divisor for DC texture dimensions (default: 1, preserving source resolution)",
     )
+    parser.add_argument(
+        "--sm1-layout-donor",
+        type=Path,
+        help="retail SM1 actor used to validate full-detail conversion of incompatible stitched LODs",
+    )
     return parser.parse_args()
 
 
@@ -2240,12 +2306,18 @@ def main() -> None:
         if args.player_texture_donor
         else ()
     )
+    single_lod = (
+        sm1_requires_single_lod(model, args.sm1_layout_donor)
+        if args.sm1_layout_donor
+        else False
+    )
     character = build_character(
         model,
         args.textures,
         args.texture_scale,
         wings,
         supplemental_textures=supplemental_textures,
+        sm1_single_lod=single_lod,
     )
     args.output_model.parent.mkdir(parents=True, exist_ok=True)
     args.output_model.write_bytes(character)
@@ -2260,7 +2332,9 @@ def main() -> None:
             f"wrote {args.output_textures} ({len(library):,} bytes, sha256 {sha256(library)})"
         )
     print(
-        f"converted {model.mesh_count} meshes and {len(model.textures)} textures; "
+        f"converted {model.mesh_count} source meshes into "
+        f"{model.object_count if single_lod else model.mesh_count} runtime meshes and "
+        f"{len(model.textures)} textures; "
         f"post-mesh payload preserved from 0x{model.post_mesh_offset:X}"
     )
 

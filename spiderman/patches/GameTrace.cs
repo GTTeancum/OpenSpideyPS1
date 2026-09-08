@@ -260,6 +260,7 @@ public static class GameTrace
     /// </summary>
     public static void DrawPrimSet(CpuContext c, IMemory m)
     {
+        WorldGeometryTrace.Record(c, m);
         if (!TraceRender) return;
         _dpsS0 = c.S0;
         _dpsNext = (c.S0 >= 0x80000000 && c.S0 < 0x80800000) ? m.ReadU32(c.S0 + 4) : 0xDEADBEEF;

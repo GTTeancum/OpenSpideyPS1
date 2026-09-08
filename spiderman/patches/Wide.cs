@@ -9,11 +9,10 @@ namespace Recompiled;
 /// <summary>
 /// 16:9 widescreen.
 ///
-/// The field of view is widened at the projection, not at the framebuffer. The game
-/// decides what to draw from the coordinates the GTE produces, so squeezing projected X
-/// toward the centre by 3/4 means its own object selection, clipping and ordering all
-/// work on the wider view and it submits the extra scenery itself. The 4:3 framebuffer
-/// is then presented at 16:9, which stretches the squeeze back out.
+/// The field of view is widened at projection. Projected X is squeezed toward the
+/// centre by 3/4, then the framebuffer is presented at 16:9. SM1 also performs object
+/// bounds tests before projection; WorldFrustum widens those horizontal planes to
+/// match. Changing projection alone leaves visible buildings and roof chunks culled.
 ///
 /// The alternative -- widening the framebuffer and letting the game carry on drawing for
 /// 4:3 -- was tried at length and does not work. The renderer can be given the room, but
@@ -22,8 +21,7 @@ namespace Recompiled;
 /// only replaced them with the previous frame's pixels smearing. Nothing downstream can
 /// invent geometry the game did not submit.
 ///
-/// The cost is horizontal resolution: 512 pixels now cover a 16:9 screen instead of 4:3,
-/// so the picture is a little softer. Everything is drawn, and drawn once.
+/// The cost is horizontal resolution: 512 pixels now cover a 16:9 screen instead of 4:3.
 /// </summary>
 public static class Wide
 {
@@ -37,6 +35,7 @@ public static class Wide
     /// </summary>
     const uint Sm1GameplaySwap = 0x8002C2AC;
     static uint _gameplaySwap;
+    static bool _defaultEnabled;
 
     public static bool Enabled { get; private set; }
 
@@ -57,8 +56,9 @@ public static class Wide
         RecompOne.Runtime.Diagnostics.DrawEnvWarn.TintBackground =
             Environment.GetEnvironmentVariable("SPIDEY_WIDE_DEBUG") == "1";
 
-        string requested = Environment.GetEnvironmentVariable("SPIDEY_WIDE");
-        bool enabled = requested == "1" || (defaultEnabled && requested != "0");
+        _defaultEnabled = defaultEnabled;
+        GpuHle.WidescreenSupported = true;
+        GpuHle.WidescreenDefault = defaultEnabled;
         GpuHle.WideBackgroundCompletion = completeBackdrop &&
             Environment.GetEnvironmentVariable("SPIDEY_WIDE_RAW_GAPS") != "1";
         GpuHle.WideCoverageView =
@@ -67,15 +67,6 @@ public static class Wide
             Console.WriteLine("[wide] coverage-aware backdrop completion enabled");
         _gameplaySwap = gameplaySwap;
         _traceCoverage = Environment.GetEnvironmentVariable("SPIDEY_WIDE_COVERAGE_TRACE") == "1";
-        if (!enabled)
-        {
-            // Native 4:3 still needs provenance and overlay classification when the
-            // crack/cut-out repair is active; it must not apply any coordinate transform.
-            if (GpuHle.WideBackgroundCompletion)
-                Event.AddListener<RenderPrimEvent>(Screen);
-            return;
-        }
-        Enabled = true;
 
         var a = Environment.GetEnvironmentVariable("SPIDEY_WIDE_ASPECT");
         _aspect = float.TryParse(a, out float f) && f > 1.3f && f < 3f ? f : 16f / 9f;
@@ -87,7 +78,8 @@ public static class Wide
 
         Event.AddListener<VSyncEvent>(_ => Follow());
         Event.AddListener<RenderPrimEvent>(Screen);
-        Console.WriteLine($"[wide] aspect {_aspect:F3}, fov x{_num}/{_den}, gameplay only");
+        Console.WriteLine($"[wide] 4:3/16:9 selectable, aspect {_aspect:F3}, " +
+            $"fov x{_num}/{_den}, gameplay only");
     }
 
     /// <summary>
@@ -96,7 +88,9 @@ public static class Wide
     /// </summary>
     static void Follow()
     {
-        bool wide = LibGpu.LastDispGrandparent == _gameplaySwap;
+        bool enabled = RequestedEnabled();
+        Enabled = enabled;
+        bool wide = enabled && LibGpu.LastDispGrandparent == _gameplaySwap;
 
         GpuHle.FovNum = wide ? _num : 1;
         GpuHle.FovDen = wide ? _den : 1;
@@ -113,6 +107,18 @@ public static class Wide
     }
 
     /// <summary>
+    /// Normal builds follow the saved menu choice. The environment override remains a
+    /// developer/test-harness control and is never exposed in the player UI.
+    /// </summary>
+    static bool RequestedEnabled()
+    {
+        string requested = Environment.GetEnvironmentVariable("SPIDEY_WIDE");
+        if (requested == "1") return true;
+        if (requested == "0") return false;
+        return RecompOne.Runtime.Config.ConfigManager.Game.Widescreen ?? _defaultEnabled;
+    }
+
+    /// <summary>
     /// Squeeze the HUD to match, so the stretch at presentation leaves it the shape the
     /// game drew and sitting where the 4:3 layout intends -- against the edges, which on
     /// a wider screen means further out.
@@ -125,6 +131,12 @@ public static class Wide
     /// </summary>
     static void Screen(RenderPrimEvent e)
     {
+        // World classification is also the gate for perspective-correct texturing.
+        // It must run in native 4:3 as well as widescreen; returning first made every
+        // 4:3 world polygon lose its recovered camera depth and render affinely.
+        bool fromGte = FromGte(e);
+        e.World = fromGte;
+
         bool transform = Enabled && GpuHle.FovNum != GpuHle.FovDen;
         if (!transform && !GpuHle.WideBackgroundCompletion) return;
 
@@ -132,9 +144,6 @@ public static class Wide
         // per-packet provenance carried beside each vertex; screen-coordinate matching
         // is ambiguous and can classify an animated HUD vertex as scenery when it lands
         // on a projected point by coincidence.
-        bool fromGte = FromGte(e);
-        e.World = fromGte;
-
         int lo = e.X[0], hi = e.X[0], top = e.Y[0], bot = e.Y[0];
         for (int i = 1; i < e.Count; i++)
         {

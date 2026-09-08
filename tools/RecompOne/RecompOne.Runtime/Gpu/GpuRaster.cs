@@ -19,6 +19,7 @@ public sealed partial class Gpu
     /// <summary>How many vertices arrive pinned at the GTE's saturation limit.</summary>
     public static long ClampedVerts, TotalVerts, ProbeHits;
     public static readonly long[] WorldDepthVertexCounts = new long[5];
+    public static long MixedDepthPrimitives;
 
     /// <summary>
     /// Polygon/line span diagnostics. A projected primitive wider than 1023 pixels is
@@ -26,7 +27,7 @@ public sealed partial class Gpu
     /// Keeping separate accepted and rejected counts makes widescreen coverage failures
     /// measurable instead of judging them only from a screenshot.
     /// </summary>
-    public static long WideSpanAccepted, SpanXRejected, SpanYRejected;
+    public static long WideSpanAccepted, TallSpanAccepted, SpanXRejected, SpanYRejected;
 
     static bool RejectSpan(int spanX, int spanY)
     {
@@ -41,6 +42,7 @@ public sealed partial class Gpu
             return true;
         }
         if (spanX > 1023) WideSpanAccepted++;
+        if (spanY > 511) TallSpanAccepted++;
         return false;
     }
 
@@ -83,7 +85,8 @@ public sealed partial class Gpu
             uint vw = _fifo[idx++];
             v[i].X = _drawOffsetX + CoordX(vw);
             v[i].Y = _drawOffsetY + CoordY(vw);
-            Hardware.GteScreen.VertexTag packetVertex = _fifoGteVertex[idx - 1];
+            Hardware.GteScreen.VertexTag packetVertex = Hardware.GteScreen.ValidatePacketVertex(
+                vw, _fifoGteVertex[idx - 1]);
             float packetDepth = packetVertex.Depth;
             if (packetDepth > 0f)
             {
@@ -111,6 +114,8 @@ public sealed partial class Gpu
 
         if (tex)
         {
+            if (directDepthVertices > 0 && directDepthVertices < n)
+                Interlocked.Increment(ref MixedDepthPrimitives);
             // Perspective correction uses only provenance carried from the exact GTE
             // source register into the exact RAM packet word. Screen-coordinate reverse
             // matching can attach another vertex's Z at a quantised collision and visibly
