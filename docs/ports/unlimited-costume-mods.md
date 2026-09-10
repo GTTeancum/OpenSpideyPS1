@@ -100,4 +100,10 @@ The extracted alpha hides the pants and parts of the arms in the native cutout
 path, so the body needs opaque alpha while retaining its original RGB colors.
 Head reduction retains bone weights and face-corner
 UVs; all separate mohawk and shoulder spikes and the body topology remain intact.
+The preparation also binds the 104 source vertices of the lower coat band and
+its folded inner edge to Spine1. Their original nearly tied Spine1/Spine2 weights
+made adjacent hem vertices choose different native joints, kinking the waist in
+animation. The band now follows one joint consistently; upper vest and limb
+weights remain unchanged. This selection is specific to the original `punk.fbx`
+coordinates and checked vertex count, so changed source geometry needs review.
 The resulting actor has 2,942 source triangles and a maximum 247 vertices per part.
