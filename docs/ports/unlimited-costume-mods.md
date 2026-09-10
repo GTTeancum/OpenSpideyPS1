@@ -84,3 +84,20 @@ This prevents the observed omission of later body parts, shadows, and background
 draws when the denser actor exceeds the old pool. It does not remove the per-mesh
 256-vertex format limit. `SPIDEY_PACKET_TRACE=1` records crossing the old capacity;
 SM2 suit regressions include pool allocation, bounds, and release checks.
+## Spider-Punk
+
+Use the extracted `punk/punk.fbx` and `SpidermanPunk_D.png`. The original head
+batch uses 270 native vertices, including borrowed attachment vertices, exceeding
+the 256-vertex format limit. Prepare only the connected head surface first:
+
+```powershell
+& "C:/Program Files/Blender Foundation/Blender 4.5/blender.exe" --background --factory-startup --disable-autoexec -t 2 --python dreamcast/tools/prepare_unlimited_spider_punk.py -- --fbx C:/Programming/SMU-Costumes/costumes/punk/punk.fbx --output C:/Models/SpiderPunkPrepared
+```
+
+Save the diffuse PNG as `SpiderPunk_D_rgb.tga` in that prepared folder. Use the
+normal converter with `--id spider-punk --name "Spider-Punk" --opaque-diffuse`.
+The extracted alpha hides the pants and parts of the arms in the native cutout
+path, so the body needs opaque alpha while retaining its original RGB colors.
+Head reduction retains bone weights and face-corner
+UVs; all separate mohawk and shoulder spikes and the body topology remain intact.
+The resulting actor has 2,942 source triangles and a maximum 247 vertices per part.
