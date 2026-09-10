@@ -227,6 +227,12 @@
     },
     {
       "overlay": "main",
+      "function": "func_800314E4",
+      "mode": "post",
+      "target": "Recompiled.FramePackets.SetLimit"
+    },
+    {
+      "overlay": "main",
       "function": "func_8004EC34",
       "mode": "pre",
       "target": "Recompiled.Costume.SkipRetailSpecialHeadMorph"

@@ -9,10 +9,16 @@ namespace Recompiled;
 /// </summary>
 public static class AssetOverrides
 {
-    public static void Find(string name, IMemory memory) =>
-        RecompOne.Runtime.Assets.LooseWadOverrides.Find(
-            name,
-            Costume.DreamcastAssetFor(name, memory));
+    public static void Find(string name, IMemory memory)
+    {
+        string source = Costume.DreamcastAssetFor(name, memory);
+        int selected = Costume.LoadedCostume;
+        if (name.Equals("spidey.psx", System.StringComparison.OrdinalIgnoreCase) &&
+            SuitMods.IsMod(selected) && SuitMods.At(selected).CustomModel is { } model)
+            RecompOne.Runtime.Assets.LooseWadOverrides.FindModel(name, model.Bytes);
+        else
+            RecompOne.Runtime.Assets.LooseWadOverrides.Find(name, source);
+    }
     public static void FindExit(CpuContext c) => RecompOne.Runtime.Assets.LooseWadOverrides.FindExit(c);
     public static bool CdWadRead(CpuContext c, IMemory m) =>
         RecompOne.Runtime.Assets.LooseWadOverrides.Read(c, m);

@@ -68,6 +68,7 @@ def main():
             # the nineteen-entry sp_tex00..18 filename table at 0x800B30E4.
             ('func_8004E4BC', 'pre', 'Recompiled.Costume.SelectTextureLibrary'),
             ('func_8004E4BC', 'post', 'Recompiled.Costume.TextureLibraryLoaded'),
+            ('func_800314E4', 'post', 'Recompiled.FramePackets.SetLimit'),
             # The retail Bag-Man/Peter path copies fixed low-detail coordinates into
             # mesh 7. Dedicated high-detail DC actors already have the right head.
             ('func_8004EC34', 'pre', 'Recompiled.Costume.SkipRetailSpecialHeadMorph'),

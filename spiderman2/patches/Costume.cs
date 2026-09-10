@@ -109,6 +109,14 @@ public static partial class Costume
     /// resident.  The normal spidey.psx lookup is intentionally never aliased: the
     /// game loads that shared actor once, and costume changes do not reload it.
     /// </summary>
+    public static RecompOne.Runtime.Assets.Suits.SuitModel CustomModelFor(string requestedName)
+    {
+        for (int i = 0; i < SuitMods.Catalogue.Count; i++)
+            if (requestedName.Equals($"spcu{i:D2}.psx", StringComparison.OrdinalIgnoreCase))
+                return SuitMods.Catalogue[i].CustomModel;
+        return null;
+    }
+
     public static string DreamcastAssetFor(string requestedName)
     {
         string source = requestedName.ToLowerInvariant() switch
@@ -200,7 +208,10 @@ public static partial class Costume
 
     static int LoadSpecialActor(CpuContext c, IMemory m, int slot)
     {
-        foreach (var special in SpecialActors)
+        var actors = slot >= 200
+            ? new[] { (Slot: slot, Request: $"spcu{slot - 200:D2}", Source: "custom suit model", NameAddress: ScratchName + 0x80u) }
+            : SpecialActors;
+        foreach (var special in actors)
         {
             if (special.Slot != slot) continue;
             WriteCString(m, special.NameAddress, special.Request);
@@ -286,7 +297,20 @@ public static partial class Costume
             RecompOne.Runtime.Assets.Suits.SuitManifest.PeterParker => 17,
             _ => slot == 13 || slot == 17 ? slot : 0,
         };
+        if (SuitMods.Active >= 0 && SuitMods.At(SuitMods.Active).CustomModel != null && modModel.Length != 0)
+            actorSlot = 200 + SuitMods.Active - SuitMods.StockCount;
         if (_activeActorSlot == actorSlot) return;
+        // Only one custom actor is resident. Restore the shared binding before the
+        // retail resource destructor (0x80074754) frees its private cache entry.
+        if (_activeActorSlot >= 200 && SpecialActorResources.Remove(_activeActorSlot, out int oldCustom))
+        {
+            WriteBinding(m, spideyEntry, _genericBinding);
+            var saved = c.Snapshot();
+            c.A0 = (uint)oldCustom;
+            c.A1 = 1;
+            Dispatcher.Call(c, m, 0x80074754u);
+            c.Restore(saved);
+        }
         uint[] binding = _genericBinding;
         if (actorSlot != 0 && !SpecialActorResources.TryGetValue(actorSlot, out int resource))
         {

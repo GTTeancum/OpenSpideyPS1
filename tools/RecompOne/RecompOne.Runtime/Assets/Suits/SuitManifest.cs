@@ -3,10 +3,11 @@ using System.Text.Json;
 
 namespace RecompOne.Runtime.Assets.Suits;
 
-/// <summary>Data-only reskins. No guest addresses, model binaries, scripts or assemblies.</summary>
+/// <summary>Suit textures, optional validated native actor, and stock donor abilities.</summary>
 public sealed record SuitManifest(string Id, string Name, string Comments, string Model, int AbilityProfile,
     IReadOnlyDictionary<uint, string> Textures)
 {
+    public SuitModel? CustomModel { get; init; }
     public const string Sm1SpiderMan = "spiderman";
     public const string ScarletSpider = "scarlet-spider";
     public const string Symbiote = "symbiote";
@@ -44,7 +45,7 @@ public sealed record SuitManifest(string Id, string Name, string Comments, strin
         return lines.ToArray();
     }
     // Fixed, executable-owned model and material rules. JSON selects one name; it
-    // cannot supply an asset path, hash allowlist, guest address or model binary.
+    // selects the bundled fallback; modelFile optionally supplies a validated native actor.
     // The SM1 default's invisible-wing cutout is deliberately not paintable.
     public static readonly IReadOnlyDictionary<string, IReadOnlySet<uint>> PlayerModels =
         new Dictionary<string, IReadOnlySet<uint>>(StringComparer.Ordinal)
@@ -86,9 +87,9 @@ public sealed record SuitManifest(string Id, string Name, string Comments, strin
     public static string ContainedFile(string root, string relative)
     {
         if (string.IsNullOrWhiteSpace(relative) || Path.IsPathRooted(relative) || relative.Contains(':'))
-            throw new InvalidDataException("texture path must be relative");
+            throw new InvalidDataException("asset path must be relative");
         string[] parts = relative.Replace('\\', '/').Split('/');
-        if (parts.Any(p => p is "" or "." or "..")) throw new InvalidDataException("unsafe texture path");
+        if (parts.Any(p => p is "" or "." or "..")) throw new InvalidDataException("unsafe asset path");
         string current = Path.GetFullPath(root);
         if ((File.GetAttributes(current) & FileAttributes.ReparsePoint) != 0)
             throw new InvalidDataException("mod directory cannot be a link");
@@ -115,7 +116,7 @@ public sealed record SuitManifest(string Id, string Name, string Comments, strin
 
     public static SuitManifest Read(string path) => Read(path, Profiles, PowerText, PlayerModels, Sm1SpiderMan);
 
-    // Game-owned allowlists only; a manifest cannot supply model paths, memory
+    // Game-owned powers and bundled-model allowlists; manifests cannot supply memory
     // addresses, or a new power implementation. Keep SM1 as the default policy.
     public static SuitManifest Read(string path, string[] profiles, string[][] powerText,
         IReadOnlyDictionary<string, IReadOnlySet<uint>> playerModels, string defaultModel)
@@ -126,7 +127,7 @@ public sealed record SuitManifest(string Id, string Name, string Comments, strin
         using var doc = JsonDocument.Parse(File.ReadAllBytes(path), new JsonDocumentOptions
             { CommentHandling = JsonCommentHandling.Skip, MaxDepth = 8 });
         var o = doc.RootElement;
-        Fields(o, "version", "id", "name", "comments", "model", "abilities", "textures");
+        Fields(o, "version", "id", "name", "comments", "model", "modelFile", "abilities", "textures");
         if (o.GetProperty("version").GetInt32() != 1) throw new InvalidDataException("unsupported suit version");
         string id = Label(o, "id", 48);
         if (id.Any(c => !(c is >= 'a' and <= 'z' or >= '0' and <= '9' or '-')))
@@ -137,6 +138,15 @@ public sealed record SuitManifest(string Id, string Name, string Comments, strin
         if (!playerModels.TryGetValue(model, out var donorMaterials))
             throw new InvalidDataException(
                 "unknown player model; expected " + string.Join(", ", playerModels.Keys));
+        SuitModel? customModel = null;
+        if (o.TryGetProperty("modelFile", out var modelFile))
+        {
+            string relative = modelFile.GetString() ?? "";
+            if (!relative.EndsWith(".psx", StringComparison.OrdinalIgnoreCase))
+                throw new InvalidDataException("modelFile must name a native .psx actor");
+            customModel = SuitModel.Read(ContainedFile(root, relative));
+            donorMaterials = customModel.Materials;
+        }
         var abilities = o.GetProperty("abilities");
         Fields(abilities, "profile");
         int profile = Array.IndexOf(profiles, abilities.GetProperty("profile").GetString());
@@ -170,7 +180,7 @@ public sealed record SuitManifest(string Id, string Name, string Comments, strin
             if (!textures.TryAdd(material, file)) throw new InvalidDataException("duplicate material ID");
         }
         if (textures.Count == 0) throw new InvalidDataException("at least one external texture is required");
-        return new(id, Label(o, "name", 18), comments, model, profile, textures);
+        return new(id, Label(o, "name", 18), comments, model, profile, textures) { CustomModel = customModel };
     }
 
     public Dictionary<uint, ReplacementTexture> Decode()

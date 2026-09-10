@@ -105,3 +105,63 @@ foreach (var mutation in new Action<JsonNode>[] {
     Check(rejected, "unsafe or wrong-game manifest rejected");
 }
 Console.WriteLine($"PASS: {tests} assertions; {work}");
+// Custom actor lifecycle: exercise the real binding/selection code while isolating
+// native resource allocation behind deterministic dispatcher callbacks.
+if (args.Length > 1)
+{
+    var custom = Directory.GetDirectories(args[1]).Where(d => File.Exists(Path.Combine(d, "suit.json")))
+        .Select(d => SuitManifest.Read(Path.Combine(d, "suit.json"), SuitRules.Profiles, SuitRules.PowerText,
+            SuitRules.Models, SuitManifest.Sm2SpiderMan)).Where(s => s.CustomModel != null).Take(2).ToArray();
+    Check(custom.Length == 2, "two real custom actor manifests");
+    SuitMods.Catalogue.Clear(); SuitMods.Catalogue.AddRange(custom);
+    const uint table = 0x800ACED8, shared = table + 64;
+    memory.WriteU8(0x800C236D, 1);
+    for (uint i=0xC;i<=0x38;i+=4) memory.WriteU32(shared+i, 0x80300000+i);
+    var bindings = Enumerable.Range(0,12).Select(i => memory.ReadU32(shared+0xC+(uint)i*4)).ToArray();
+    var map = (Dictionary<uint, Action<CpuContext, IMemory>>)typeof(RecompOne.Runtime.Dispatch.Dispatcher)
+        .GetField("_funcMap", System.Reflection.BindingFlags.Static|System.Reflection.BindingFlags.NonPublic)!.GetValue(null)!;
+    int loads=0, frees=0, resident=0;
+    map[0x80074C38] = (c,m) => {
+        Check(resident++ == 0, "previous custom allocation released before new load");
+        loads++;
+        for(uint i=0xC;i<=0x38;i+=4) m.WriteU32(table+3*64+i,0x80400000+(uint)loads*0x10000+i);
+        c.V0=3;
+    };
+    map[0x80074754] = (c,m) => {
+        Check(c.A0==3 && c.A1==1, "correct native resource destructor arguments");
+        Check(bindings.SequenceEqual(Enumerable.Range(0,12).Select(i=>m.ReadU32(shared+0xC+(uint)i*4))), "shared stock binding restored before release");
+        frees++;resident--;
+    };
+    map[0x8004EB74] = (c,m) => { c.V0=0; };
+    for(int round=0;round<3;round++)
+    {
+        foreach(int index in new[]{19,20,0})
+        {
+            Costume.WriteSelected(memory,index);
+            Costume.SelectTextureLibrary(new CpuContext { A1=1 },memory);
+            Check(resident==(index==0?0:1), "single custom resident across switch");
+        }
+    }
+    Check(loads==6 && frees==6, "all six custom actor loads released");
+}
+// The denser actor path needs larger native command pools, with the original
+// ordering-table allocations and the retail safety reserve left intact.
+RecompOne.Runtime.Assets.LooseWadOverrides.Initialize(Path.Combine(root,"spiderman2/extracted"));
+var alloc = new CpuContext { A0=0x17000, RA=0x8006BDE0 };
+Check(FramePackets.TryAllocate(alloc), "first exact frame pool allocation redirected");
+uint poolA=alloc.V0;
+alloc.RA=0x8006BDF8;
+Check(FramePackets.TryAllocate(alloc), "second exact frame pool allocation redirected");
+uint poolB=alloc.V0;
+Check(poolB-poolA==FramePackets.Capacity, "two disjoint bounded frame pools");
+alloc.RA=0x8006BDAC;alloc.A0=0x4000;
+Check(!FramePackets.TryAllocate(alloc), "ordering table allocation unchanged");
+alloc.RA=0;alloc.A0=0x17000;
+Check(!FramePackets.TryAllocate(alloc), "unrelated same-size allocation unchanged");
+memory.WriteU32(0x800C247C,0x800A707C);
+memory.WriteU32(0x800A70F0,poolB);
+var packetContext=new CpuContext { GP=0x800C1764 };
+FramePackets.SetLimit(packetContext,memory);
+Check(memory.ReadU32(0x800C2034)==(poolB&0x7FFFFFFF)+FramePackets.Capacity-0x100, "packet limit uses selected pool with safety slack");
+Check(RecompOne.Runtime.Assets.LooseWadOverrides.TryFree(poolA) && RecompOne.Runtime.Assets.LooseWadOverrides.TryFree(poolB), "both frame pools release through tracked allocator");
+Console.WriteLine($"PASS: {tests} total assertions including frame pools");

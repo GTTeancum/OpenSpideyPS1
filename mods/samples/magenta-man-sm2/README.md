@@ -84,3 +84,7 @@ SM2 Magenta Man when adding the SM1 sample under a different ID.
 
 To share a suit, include `suit.json`, the referenced PNGs, and these instructions.
 No external model, executable code, or donor costume files are needed.
+
+Custom geometry can use the optional `modelFile` field independently of the donor
+powerset. See [Unlimited costume conversion](../../../docs/ports/unlimited-costume-mods.md)
+for the supported native actor format and packaging.

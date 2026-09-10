@@ -51,21 +51,27 @@ public static class LooseWadOverrides
         if (!_pendingExternal || _pending == null || requestedSize != _pendingRoundedSize)
             return false;
 
+        address = AllocateScratch(requestedSize, _pendingName ?? "<override>");
+        return true;
+    }
+
+    /// <summary>Reserve bounded native scratch storage from the same tracked arena.</summary>
+    public static uint AllocateScratch(uint requestedSize, string name)
+    {
+        if (requestedSize == 0) throw new ArgumentOutOfRangeException(nameof(requestedSize));
         uint size = checked((requestedSize + 15u) & ~15u);
         foreach (var block in _arenaFree.ToArray())
         {
             if (block.Value < size) continue;
-            address = block.Key;
+            uint address = block.Key;
             _arenaFree.Remove(block.Key);
             if (block.Value > size)
                 _arenaFree[block.Key + size] = block.Value - size;
-            _arenaUsed[address] = (size, _pendingName ?? "<override>");
-            Console.WriteLine(
-                $"[loose-wad] arena {_pendingName}: {size} bytes at 0x{address:X8}");
-            return true;
+            _arenaUsed[address] = (size, name);
+            Console.WriteLine($"[loose-wad] arena {name}: {size} bytes at 0x{address:X8}");
+            return address;
         }
-        throw new OutOfMemoryException(
-            $"loose override arena exhausted while allocating {_pendingName} ({size} bytes)");
+        throw new OutOfMemoryException($"expanded arena exhausted allocating {name} ({size} bytes)");
     }
 
     /// <summary>Release an exact pointer previously returned by the override arena.</summary>
@@ -131,6 +137,16 @@ public static class LooseWadOverrides
             ? name
             : $"{name} <- {overrideName}";
         _pendingRoundedSize = checked((uint)((data.Length + 0x7FF) & ~0x7FF));
+    }
+
+    /// <summary>Serve an already validated mod actor through the normal native loader.</summary>
+    public static void FindModel(string name, ReadOnlyMemory<byte> bytes)
+    {
+        _pending = bytes.ToArray();
+        _pendingName = name + " <- suit model";
+        _pendingExternal = true;
+        _pendingAliased = true;
+        _pendingRoundedSize = checked((uint)((_pending.Length + 0x7FF) & ~0x7FF));
     }
 
     public static void FindExit(CpuContext c)

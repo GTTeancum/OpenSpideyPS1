@@ -60,6 +60,7 @@ public static class DcModelCompatibility
 
     public static void RestoreBagmanNestedShellDepth(CpuContext c, IMemory m)
     {
+        FramePackets.Audit(m);
         if (!_bagmanDepthActive) return;
         m.WriteU16(BagmanDepthAddress, _savedBagmanDepth);
         _bagmanDepthActive = false;

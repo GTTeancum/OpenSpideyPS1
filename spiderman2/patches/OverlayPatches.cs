@@ -101,7 +101,10 @@ public static class OverlayPatches
         name = LevelSwitch.Redirect(c, m, name);
         _lastLookup = name;
         _lastRa = c.RA;
-        RecompOne.Runtime.Assets.LooseWadOverrides.Find(name, Costume.DreamcastAssetFor(name));
+        if (Costume.CustomModelFor(name) is { } customModel)
+            RecompOne.Runtime.Assets.LooseWadOverrides.FindModel(name, customModel.Bytes);
+        else
+            RecompOne.Runtime.Assets.LooseWadOverrides.Find(name, Costume.DreamcastAssetFor(name));
         if (RecompOne.Runtime.Assets.LooseWadOverrides.TryCompleteAliasedFind(c))
         {
             Capture.NoteWadLoad(_lastLookup, System.Threading.Interlocked.Read(ref Diag.Frame));
@@ -145,6 +148,7 @@ public static class OverlayPatches
     /// </summary>
     public static bool HeapAlloc(CpuContext c, IMemory m)
     {
+        if (FramePackets.TryAllocate(c)) return false;
         _allocSize = c.A0;
         if (_pendingName != null && _allocSize == _pendingSize)
         {

@@ -18,8 +18,9 @@ The loader offers six fixed, bundled actors through `model`: `spiderman`,
 `scarlet-spider`, `symbiote`, `quick-change`, `peter-parker`, and
 `sm2-spiderman`. The last is default SM2 Spider-Man with web wings. Omitting
 `model` selects SM1 Spider-Man in SM1 and SM2
-Spider-Man in SM2 for backward compatibility. The JSON cannot supply a path, model
-binary, material allowlist, or executable code.
+Spider-Man in SM2 for backward compatibility. An optional `modelFile` selects a
+validated native custom actor; see [Unlimited costume mods](ports/unlimited-costume-mods.md).
+The JSON cannot supply guest addresses or executable code.
 This folder is the SM1 example. SM2 has its own `mods/samples/magenta-man-sm2`
 example, installed under `mods/suits/` beside `SpiderMan2.exe` and selected through
 **SPECIAL → COSTUMES**. Its approved default DC body includes web wings and uses
@@ -49,7 +50,7 @@ uses the selected fixed actor independently of the power profile. After the text
 load, the original one-based costume
 identity at `GP+AA8` is restored for Insulated Suit's electrical-resistance logic.
 The three power IDs and seven native flags are copied from the original selector's
-behavior; the JSON cannot supply guest addresses, model binaries or scripts.
+behavior; the JSON cannot supply guest addresses or scripts.
 
 Recompile SM2 through `spiderman2/tools/build.py`: it applies the checked selector
 transform after generation. The transform relocates only the costume viewer table,
