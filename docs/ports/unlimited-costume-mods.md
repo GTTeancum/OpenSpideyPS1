@@ -197,3 +197,18 @@ the original archive checksum, maps its eight main BMPs to the native body
 materials, and verifies pixel-identical PNG conversion. It excludes the extra
 `New folder` alternate texture. The selector displays **Steve Ditko**, credits
 **Dat Mental Gamer**, and uses standard Spider-Man powers.
+
+## Quick Change (red), SM1 and SM2
+
+[Improved Quick Change Costume](https://gamebanana.com/mods/249032) by Dat Mental
+Gamer replaces the mask and gloves with their red versions. Download the original
+`improved_quick_change.zip`, then run:
+
+```powershell
+python dreamcast/tools/build_quick_change_red_suit.py --archive <downloaded-zip> --output <fresh-folder>/quick-change-red
+```
+
+Install the output folder in either game's `mods/suits`. The builder checks the
+archive checksum, preserves both mod textures pixel-for-pixel, and copies seven
+unchanged SM1 Quick Change textures. It uses the Quick Change body with standard
+Spider-Man powers and displays **Quick Change (red)** / **By Dat Mental Gamer**.
