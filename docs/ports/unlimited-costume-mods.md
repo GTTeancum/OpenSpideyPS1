@@ -212,3 +212,10 @@ Install the output folder in either game's `mods/suits`. The builder checks the
 archive checksum, preserves both mod textures pixel-for-pixel, and copies seven
 unchanged SM1 Quick Change textures. It uses the Quick Change body with standard
 Spider-Man powers and displays **Quick Change (red)** / **By Dat Mental Gamer**.
+
+The package includes a tailored `actor.psx`: the lower jacket band, belt and
+upper trouser ring share the pelvis owner; each ankle cuff and shoe rim share
+the corresponding foot owner. `rig_quick_change_red.py` verifies every native
+attachment, unchanged bind-pose surface/UVs, and the native vertex limit. It
+preserves original native triangles, quads and extended triangle records.
+Original stock Quick Change remains unchanged.

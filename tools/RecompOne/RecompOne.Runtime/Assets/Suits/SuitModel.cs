@@ -61,10 +61,18 @@ public sealed class SuitModel
                 else if (kind != 0) throw new InvalidDataException("unsupported custom vertex record");
             }
             cursor += normals * 8;
-            for (int f = 0; f < faces; f++, cursor += 36)
+            for (int f = 0; f < faces; f++)
             {
-                if (H(cursor) != 0x1f || H(cursor + 2) != 36 || b[cursor + 4] >= vertices || b[cursor + 5] >= vertices || b[cursor + 6] >= vertices || H(cursor + 12) >= normals)
-                    throw new InvalidDataException("invalid custom triangle or normal reference");
+                int flags = H(cursor), length = H(cursor + 2);
+                // Exact opaque native formats present in the bundled SM1 actors.
+                // Keep extended triangles and quads intact when changing a rig.
+                if (!((flags == 0x1f || flags == 0x0f) && length == 36 || flags == 0x3f && length == 40))
+                    throw new InvalidDataException("unsupported custom face record");
+                Need(cursor, length);
+                if (cursor + length > end || b[cursor + 4] >= vertices || b[cursor + 5] >= vertices || b[cursor + 6] >= vertices ||
+                    flags == 0x0f && b[cursor + 7] >= vertices || H(cursor + 12) >= normals)
+                    throw new InvalidDataException("invalid custom face or normal reference");
+                cursor += length;
             }
             if (cursor != end) throw new InvalidDataException("unexpected custom mesh trailing data");
         }

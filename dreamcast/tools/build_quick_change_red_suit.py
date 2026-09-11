@@ -5,6 +5,9 @@ import io
 import json
 from pathlib import Path
 import shutil
+import subprocess
+import sys
+import tempfile
 import zipfile
 from PIL import Image
 from pack_sm2_costume_to_dc import container_layout
@@ -48,15 +51,21 @@ def main():
                 if source.read_bytes() != destination.read_bytes():
                     raise ValueError('Base texture differs')
             textures[material] = relative
+    with tempfile.TemporaryDirectory(prefix='quick-change-rig-') as work:
+        subprocess.run([sys.executable, str(ROOT / 'dreamcast/tools/rig_quick_change_red.py'),
+                        '--output', work], check=True)
+        shutil.copy2(Path(work) / 'actor.psx', args.output / 'actor.psx')
+        shutil.copy2(Path(work) / 'rig-report.json', args.output / 'rig-report.json')
     suit = dict(version=1, id='quick-change-red', name='Quick Change (red)',
                 comments='By Dat Mental Gamer', model='quick-change',
-                abilities={'profile': 'spiderman'}, textures=textures)
+                modelFile='actor.psx', abilities={'profile': 'spiderman'}, textures=textures)
     (args.output / 'suit.json').write_text(json.dumps(suit, indent=2) + '\n')
     (args.output / 'README.md').write_text(
         '# Quick Change (red)\n\nBy Dat Mental Gamer.\n\n'
         'Source: https://gamebanana.com/mods/249032 (Improved Quick Change Costume).\n'
         'Original red mask and glove BMPs converted to PNG without pixel changes.\n'
         'Remaining seven textures and body come from SM1 Quick Change.\n'
+        'Custom rig: jacket hem/belt follow pelvis; each ankle cuff follows its foot.\n'
         'Uses standard Spider-Man powers in both games. Install in mods/suits.\n')
     print('Verified two original mod textures and seven unchanged base textures.')
 

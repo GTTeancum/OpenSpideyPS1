@@ -1,7 +1,7 @@
 using System.Buffers.Binary;
 using RecompOne.Runtime.Assets.Suits;
 
-byte[] Fixture()
+byte[] Fixture(int flags = 0x1f, int faceLength = 36)
 {
     using var s = new MemoryStream(); using var w = new BinaryWriter(s);
     w.Write((ushort)4); w.Write((ushort)2); w.Write(0); w.Write(18);
@@ -12,7 +12,7 @@ byte[] Fixture()
         pointers.Add((int)s.Position);
         w.Write((ushort)0); w.Write((ushort)3); w.Write((ushort)4); w.Write((ushort)1); w.Write(new byte[20]);
         w.Write(new byte[3 * 8 + 4 * 8]);
-        byte[] face = new byte[36]; face[0] = 0x1f; face[2] = 36; face[4] = 0; face[5] = 1; face[6] = 2; face[12] = 3; w.Write(face);
+        byte[] face = new byte[faceLength]; face[0] = (byte)flags; face[2] = (byte)faceLength; face[4] = 0; face[5] = 1; face[6] = 2; face[12] = 3; w.Write(face);
     }
     int meta = (int)s.Position; w.Write(uint.MaxValue); w.Write(new byte[18 * 4]);
     w.Write(1); w.Write(0xDEADBEEFu); w.Write(0); w.Write(0); w.Write(0);
@@ -39,6 +39,14 @@ Reject(b => b[first+28+6]=2,"unresolved stitch");
 Reject(b => b[first+28+3*8+4*8+4]=3,"triangle index out of range");
 Reject(b => b[first+28+3*8+4*8+12]=4,"normal index out of range");
 Reject(b => b[first+28+3*8+4*8+2]=35,"unsupported face record");
+SuitModel.Parse(Fixture(0x0f));
+SuitModel.Parse(Fixture(0x3f, 40));
+Console.WriteLine("PASS: native quads and extended triangles");
+int firstFace = first+28+3*8+4*8;
+Reject(b => { b[firstFace]=0x0f; b[firstFace+7]=3; }, "quad fourth index out of range");
+Reject(b => b[firstFace]=0x3f, "extended triangle with short record");
+Reject(b => b[firstFace]=0x5f, "unsupported transparent face");
+Reject(b => { b[firstFace]=0x3f; b[firstFace+2]=40; }, "extended triangle crosses mesh boundary");
 bytes[0]=0;
 if (model.Bytes.Span[0]!=4) throw new Exception("model aliases caller memory");
 if (args.Length != 0)
