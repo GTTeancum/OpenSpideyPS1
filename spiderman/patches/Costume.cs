@@ -299,8 +299,21 @@ public static class Costume
     /// <summary>
     /// Align the first text line with the description and fit eleven stock-spaced rows.
     /// </summary>
+    public const uint ViewerListBytes = 0x28 + 28 * SuitMods.MaxCount;
+
     public static void ConfigureViewerList(IMemory memory, uint list)
     {
+        // The retail constructor initializes forty inline rows. Extend only this
+        // viewer; other menus retain their original allocation and constructor.
+        for (uint row = 40; row < SuitMods.MaxCount; row++)
+        {
+            uint target = list + 0x28 + row * 28;
+            for (uint offset = 0; offset < 28; offset++) memory.WriteU8(target + offset, 0);
+            memory.WriteU16(target + 8, memory.ReadU16(list + 0x30));
+            memory.WriteU16(target + 10, memory.ReadU16(list + 0x32));
+            for (uint offset = 14; offset < 26; offset++)
+                memory.WriteU8(target + offset, memory.ReadU8(list + 0x28 + offset));
+        }
         memory.WriteU32(list + 0x20, 70); // Right-column first text line.
         memory.WriteU8(list + 0x15, 11); // Last baseline 170, inside the frame ending at 175.
     }

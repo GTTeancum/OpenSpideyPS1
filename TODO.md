@@ -1,3 +1,3 @@
 # To-do
 
-- [ ] Expand the costume selector to **80 total costumes per game**, doubling the underlying 40-entry menu capacity. With the current built-in lineups, this allows 60 extra costumes in SM1 and 61 in SM2. Expand or validate menu allocations, name/description storage, selection fields, and persistence; preserve stock unlocks and donor-power routing. Verify full-capacity navigation, selection, save/reload, and overflow handling before raising the enforced limits.
+- [x] Expand both costume selectors to **60 total costumes per game**: 20 stock + 40 mods in SM1, 19 stock + 41 mods in SM2. Expanded inline menu allocations and row helpers; verified all 60 row selections, text bounds, stable-ID reload, overflow rejection, stock unlocks, donor powers, and SM2 custom actor release at the last slot.

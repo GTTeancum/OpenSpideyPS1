@@ -46,7 +46,7 @@ foreach (var (modelId, materials) in SuitRules.Models)
 File.WriteAllText(path, clean);
 Environment.SetEnvironmentVariable("SPIDEY_SUIT_MOD_DIR", work);
 SuitMods.Install();
-Check(Costume.ViewerCount == 20 && SuitMods.MaxCount - SuitMods.StockCount == 12, "nineteen original costumes plus twelve mod slots");
+Check(Costume.ViewerCount == 20 && SuitMods.MaxCount - SuitMods.StockCount == 41, "nineteen original costumes plus forty-one mod slots");
 var memory = new PSMemory(0x800000);
 const uint selected = 0x800B31F2, unlocks = 0x800B31F8;
 memory.WriteU32(unlocks, 1);
@@ -113,7 +113,8 @@ if (args.Length > 1)
         .Select(d => SuitManifest.Read(Path.Combine(d, "suit.json"), SuitRules.Profiles, SuitRules.PowerText,
             SuitRules.Models, SuitManifest.Sm2SpiderMan)).Where(s => s.CustomModel != null).Take(2).ToArray();
     Check(custom.Length == 2, "two real custom actor manifests");
-    SuitMods.Catalogue.Clear(); SuitMods.Catalogue.AddRange(custom);
+    SuitMods.Catalogue.Clear();
+    for (int i = 0; i < 41; i++) SuitMods.Catalogue.Add(custom[i == 40 ? 1 : 0]);
     const uint table = 0x800ACED8, shared = table + 64;
     memory.WriteU8(0x800C236D, 1);
     for (uint i=0xC;i<=0x38;i+=4) memory.WriteU32(shared+i, 0x80300000+i);
@@ -135,7 +136,7 @@ if (args.Length > 1)
     map[0x8004EB74] = (c,m) => { c.V0=0; };
     for(int round=0;round<3;round++)
     {
-        foreach(int index in new[]{19,20,0})
+        foreach(int index in new[]{19,59,0})
         {
             Costume.WriteSelected(memory,index);
             Costume.SelectTextureLibrary(new CpuContext { A1=1 },memory);
@@ -165,3 +166,61 @@ FramePackets.SetLimit(packetContext,memory);
 Check(memory.ReadU32(0x800C2034)==(poolB&0x7FFFFFFF)+FramePackets.Capacity-0x100, "packet limit uses selected pool with safety slack");
 Check(RecompOne.Runtime.Assets.LooseWadOverrides.TryFree(poolA) && RecompOne.Runtime.Assets.LooseWadOverrides.TryFree(poolB), "both frame pools release through tracked allocator");
 Console.WriteLine($"PASS: {tests} total assertions including frame pools");
+
+// Full-capacity fixtures stay isolated from the user's installed catalogue.
+Costume.WriteSelected(memory, 0);
+SuitMods.Catalogue.Clear();
+string capacityRoot = Path.Combine(work, "capacity");
+Directory.CreateDirectory(capacityRoot);
+for (int i = 0; i <= SuitMods.MaxCount - SuitMods.StockCount; i++)
+{
+    string folder = Path.Combine(capacityRoot, $"suit-{i:D2}");
+    Directory.CreateDirectory(folder);
+    File.Copy(Path.Combine(dir, "small.png"), Path.Combine(folder, "small.png"));
+    var d = JsonNode.Parse(clean)!;
+    d["id"] = $"capacity-{i:D2}";
+    d["name"] = $"CAPACITY SUIT {i:D2} X";
+    d["comments"] = new string('X', 54);
+    File.WriteAllText(Path.Combine(folder, "suit.json"), d.ToJsonString());
+}
+Environment.SetEnvironmentVariable("SPIDEY_SUIT_MOD_DIR", capacityRoot);
+SuitMods.Install();
+Check(Costume.ViewerCount == 60 && SuitMods.Catalogue.Count == 60 - SuitMods.StockCount,
+    "exactly sixty total rows; overflow fixture rejected");
+memory.WriteU32(Costume.ViewerTable + 0x5000, 0xAABBCCDD);
+Costume.PrepareViewer(new CpuContext(), memory);
+Check(memory.ReadU32(Costume.ViewerTable + 59 * 12) >= Costume.ViewerTable + 0x800 &&
+    memory.ReadU32(Costume.ViewerTable + 0x5000) == 0xAABBCCDD, "last table record and text arena guard");
+uint fullList = 0x80500000;
+memory.WriteU32(fullList - 4, 0x11223344);
+memory.WriteU32(fullList + Costume.ViewerListBytes, 0x55667788);
+var fullUi = new CpuContext { SP = 0x80700000, A0 = fullList, A1 = 24, A2 = 75, A3 = 1 };
+memory.WriteU32(fullUi.SP + 16, 192); memory.WriteU32(fullUi.SP + 20, 192); memory.WriteU32(fullUi.SP + 24, 10);
+Recompiled.SpiderMan2.func_80017C6C(fullUi, memory);
+Costume.ConfigureViewerList(memory, fullList);
+memory.WriteU8(fullList + 0x14, 60);
+for (uint row = 0; row < 60; row++)
+{
+    uint entry = fullList + 0x28 + row * 32;
+    memory.WriteU32(entry, memory.ReadU32(Costume.ViewerTable + row * 12));
+    memory.WriteU8(entry + 13, 1);
+    Recompiled.SpiderMan2.func_80018278(new CpuContext { A0 = fullList, A1 = row }, memory);
+    Check(memory.ReadU8(fullList + 14) == row && memory.ReadU16(entry + 4) == 192,
+        "native selection reaches row " + row);
+}
+memory.WriteU8(fullList + 0x28 + 59 * 32 + 20, 123);
+Recompiled.SpiderMan2.func_80018074(new CpuContext { A0 = fullList }, memory);
+Check(memory.ReadU8(fullList + 0x28 + 59 * 32 + 26) == 123,
+    "native color refresh reaches the final row");
+Check(memory.ReadU32(fullList - 4) == 0x11223344 && memory.ReadU32(fullList + Costume.ViewerListBytes) == 0x55667788,
+    "sixty-row initialization and selection preserve allocation guards");
+uint savedUnlocks = memory.ReadU32(unlocks);
+Costume.WriteSelected(memory, 59);
+Check(Costume.ReadSelected(memory) == 59 && memory.ReadU32(unlocks) == savedUnlocks && Costume.IsUnlocked(memory, 59),
+    "last mod selects without changing stock unlocks");
+string savedId = SuitMods.At(59).Id;
+Check(File.ReadAllText(Path.Combine(capacityRoot, "selected-suit.txt")) == savedId, "last slot persists stable identity");
+SuitMods.Select(-1, false); SuitMods.Catalogue.Clear(); SuitMods.Install();
+Check(Costume.ReadSelected(memory) == 59 && SuitMods.At(59).Id == savedId, "last slot restores after catalogue reload");
+Costume.WriteSelected(memory, 0);
+Console.WriteLine($"PASS: {tests} assertions including full sixty-slot capacity");

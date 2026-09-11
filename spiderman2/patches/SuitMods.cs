@@ -13,7 +13,7 @@ namespace Recompiled;
 public static class SuitMods
 {
     public const int StockCount = 19;
-    public const int MaxCount = 31; // Twelve mods, below the retail list's 40-entry allocation.
+    public const int MaxCount = 60; // Total stock + mod rows in the expanded selector.
     public static readonly List<SuitManifest> Catalogue = new();
     public static int Active { get; private set; } = -1;
     static Dictionary<uint, ReplacementTexture> _textures = new();
@@ -42,7 +42,7 @@ public static class SuitMods
                 var mod = SuitManifest.Read(file, SuitRules.Profiles, SuitRules.PowerText,
                     SuitRules.Models, SuitManifest.Sm2SpiderMan);
                 if (Catalogue.Any(m => m.Id == mod.Id)) throw new InvalidDataException("duplicate suit id");
-                if (Catalogue.Count >= MaxCount - StockCount) throw new InvalidDataException("suit selector is full (12 mod entries)");
+                if (Catalogue.Count >= MaxCount - StockCount) throw new InvalidDataException($"suit selector is full ({MaxCount - StockCount} mod entries)");
                 Catalogue.Add(mod);
                 Console.WriteLine($"[suit-mod] registered {mod.Id}: {mod.Name}; model {mod.Model}; SM2 profile {SuitRules.Profiles[mod.AbilityProfile]}; {mod.Textures.Count} external PNGs; always unlocked");
             }

@@ -16,6 +16,7 @@ def main():
     start = source.index('public static void func_80249280(')
     end = source.index('public static void func_80249F04(', start)
     f = source[start:end]
+    f = exact(f, "c.A0 = 0x00000528u;", "c.A0 = Recompiled.Costume.ViewerListBytes;")
     # charbio pointers must be ready before copying the original nineteen records.
     entry = 'c.RA = 0x802492B4u;\n        SpiderMan2.func_8023D074(c, m);'
     f = exact(f, entry, entry + '\n        Recompiled.Costume.PrepareViewer(c, m);')
@@ -46,8 +47,25 @@ def main():
     f = exact(f, 'SpiderMan2.func_80017EF8(c, m);',
               'SpiderMan2.func_80017EF8(c, m);\n        Recompiled.Costume.AlignViewerFrame(m, c.S5);')
     SOURCE.write_text(source[:start] + f + source[end:], encoding='utf-8')
-    print('  SM2 costume viewer: nineteen stock + twelve bounded data-only mods')
+    print('  SM2 costume viewer: nineteen stock + up to forty-one mods')
 
+
+def patch_list_helpers():
+    path = Path(__file__).resolve().parents[1] / "generated/main.cs"
+    source = path.read_text(encoding="utf-8")
+    for address in ['80018074', '80018278']:
+        start = source.index("public static void func_" + address + "(")
+        end = source.index("public static void ", start + 20)
+        f = source[start:end]
+        # Capture before the color helper advances A0 through the row array.
+        brace = f.index("{") + 1
+        f = f[:brace] + "\n        int listRows = System.Math.Max(40, System.Math.Min(60, (int)m.ReadU8(c.A0 + 0x14)));" + f[brace:]
+        if f.count("< 40 ?") != 1:
+            raise RuntimeError("list helper shape changed: " + address)
+        f = f.replace("< 40 ?", "< listRows ?")
+        source = source[:start] + f + source[end:]
+    path.write_text(source, encoding="utf-8")
 
 if __name__ == '__main__':
     main()
+    patch_list_helpers()

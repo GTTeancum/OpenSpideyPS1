@@ -88,8 +88,22 @@ public static partial class Costume
         return p;
     }
 
+    public const uint ViewerListBytes = 0x28 + 32 * SuitMods.MaxCount;
+
     public static void ConfigureViewerList(IMemory m, uint list)
     {
+        // The retail constructor initializes forty inline rows. Extend only this
+        // viewer; other menus retain their original allocation and constructor.
+        for (uint row = 40; row < SuitMods.MaxCount; row++)
+        {
+            uint target = list + 0x28 + row * 32;
+            for (uint offset = 0; offset < 32; offset++) m.WriteU8(target + offset, 0);
+            m.WriteU16(target + 8, m.ReadU16(list + 0x30));
+            m.WriteU16(target + 10, m.ReadU16(list + 0x32));
+            for (uint offset = 16; offset < 32; offset++)
+                m.WriteU8(target + offset, m.ReadU8(list + 0x28 + offset));
+            m.WriteU32(target + 16, 1);
+        }
         m.WriteU32(list + 0x20, 70);
         m.WriteU8(list + 0x15, 11);
     }

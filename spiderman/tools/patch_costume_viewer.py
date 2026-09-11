@@ -29,9 +29,11 @@ def main() -> None:
     start = source.index(FUNCTION)
     end = source.index(NEXT_FUNCTION, start)
     function = source[start:end]
+    function = replace_exact(function, "c.A0 = 0x00000488u;",
+        "c.A0 = Recompiled.Costume.ViewerListBytes;", 1)
 
     # The constructor's 10 is row pitch, NOT capacity (the retail allocation
-    # already holds 40 entries). Preserve it and the retail font/position.
+    # holds 40 entries; the viewer allocation is expanded above). Preserve it and the retail font/position.
     function = replace_exact(
         function, "< 0x0000000Au ? 1u : 0u;", "< Recompiled.Costume.ViewerCount ? 1u : 0u;", 2
     )
@@ -115,5 +117,23 @@ def main() -> None:
     print("  costume viewer: stock + data-only mods, scrolling list, table relocated to 0x807C0000")
 
 
+
+def patch_list_helpers():
+    path = Path(__file__).resolve().parents[1] / "generated/main.cs"
+    source = path.read_text(encoding="utf-8")
+    for address in ['8001681C', '80016A28']:
+        start = source.index("public static void func_" + address + "(")
+        end = source.index("public static void ", start + 20)
+        f = source[start:end]
+        # Capture before the color helper advances A0 through the row array.
+        brace = f.index("{") + 1
+        f = f[:brace] + "\n        int listRows = System.Math.Max(40, System.Math.Min(60, (int)m.ReadU8(c.A0 + 0x14)));" + f[brace:]
+        if f.count("< 40 ?") != 1:
+            raise RuntimeError("list helper shape changed: " + address)
+        f = f.replace("< 40 ?", "< listRows ?")
+        source = source[:start] + f + source[end:]
+    path.write_text(source, encoding="utf-8")
+
 if __name__ == "__main__":
     main()
+    patch_list_helpers()

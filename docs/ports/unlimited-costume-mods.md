@@ -53,7 +53,10 @@ when switching, retaining the shared stock actor binding.
 
 Mangaverse retains all 2,896 source triangles, with a largest part of 242 vertices.
 Last Stand reuses the previously fitted geometry and closed fists. The current
-custom slot count is unchanged; expansion to 80 total remains separate work.
+selector supports 60 total costumes: 20 stock plus 40 mods in SM1, and 19 stock
+plus 41 mods in SM2. The eleven-row scrolling viewport is unchanged. Extra
+installed mods beyond the limit are rejected with a diagnostic; selected mod IDs
+remain stable across restarts.
 ## Infinity War / Iron Spider Battle Mode
 
 The extracted source is `ironspidernewwithtentackles`, not `ironspidernew`.
@@ -107,3 +110,64 @@ animation. The band now follows one joint consistently; upper vest and limb
 weights remain unchanged. This selection is specific to the original `punk.fbx`
 coordinates and checked vertex count, so changed source geometry needs review.
 The resulting actor has 2,942 source triangles and a maximum 247 vertices per part.
+
+## Noir
+
+Use the original `noir/noir.fbx` and `SpidermanNoir_D.png` (the collection also has
+a separate `noirnew` variant). The original head needs 362 native vertices.
+Prepare the head/collar surface with:
+
+```powershell
+& "C:/Program Files/Blender Foundation/Blender 4.5/blender.exe" --background --factory-startup --disable-autoexec -t 2 --python dreamcast/tools/prepare_unlimited_noir.py -- --fbx C:/Programming/SMU-Costumes/costumes/noir/noir.fbx --output C:/Models/NoirPrepared
+```
+
+Save the diffuse as `Noir_D_rgb.tga` in that directory, then run the normal
+converter with `--id noir --name Noir --opaque-diffuse`. The head/collar surface
+is reduced from 356 welded vertices to 217; body topology and weights remain
+unchanged. Both hand variants use fists. Diffuse RGB is preserved, with opaque
+alpha for the native material. Original source files remain unchanged.
+
+## 2211
+
+Use `2211/2211.fbx` with `Spiderman2211_D.png`. Run
+`prepare_unlimited_2211.py` in Blender with `--fbx` and a fresh `--output`
+directory, then save the diffuse there as `2211_D_rgb.tga`. Build with
+`--id spiderman-2211 --name 2211 --opaque-diffuse`.
+
+The helmet is reduced from 309 welded vertices to 174. The sixteen pieces of
+the compact back attachments are lightly reduced and assigned rigidly to their
+lower-waist or upper-middle-torso group, preserving the source arrangement.
+This avoids per-vertex joint changes within the mechanical pieces. The main
+body and limb topology/weights remain unchanged; both hand variants use fists.
+The final actor has 3,384 source triangles and a largest native part of 245
+vertices. No new attachment animation or powers are added.
+
+## Pavitr Prabhakar
+
+Pavitr is a one-off conversion. Use `prepare_unlimited_pavitr.py`, then
+`build_pavitr_actor.py`, which calls `fit_pavitr_actor.py` and
+`pack_pavitr_actor.py`. These corrections are not part of the shared Unlimited
+fitter or packer and should not be applied to other costumes.
+
+Use `india/india.fbx` with `SpidermanInida_D.png` (original spelling). Run the
+preparation in Blender with `--fbx` and a fresh `--output` directory. Save the
+diffuse as `India_D_rgb.tga` there. Run the dedicated builder with `--source`,
+a fresh `--output`, `--blender`, and `--opaque-diffuse`; its default name and ID
+are Pavitr Prabhakar and pavitr-prabhakar.
+
+The source's 3,524 triangles remain. The fitting gives the trousers coherent
+knee ownership and keeps the chest on the torso. The chest/abdomen envelope
+follows default Spider-Man's dimensions; the shoulder transition is smoothed
+to remove pointed upper-arm flaps. Native joint pivots remain unchanged.
+Shoes are about 39% shorter, with a fuller instep and raised arch. The approved
+foot and leg coordinates are preserved by the torso revision.
+
+The packer adds 824 reversed trouser triangles as an inward-facing lining for
+folds exposed by rigid hip/knee animation. It reuses the vertices and UVs and
+preserves the original outward smooth normals. The complete actor contains
+5,104 triangles including alternate hands, takes 544,580 bytes, and remains
+within the 256-vertex-per-part limit. This is a targeted cloth treatment, not
+a change to renderer culling or every costume's geometry.
+
+Both hand variants use fists and standard Spider-Man donor powers/animations.
+The diffuse keeps its original RGB with opaque alpha.
