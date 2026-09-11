@@ -171,3 +171,13 @@ a change to renderer culling or every costume's geometry.
 
 Both hand variants use fists and standard Spider-Man donor powers/animations.
 The diffuse keeps its original RGB with opaque alpha.
+
+## Original SM1 Spider-Man in SM2
+
+Run `python dreamcast/tools/build_sm1_spidey_sm2_suit.py --output <fresh-folder>`
+to produce the `spiderman-sm1` suit, displayed as **Spider-Man (SM1)**. Copy that
+folder into SM2's `mods/suits`. It selects the already bundled wingless SM1
+actor through `model: spiderman` and copies the eight original SM1 body PNGs
+without recoloring or resizing. Standard SM2 Spider-Man supplies the powers
+and animations. The original SM2 Spider-Man remains a separate stock costume.
+This builder needs the existing SM1 runtime bundle and converted texture manifest.
