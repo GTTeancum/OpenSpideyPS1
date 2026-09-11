@@ -180,7 +180,7 @@ public sealed record SuitManifest(string Id, string Name, string Comments, strin
             if (!textures.TryAdd(material, file)) throw new InvalidDataException("duplicate material ID");
         }
         if (textures.Count == 0) throw new InvalidDataException("at least one external texture is required");
-        return new(id, Label(o, "name", 18), comments, model, profile, textures) { CustomModel = customModel };
+        return new(id, Label(o, "name", 19), comments, model, profile, textures) { CustomModel = customModel };
     }
 
     public Dictionary<uint, ReplacementTexture> Decode()

@@ -26,7 +26,7 @@ Open suit.json in Notepad. Change only the text inside the quotation marks:
 
   id        A unique short label, such as my-spidey.
             Use lowercase letters, numbers and hyphens, with no spaces.
-  name      Your costume's name in the list and under COSTUME: (18 characters max).
+  name      Your costume's name in the list and under COSTUME: (19 characters max).
   comments  Your own message under COMMENTS:. Keep it short; three short
             lines will fit with any power choice. Text wraps automatically.
   model     The built-in model base. This example uses spiderman.

@@ -219,3 +219,19 @@ the corresponding foot owner. `rig_quick_change_red.py` verifies every native
 attachment, unchanged bind-pose surface/UVs, and the native vertex limit. It
 preserves original native triangles, quads and extended triangle records.
 Original stock Quick Change remains unchanged.
+
+## Ben Reilly (Street), SM1 and SM2
+
+[Ben Reilly](https://gamebanana.com/mods/448036) by
+[DarthJak90](https://gamebanana.com/members/2685073) reskins the civilian Peter
+Parker costume. Build from the original `ben_reilly_5fae7.zip`:
+
+```powershell
+python dreamcast/tools/build_ben_reilly_street_suit.py --archive <downloaded-zip> --output <fresh-folder>/ben-reilly-street
+```
+
+The two `spPark` textures are converted pixel-for-pixel and combined with ten
+original Peter Parker textures. The separate NPC `parker` texture is left out
+of the selectable suit. The custom actor uses the same rigid pelvis and ankle
+boundary treatment as Quick Change (red), with standard Spider-Man powers.
+Its exact selector name requires the updated 19-character name limit.

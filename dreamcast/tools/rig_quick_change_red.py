@@ -18,10 +18,11 @@ from pack_sm2_costume_to_dc import container_layout, resolve_multitool
 def main():
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument('--output', type=Path, required=True)
+    parser.add_argument('--donor', choices=('spquick.psx', 'sppark.psx'), default='spquick.psx')
     args = parser.parse_args()
     args.output.mkdir(parents=True, exist_ok=True)
     with zipfile.ZipFile(ROOT / 'spiderman/port/bundled/runtime-assets.zip') as archive:
-        raw = archive.read('spquick.psx')
+        raw = archive.read(args.donor)
     donor = args.output / 'donor.psx'
     donor.write_bytes(raw)
     dump_path = args.output / 'donor-dump.json'

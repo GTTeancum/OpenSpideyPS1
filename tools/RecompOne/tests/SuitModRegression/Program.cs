@@ -59,6 +59,7 @@ Reject(d => d["model"] = "../../unsafe.psx", "model selector rejects paths and a
 Reject(d => d["address"] = "0x80010000", "raw address fields rejected");
 Reject(d => d["abilities"]!["profile"] = "sm2-electric-web", "unknown ability profile rejected");
 Reject(d => d["name"] = "BAD\u0002TEXT", "selector control bytes rejected");
+Reject(d => d["name"] = "Ben Reilly (Street)XX", "names above nineteen characters rejected");
 Reject(d => d["comments"] = "BAD\u0002TEXT", "comment control bytes rejected");
 Reject(d => d["comments"] = new string('W', 72), "comments that would overflow the default donor pane rejected");
 var emptyComments = JsonNode.Parse(clean)!;
@@ -251,7 +252,7 @@ for (int i = 0; i <= SuitMods.MaxCount - SuitMods.StockCount; i++)
     File.Copy(Path.Combine(dir, "small.png"), Path.Combine(folder, "small.png"));
     var d = JsonNode.Parse(clean)!;
     d["id"] = $"capacity-{i:D2}";
-    d["name"] = $"CAPACITY SUIT {i:D2} X";
+    d["name"] = $"CAPACITY SUIT {i:D2} XX";
     d["comments"] = new string('X', 54);
     File.WriteAllText(Path.Combine(folder, "suit.json"), d.ToJsonString());
 }

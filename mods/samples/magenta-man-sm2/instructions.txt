@@ -25,7 +25,7 @@ you keep their matching SM1 model base; see README.md for migration details.
 Open suit.json in Notepad and change the text inside quotation marks:
 
   id        A unique label: lowercase letters, numbers and hyphens; no spaces.
-  name      The costume name in both panels (18 characters maximum).
+  name      The costume name in both panels (19 characters maximum).
   comments  Your message under COMMENTS:. Keep it to three short lines.
   model     The built-in model base. This example uses sm2-spiderman.
   profile   A power choice below; it does not change your painted model.

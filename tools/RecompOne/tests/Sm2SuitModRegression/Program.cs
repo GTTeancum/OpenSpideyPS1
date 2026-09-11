@@ -179,7 +179,7 @@ for (int i = 0; i <= SuitMods.MaxCount - SuitMods.StockCount; i++)
     File.Copy(Path.Combine(dir, "small.png"), Path.Combine(folder, "small.png"));
     var d = JsonNode.Parse(clean)!;
     d["id"] = $"capacity-{i:D2}";
-    d["name"] = $"CAPACITY SUIT {i:D2} X";
+    d["name"] = $"CAPACITY SUIT {i:D2} XX";
     d["comments"] = new string('X', 54);
     File.WriteAllText(Path.Combine(folder, "suit.json"), d.ToJsonString());
 }

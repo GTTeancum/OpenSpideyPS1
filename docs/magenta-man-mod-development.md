@@ -70,7 +70,7 @@ diagnostic attributes; geometry, standard colors, UVs, joints and weights are un
 
 ## Edit the JSON and PNGs
 
-`suit.json` supports `//` comments. `name` (up to 18 printable ASCII characters)
+`suit.json` supports `//` comments. `name` (up to 19 printable ASCII characters)
 and `comments` (up to 72, further bounded by the available wrapped lines) appear
 in the selector. GAME POWERS uses the chosen profile's retail text. `id` must be unique and stable;
 selection is remembered by that ID outside the retail save. Removing a selected

@@ -59,7 +59,7 @@ Insulated's menu lists enhanced strength; its native costume identity also enabl
 the game's electrical-resistance behavior.
 
 **GAME POWERS** uses the original costume wording automatically. Keep `name` to
-18 characters. Comments share the panel with the donor's power list; if a donor
+19 characters. Comments share the panel with the donor's power list; if a donor
 with more powers makes the mod fail validation, shorten `comments`.
 
 ## Paint or migrate a suit
