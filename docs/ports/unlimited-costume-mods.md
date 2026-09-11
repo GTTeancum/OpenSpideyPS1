@@ -19,6 +19,9 @@ game. IDs stay stable so saved selections continue to resolve.
 | `mangaverse-spiderman` | Mangaverse |
 | `noir` | Spider-Noir |
 
+See [Miles Morales through Buzz](unlimited-roster.md) for the thirteen-costume
+batch builder, source mappings, cape handling and native verification.
+
 ## Convert another costume
 
 Place one exported FBX and its `*_D_rgb.tga` diffuse image in a source folder.

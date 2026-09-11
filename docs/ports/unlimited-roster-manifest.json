@@ -1,0 +1,353 @@
+{
+  "blender": "4.5.8 LTS",
+  "models": [
+    {
+      "id": "miles-morales",
+      "name": "Miles Morales",
+      "source": {
+        "sourceCostume": "milesmorales",
+        "author": "Gameloft",
+        "game": "Spider-Man Unlimited",
+        "preparationArguments": null,
+        "fbxSha256": "2bcf59884aec6bd25d34efa1be2f350ec05ee2198a7005186dcca54ffadbeef8",
+        "diffuseSha256": "84f6d8299961501492ea2c35f126c69f6361726b1d2ebc446ca2439e1fd7da55"
+      },
+      "actorSha256": "a84dc25d97e693c081f7c5d647531481acb0239a157af4080cad085c40c6289c",
+      "sourceTriangles": 2838,
+      "maximumPartVertices": 235,
+      "verification": {
+        "games": [
+          "SM1",
+          "SM2"
+        ],
+        "capturesPerGame": 3,
+        "scope": "Opening rooftop smoke route; each capture visually reviewed",
+        "stagedFileHashesVerified": true
+      }
+    },
+    {
+      "id": "the-amazing-spider",
+      "name": "The Amazing Spider",
+      "source": {
+        "sourceCostume": "amazing_spider",
+        "author": "Gameloft",
+        "game": "Spider-Man Unlimited",
+        "preparationArguments": [
+          "--amazing-cape",
+          "--torso-ratio",
+          ".55"
+        ],
+        "fbxSha256": "994988a674ee7fd10e41e575d28f1362027dc51d448febdd21c31444875a5d82",
+        "diffuseSha256": "a201497394fd3ea53b47e3258b07ba6b20b11a5946ee1ff4447b9ef45a58bb83"
+      },
+      "actorSha256": "09eb59f537412ff1a51cef7d2cbb582685ae561022ea5068dee4df94dc671996",
+      "sourceTriangles": 3626,
+      "maximumPartVertices": 243,
+      "verification": {
+        "games": [
+          "SM1",
+          "SM2"
+        ],
+        "capturesPerGame": 3,
+        "scope": "Opening rooftop smoke route; each capture visually reviewed",
+        "stagedFileHashesVerified": true
+      }
+    },
+    {
+      "id": "1602",
+      "name": "1602",
+      "source": {
+        "sourceCostume": "1602",
+        "author": "Gameloft",
+        "game": "Spider-Man Unlimited",
+        "preparationArguments": [
+          "--head-ratio",
+          ".30",
+          "--head-min",
+          "5",
+          "--torso-min",
+          "5"
+        ],
+        "fbxSha256": "ba5265ba024d1322e8328ed3ac4b300b22ce26735093974d4d4123cf955d025d",
+        "diffuseSha256": "0c101a41fb245f7dd137199754e5c5c42180d429286dc48151a7baf299503b6f"
+      },
+      "actorSha256": "c5029f8d4457c109aa4d3098e9cf13509311f465d80fdeadaaf9d13fa4c62f12",
+      "sourceTriangles": 2509,
+      "maximumPartVertices": 185,
+      "verification": {
+        "games": [
+          "SM1",
+          "SM2"
+        ],
+        "capturesPerGame": 3,
+        "scope": "Opening rooftop smoke route; each capture visually reviewed",
+        "stagedFileHashesVerified": true
+      }
+    },
+    {
+      "id": "mcu-homemade",
+      "name": "MCU Homemade",
+      "source": {
+        "sourceCostume": "homemade",
+        "author": "Gameloft",
+        "game": "Spider-Man Unlimited",
+        "preparationArguments": [
+          "--head-ratio",
+          ".30",
+          "--head-min",
+          "5",
+          "--torso-min",
+          "5"
+        ],
+        "fbxSha256": "0efd413f9d23bb2a43ff35065f4c0a3ca3a82c6fe5c4dee9d59ce1abd9a2c7d2",
+        "diffuseSha256": "f1cc6fd5723305c22341b472ae596cf31788a57f4773c41efef2ca0991b40959"
+      },
+      "actorSha256": "6f7f4093bb6299b514ea28b1ddbc9242f2a233553cf245875f806d3866918027",
+      "sourceTriangles": 2678,
+      "maximumPartVertices": 242,
+      "verification": {
+        "games": [
+          "SM1",
+          "SM2"
+        ],
+        "capturesPerGame": 3,
+        "scope": "Opening rooftop smoke route; each capture visually reviewed",
+        "stagedFileHashesVerified": true
+      }
+    },
+    {
+      "id": "ends-of-the-earth",
+      "name": "Ends of the Earth",
+      "source": {
+        "sourceCostume": "endofearth",
+        "author": "Gameloft",
+        "game": "Spider-Man Unlimited",
+        "preparationArguments": null,
+        "fbxSha256": "83e680930a647e6e483960b64f16346b092093f9f90d7564a414399857dd8d60",
+        "diffuseSha256": "816b25be627d999bdb4ff44ac52eb2e3621e261f781c571f22802674e445e3f5"
+      },
+      "actorSha256": "f3b8819ea0315dfaa20417521ed5fe854e1717f5417257a2e10b7b5b922d6649",
+      "sourceTriangles": 3446,
+      "maximumPartVertices": 223,
+      "verification": {
+        "games": [
+          "SM1",
+          "SM2"
+        ],
+        "capturesPerGame": 3,
+        "scope": "Opening rooftop smoke route; each capture visually reviewed",
+        "stagedFileHashesVerified": true
+      }
+    },
+    {
+      "id": "bullet-points",
+      "name": "Bullet Points",
+      "source": {
+        "sourceCostume": "bulletpoints",
+        "author": "Gameloft",
+        "game": "Spider-Man Unlimited",
+        "preparationArguments": null,
+        "fbxSha256": "213d8b906ac81f9a507866465363bd987ee3c7e23c3ced5b0d354068833802bc",
+        "diffuseSha256": "45fca8a696cdcb9f4703b7f02ee467c18f24d4162c7339f9c91af8d037118024"
+      },
+      "actorSha256": "12473b497cfa64ee8031a921cc839982ea0119ced8c8b3cff7512f420c1358fc",
+      "sourceTriangles": 2910,
+      "maximumPartVertices": 237,
+      "verification": {
+        "games": [
+          "SM1",
+          "SM2"
+        ],
+        "capturesPerGame": 3,
+        "scope": "Opening rooftop smoke route; each capture visually reviewed",
+        "stagedFileHashesVerified": true
+      }
+    },
+    {
+      "id": "all-new",
+      "name": "All-New",
+      "source": {
+        "sourceCostume": "spiderman_newdesign",
+        "author": "Gameloft",
+        "game": "Spider-Man Unlimited",
+        "preparationArguments": null,
+        "fbxSha256": "fca83c403a92632c0535289679a209d9118c47a9eccc18616e144db440becd02",
+        "diffuseSha256": "0ffc4fbe35ab939ca9c58ca6cba91ee2e1d9133c74933ae7a1d500e5a94b1723"
+      },
+      "actorSha256": "83e813d2009763deef6b811276b2461c4eb813dcb83ebffac0ee0af855698ec5",
+      "sourceTriangles": 2874,
+      "maximumPartVertices": 235,
+      "verification": {
+        "games": [
+          "SM1",
+          "SM2"
+        ],
+        "capturesPerGame": 3,
+        "scope": "Opening rooftop smoke route; each capture visually reviewed",
+        "stagedFileHashesVerified": true
+      }
+    },
+    {
+      "id": "secret-war",
+      "name": "Secret-War",
+      "source": {
+        "sourceCostume": "secretwar",
+        "author": "Gameloft",
+        "game": "Spider-Man Unlimited",
+        "preparationArguments": null,
+        "fbxSha256": "cef551bd9ed19b22a42ff0539e2319d017c05f5b2289b12a68892cd3f5b16ed9",
+        "diffuseSha256": "1fab78f35d6abf24d4127b9f96d5fd8a0ad7baccae0575d22c23776f02bb392f"
+      },
+      "actorSha256": "7e182b212c7e730fdd56ac8c4e3e044ef2621d049784bf07ac92777aa4de550b",
+      "sourceTriangles": 2838,
+      "maximumPartVertices": 235,
+      "verification": {
+        "games": [
+          "SM1",
+          "SM2"
+        ],
+        "capturesPerGame": 3,
+        "scope": "Opening rooftop smoke route; each capture visually reviewed",
+        "stagedFileHashesVerified": true
+      }
+    },
+    {
+      "id": "ghost-spider",
+      "name": "Ghost Spider",
+      "source": {
+        "sourceCostume": "ghost",
+        "author": "Gameloft",
+        "game": "Spider-Man Unlimited",
+        "preparationArguments": [],
+        "fbxSha256": "0a0a6f8d8936bb23b6127bcf321c16c8827e5042976e242fe3d5f9d2ec49404a",
+        "diffuseSha256": "cf75709c8bb5b80469084212776be2135a2d0b61ff0aceed55410e64ff424a16"
+      },
+      "actorSha256": "b790053612bcd099f072a6715347370daf0d782f5da02422db44594f1a54253f",
+      "sourceTriangles": 2766,
+      "maximumPartVertices": 217,
+      "verification": {
+        "games": [
+          "SM1",
+          "SM2"
+        ],
+        "capturesPerGame": 3,
+        "scope": "Opening rooftop smoke route; each capture visually reviewed",
+        "stagedFileHashesVerified": true
+      }
+    },
+    {
+      "id": "prodigy",
+      "name": "Prodigy",
+      "source": {
+        "sourceCostume": "prodigy",
+        "author": "Gameloft",
+        "game": "Spider-Man Unlimited",
+        "preparationArguments": [],
+        "fbxSha256": "15dfe44891bfedfaa5c7a24d65468a04d6a4eb5330d151358527cccd2e13df71",
+        "diffuseSha256": "cb1de3f76678e367afbb39ea841c4e0cd18deafec8b3f8066e271203503c8733"
+      },
+      "actorSha256": "b231b92eb47eec3a53aa4b349ffa80655d62afbcce2ecf226df029eeeb0f9a12",
+      "sourceTriangles": 2878,
+      "maximumPartVertices": 224,
+      "verification": {
+        "games": [
+          "SM1",
+          "SM2"
+        ],
+        "capturesPerGame": 3,
+        "scope": "Opening rooftop smoke route; each capture visually reviewed",
+        "stagedFileHashesVerified": true
+      }
+    },
+    {
+      "id": "sp-dr",
+      "name": "SP//DR",
+      "source": {
+        "sourceCostume": "spdr",
+        "author": "Gameloft",
+        "game": "Spider-Man Unlimited",
+        "preparationArguments": [
+          "--head-ratio",
+          ".40",
+          "--torso-ratio",
+          ".35",
+          "--head-min",
+          "5",
+          "--torso-min",
+          "5"
+        ],
+        "fbxSha256": "3d6e2b63cd943b70898abcb51c151af0e411c379cc8d58b4be6c77d835efd3c3",
+        "diffuseSha256": "9d5d50bb895e7ebf6d7ce851c6621bdd4bc4403dca3f02602a402e3729d21f13"
+      },
+      "actorSha256": "55eb6e5497e39935c642ea5b09289d724d4f969f45075607bac06c6208bbbb37",
+      "sourceTriangles": 3886,
+      "maximumPartVertices": 249,
+      "verification": {
+        "games": [
+          "SM1",
+          "SM2"
+        ],
+        "capturesPerGame": 3,
+        "scope": "Opening rooftop smoke route; each capture visually reviewed",
+        "stagedFileHashesVerified": true
+      }
+    },
+    {
+      "id": "hornet",
+      "name": "Hornet",
+      "source": {
+        "sourceCostume": "hornet",
+        "author": "Gameloft",
+        "game": "Spider-Man Unlimited",
+        "preparationArguments": [],
+        "fbxSha256": "479744c12a5baf179f6eae98afddf1436900c59d3ea8e9e9e2c2b7a974c94d8f",
+        "diffuseSha256": "13524ae24143d828f6973e09cbabec2baaa7c2dc473fb987e3897d150f65b58d"
+      },
+      "actorSha256": "91c6b5f02c5fff86b2bb48f3bc058c00a32c7c75c76bd42c5b566790eaf7a5a0",
+      "sourceTriangles": 3134,
+      "maximumPartVertices": 220,
+      "verification": {
+        "games": [
+          "SM1",
+          "SM2"
+        ],
+        "capturesPerGame": 3,
+        "scope": "Opening rooftop smoke route; each capture visually reviewed",
+        "stagedFileHashesVerified": true
+      }
+    },
+    {
+      "id": "buzz",
+      "name": "Buzz",
+      "source": {
+        "sourceCostume": "buzz",
+        "author": "Gameloft",
+        "game": "Spider-Man Unlimited",
+        "preparationArguments": [
+          "--head-ratio",
+          ".45",
+          "--torso-ratio",
+          ".40",
+          "--head-min",
+          "5",
+          "--torso-min",
+          "5"
+        ],
+        "fbxSha256": "793b8f2a7eed6d1ef77f594c5dfadb769cfc7f860b2163bc3f500335d181a741",
+        "diffuseSha256": "27aebec1c27291ff0c5cba03104ba3612371ddade8891251e56e6a8e79366558"
+      },
+      "actorSha256": "a99b38dcddc04413ab6abbb443c58be91e6830672557322679f8f41ff84e453a",
+      "sourceTriangles": 2472,
+      "maximumPartVertices": 209,
+      "verification": {
+        "games": [
+          "SM1",
+          "SM2"
+        ],
+        "capturesPerGame": 3,
+        "scope": "Opening rooftop smoke route; each capture visually reviewed",
+        "stagedFileHashesVerified": true
+      }
+    }
+  ]
+}
