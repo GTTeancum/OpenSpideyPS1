@@ -181,3 +181,19 @@ actor through `model: spiderman` and copies the eight original SM1 body PNGs
 without recoloring or resizing. Standard SM2 Spider-Man supplies the powers
 and animations. The original SM2 Spider-Man remains a separate stock costume.
 This builder needs the existing SM1 runtime bundle and converted texture manifest.
+
+## Steve Ditko (SM1 and SM2)
+
+Dat Mental Gamer's [Steve Ditko Costume](https://gamebanana.com/mods/249029)
+uses the default wingless SM1 model. Download `steve_ditko_spidey.zip` from the
+original page, then run:
+
+```powershell
+python dreamcast/tools/build_steve_ditko_suit.py --archive <downloaded-zip> --output <fresh-folder>/steve-ditko
+```
+
+Install the resulting folder in either game's `mods/suits`. The builder checks
+the original archive checksum, maps its eight main BMPs to the native body
+materials, and verifies pixel-identical PNG conversion. It excludes the extra
+`New folder` alternate texture. The selector displays **Steve Ditko**, credits
+**Dat Mental Gamer**, and uses standard Spider-Man powers.
