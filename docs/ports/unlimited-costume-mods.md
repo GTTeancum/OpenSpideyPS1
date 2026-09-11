@@ -5,13 +5,27 @@ Mangaverse and Last Stand include a custom native actor, full-resolution diffuse
 PNG, and `suit.json`. Select them from the costume menu. No global asset override
 is needed. Existing texture-only suits continue to work.
 
+## Current display names
+
+Use these names when rebuilding or packaging the corresponding suits in either
+game. IDs stay stable so saved selections continue to resolve.
+
+| Suit ID | Display name |
+| --- | --- |
+| `bigtimegreen` | Big Time (stealth) |
+| `bigtimered` | Big Time (sonic) |
+| `infinity-war` | MCU Infinity War |
+| `last-stand-spiderman` | Last Stand |
+| `mangaverse-spiderman` | Mangaverse |
+| `noir` | Spider-Noir |
+
 ## Convert another costume
 
 Place one exported FBX and its `*_D_rgb.tga` diffuse image in a source folder.
 Use Blender 4.5 and Python with Pillow, then run from the repository root:
 
 ```powershell
-python dreamcast/tools/build_unlimited_actor.py --source C:/Models/Mangaverse --output C:/Models/Converted/Mangaverse --id mangaverse-spiderman --name "Mangaverse Spidey" --blender "C:/Program Files/Blender Foundation/Blender 4.5/blender.exe"
+python dreamcast/tools/build_unlimited_actor.py --source C:/Models/Mangaverse --output C:/Models/Converted/Mangaverse --id mangaverse-spiderman --name "Mangaverse" --blender "C:/Program Files/Blender Foundation/Blender 4.5/blender.exe"
 ```
 
 Use a fresh output directory. Copy the generated `mods/suits/<id>` folder into
@@ -29,7 +43,7 @@ conversion; structural validation alone does not establish visual quality.
 {
   "version": 1,
   "id": "mangaverse-spiderman",
-  "name": "Mangaverse Spidey",
+  "name": "Mangaverse",
   "comments": "Spider-Man Unlimited",
   "model": "spiderman",
   "modelFile": "actor.psx",
@@ -68,7 +82,7 @@ source exceeds the native torso's 256-vertex budget. Prepare this costume first:
 ```
 
 Save `IronSpiderNewWithTentackles_D.png` as `InfinityWar_D_rgb.tga` in that prepared
-folder, then use the normal converter with `--id infinity-war --name "Infinity War" --opaque-diffuse`.
+folder, then use the normal converter with `--id infinity-war --name "MCU Infinity War" --opaque-diffuse`.
 The default preparation retains the body topology and four static arms, reduces
 each arm to 22 vertices, and omits layered back decals and separate transparent
 light cards. The final native torso uses 254 vertices. This preparation is specific
@@ -122,7 +136,7 @@ Prepare the head/collar surface with:
 ```
 
 Save the diffuse as `Noir_D_rgb.tga` in that directory, then run the normal
-converter with `--id noir --name Noir --opaque-diffuse`. The head/collar surface
+converter with `--id noir --name Spider-Noir --opaque-diffuse`. The head/collar surface
 is reduced from 356 welded vertices to 217; body topology and weights remain
 unchanged. Both hand variants use fists. Diffuse RGB is preserved, with opaque
 alpha for the native material. Original source files remain unchanged.

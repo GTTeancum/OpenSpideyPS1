@@ -56,6 +56,7 @@ output directory; the builder refuses to overwrite an existing proof run.
 python dreamcast/tools/build_unlimited_actor.py `
   --source 'C:\Users\smmel\Downloads\Last Stand Spider-Man (Mesh_LastStand)' `
   --output proof_render/last-stand-rebuild `
+  --id last-stand-spiderman --name 'Last Stand' `
   --blender 'C:\Program Files\Blender Foundation\Blender 4.5\blender.exe' `
   --preview
 ```
