@@ -1,0 +1,92 @@
+MAKE OR CUSTOMIZE A SUIT — SPIDER-MAN / SPIDER-MAN 2
+
+INSTALL AND SELECT
+Put the complete suit folder in mods/suits beside the game's executable.
+Restart the game and select it under SPECIAL, then COSTUME VIEWER (SM1) or
+COSTUMES (SM2). Mod suits are unlocked automatically.
+The selector supports 60 total costumes: 40 mod slots in SM1, 41 in SM2.
+Move unwanted suits to mods/inactive-suits to free slots while preserving files.
+
+MAKE YOUR OWN COPY
+Copy the entire suit folder and give it a new folder name. Open suit.json in a
+text editor. Give the copy a unique id using lowercase letters, digits and
+hyphens. Change name (19 printable ASCII characters maximum) and comments.
+Preserve the original author's credit when sharing a derivative. Comments must
+fit beside the selected donor's powers; shorten them if validation rejects them.
+Keep JSON commas, braces and quotation marks intact.
+
+PAINT THE TEXTURES
+Edit the PNGs referenced by suit.json. Preserve their UV layout, proportions and
+transparent areas. Keep texture keys and filenames unchanged. PNGs may be up to
+4096 pixels per side, within a 64 MiB decoded texture budget for the whole suit.
+If TEMPLATE is included, it contains optional painting guides; keep guide lines
+out of the finished PNGs. A template folder is not required to use a suit.
+
+MODEL AND CUSTOM GEOMETRY
+model selects a built-in body and matching texture layout:
+  spiderman       SM1 Dreamcast Spider-Man, wingless
+  scarlet-spider  Dreamcast Scarlet Spider
+  symbiote        Dreamcast Symbiote Spider-Man
+  quick-change    Dreamcast Quick Change
+  peter-parker    Dreamcast Peter Parker
+  sm2-spiderman   SM2 Dreamcast Spider-Man, including web wings
+Do not change model without supplying the matching texture set.
+An optional modelFile selects a converted native .psx actor in this suit folder.
+If this suit has modelFile, retain that file and its matching textures when
+repainting or sharing it. Raw FBX/OBJ/GLB files cannot be installed directly.
+Original Dreamcast rigs should retain authored geometry and vertex ownership;
+do not reweight or remove faces to conceal a renderer overlap problem.
+
+CHOOSE POWERS INDEPENDENTLY
+Change abilities.profile in suit.json to one exact ID below. The donor changes
+powers while retaining the suit's appearance. Choose one profile at a time;
+JSON cannot combine donors or add enemy movesets. GAME POWERS is filled in using
+the original costume wording. The donor costume need not be unlocked.
+
+SM1 PROFILES
+  spiderman         Normal Spider-Man powers
+  2099              Stronger attacks
+  symbiote          Unlimited webbing
+  captain-universe  Invincibility, stronger attacks and unlimited webbing
+  unlimited         Invisibility, toggled with L2
+  bagman            No web belt; two web cartridges
+  scarlet           Normal Spider-Man powers
+  ben-reilly        Normal Spider-Man powers
+  quick-change      No web belt; two web cartridges
+  peter-parker      No web belt; two web cartridges
+
+SM2 PROFILES
+  spiderman         Standard Spider-Man abilities
+  spider-phoenix    Invulnerability, enhanced strength and enhanced web swing
+  prodigy           Double jump, enhanced strength and enhanced web swing
+  dusk              Stealth
+  insulated         Enhanced strength and electrical resistance
+  alex-ross-red     Double jump
+  alex-ross-white   Enhanced web swing
+  venom-earth-x     Enhanced strength and unlimited webbing
+  negative-zone     No additional costume powers
+  symbiote          Unlimited webbing
+  2099              Enhanced strength
+  captain-universe  Invulnerability, enhanced strength and unlimited webbing
+  unlimited         Stealth mode
+  bagman            No Spidey belt
+  scarlet           No additional costume powers
+  ben-reilly        No additional costume powers
+  quick-change      No Spidey belt
+  peter-parker      No Spidey belt
+  battle-damaged    No additional costume powers
+"unlimited" means stealth, not unlimited webbing. Use symbiote for webbing.
+
+MOVE BETWEEN GAMES
+Keep model explicitly set to the intended body, retain matching PNGs and any
+modelFile, and choose a profile supported by the destination game. An omitted
+model defaults to a different body in each game. Custom actors also need testing
+against the destination game's animation requirements; changing JSON alone does
+not establish compatibility.
+
+TROUBLESHOOT AND SHARE
+If the suit is missing, check unique ids, available slots, JSON syntax, referenced
+files, supported model/profile, and comment length. Restart after changes.
+Test stance, crouch, jumping and movement; inspect jacket hems, cuffs and joints.
+To share, zip the entire suit folder, including suit.json, referenced PNGs, any
+modelFile, author credits and these instructions. No executable edits are needed.

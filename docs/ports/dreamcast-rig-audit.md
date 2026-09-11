@@ -106,3 +106,13 @@ Verify the staged files against the tested files, preserve `selected-suit.txt`,
 and confirm texture files remain unchanged. Rerun `audit_dc_rigs.py` against
 the stage. Keep direct links to the current proof PNGs, the audit report and
 staged hashes; remove discarded experimental packages and duplicate logs.
+
+Distribute the shared customization guide with every installed suit:
+
+```powershell
+python dreamcast/tools/install_suit_instructions.py "proof_render/user-facing-stage/ready/Spider-Man/mods/suits" "proof_render/user-facing-stage/ready/Spider-Man 2/mods/suits"
+```
+
+The tracked source is `mods/suit-instructions.txt`. Magenta Man is an archived
+example in `mods/inactive-suits` in the staged games and is no longer needed in
+the active roster to provide these instructions.
