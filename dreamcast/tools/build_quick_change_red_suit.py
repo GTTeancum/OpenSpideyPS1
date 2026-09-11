@@ -66,6 +66,8 @@ def main():
         'Original red mask and glove BMPs converted to PNG without pixel changes.\n'
         'Remaining seven textures and body come from SM1 Quick Change.\n'
         'Custom rig: jacket hem/belt follow pelvis; each ankle cuff follows its foot.\n'
+        'Hidden waistband and shoe-collar overlap removed; garment joins tailored\n'
+        'to prevent inner surfaces drawing through. Original textures retained.\n'
         'Uses standard Spider-Man powers in both games. Install in mods/suits.\n')
     print('Verified two original mod textures and seven unchanged base textures.')
 

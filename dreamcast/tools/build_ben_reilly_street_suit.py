@@ -71,6 +71,7 @@ def main():
         'body textures remain original SM1 Peter Parker. The separate parker NPC\n'
         'texture is not installed globally. Jacket/belt and ankle cuffs use the\n'
         'rigid boundary treatment. Standard Spider-Man powers in both games.\n'
+        'Hidden waistband overlap removed and jacket hem tailored to the join.\n'
         'Install this folder in mods/suits. Requires the 19-character name update.\n')
     print('Verified two original mod textures and ten unchanged base textures.')
 

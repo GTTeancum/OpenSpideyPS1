@@ -1,4 +1,4 @@
-"""Keep Quick Change's jacket/belt and ankle cuffs on consistent rigid owners."""
+"""Tailor the stock civilian jacket joins and Quick Change's shoe collars."""
 import argparse
 from collections import Counter
 import json
@@ -57,12 +57,43 @@ def main():
             if owner != old:
                 changes.append(dict(source=list(key), position=p, before=old, after=owner))
         keys.append(mesh_keys)
+    # Remove the buried layers that still sort through the garment in the
+    # game's painter renderer, even when they have identical rigid owners.
+    # Collapse the hidden waistband and the folded cuff/shoe collar to their
+    # joins. Shared source keys keep the shoe and trouser rim connected.
+    foot_material = Counter(f['TextureHash'] for f in dump['Meshes'][14]['Faces']).most_common(1)[0][0]
+    shoe_collar = {keys[i][v] for i in (12, 15) for f in dump['Meshes'][i]['Faces']
+                   if f['TextureHash'] == foot_material for v in f['Indices']}
+    adjustments = []
+    for k, p in list(points.items()):
+        x, y, z = p
+        if k[0] == 0 and y < -175:
+            y = -175
+        if k[0] == 2 and y > -210:
+            y = -175
+        if args.donor == 'spquick.psx' and k[0] in (12, 15) and y >= 1490:
+            y = 1600
+        if args.donor == 'spquick.psx' and k[0] in (14, 17) and y < 1600:
+            y = 1600
+        # Shoe uppers inside the shin are part of the same collapsed collar.
+        if args.donor == 'spquick.psx' and k in shoe_collar:
+            y = 1600
+        q = (x, y, z)
+        if p != q:
+            adjustments.append(dict(source=list(k), before=p, after=q))
+            points[k] = q
+    removed = []
     # Native attachments can only reference earlier parts. Move faces crossing
     # a reassigned cuff to the foot part, keeping raw UV/material/color records.
     faces = [[] for _ in parts]
     for i, mesh in enumerate(dump['Meshes']):
         for f, raw_face in zip(mesh['Faces'], parts[i][3]):
             ids = [keys[i][v] for v in f['Indices']]
+            if (i == 0 and all(points[k][1] == -175 for k in ids) or
+                args.donor == 'spquick.psx' and i in (12, 14, 15, 17) and f['TextureHash'] == foot_material
+                and all(points[k][1] == 1600 for k in ids)):
+                removed.append((i, f['FaceIndex']))
+                continue
             destination = max(i, *(owners[k] for k in ids))
             faces[destination].append((ids, raw_face, parts[i][2][f['NormalIndex']],
                                        [parts[i][2][v] for v in f['Indices']]))
@@ -125,22 +156,33 @@ def main():
     result_path = args.output / 'native-dump.json'
     subprocess.run([str(tool), 'psx-mesh-dump', str(actor), '--json', str(result_path)], check=True, stdout=subprocess.DEVNULL)
     result = json.loads(result_path.read_text())
-    assert sum(m['FaceCount'] for m in result['Meshes']) == sum(m['FaceCount'] for m in dump['Meshes'])
+    assert sum(m['FaceCount'] for m in result['Meshes']) == sum(m['FaceCount'] for m in dump['Meshes']) - len(removed)
     assert not any(m['StitchFailureCount'] or any(f['RejectionReason'] for f in m['FaceReads']) for m in result['Meshes'])
     def signatures(data):
         return Counter((f['TextureHash'], tuple(tuple(round(x*36) for x in f['ResolvedWorldVertices'][v].values()) for v in corners),
                         tuple((f['TextureCoordinates'][v]['U'],f['TextureCoordinates'][v]['V']) for v in corners))
                        for m in data['Meshes'] for f in m['Faces']
                        for corners in (((0, 1, 2), (2, 1, 3)) if f['IsQuad'] else ((0, 1, 2),)))
-    assert signatures(dump) == signatures(result), 'Bind geometry or UVs changed'
+    # Compare with the explicitly edited source, not with the rejected overlap.
+    for i, mesh in enumerate(dump['Meshes']):
+        mesh['Faces'] = [f for f in mesh['Faces'] if (i, f['FaceIndex']) not in removed]
+        for f in mesh['Faces']:
+            f['ResolvedWorldVertices'] = [dict(zip(('X','Y','Z'), (x/36 for x in points[keys[i][v]]))) for v in f['Indices']]
+    assert signatures(dump) == signatures(result), 'Unexpected geometry or UV change'
     for i, mesh in enumerate(result['Meshes']):
         for v in mesh['Vertices']:
             k = indices[i][v['VertexIndex']]
             assert v['SourceObjectIndex'] == owners[k]
+    assert all(p[1] >= -175 for k, p in points.items() if k[0] == 0)
+    if args.donor == 'spquick.psx':
+        assert all(points[k][1] == 1600 for k in shoe_collar)
+        assert all(p[1] >= 1600 for k, p in points.items() if k[0] in (14, 17))
     report = dict(changedVertices=changes, parts=stats, faceCount=sum(m['FaceCount'] for m in result['Meshes']),
-                  bindGeometryAndUvsUnchanged=True, allOwnersVerified=True, stitchFailures=0)
+                  surfaceAdjustments=adjustments, removedBuriedFaces=removed,
+                  editedGeometryAndUvsVerified=True, allOwnersVerified=True, stitchFailures=0)
     (args.output / 'rig-report.json').write_text(json.dumps(report, indent=2))
-    print(f'{len(changes)} rigid-owner changes; geometry/UVs preserved; all attachments verified')
+    print(f'{len(changes)} rigid-owner changes; {len(adjustments)} join vertices; '
+          f'{len(removed)} buried faces removed; UVs and attachments verified')
 
 
 if __name__ == '__main__':
