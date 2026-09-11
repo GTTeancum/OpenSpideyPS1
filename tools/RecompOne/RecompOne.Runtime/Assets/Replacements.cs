@@ -181,6 +181,9 @@ public enum TextureMode : byte
 
 public sealed class ReplacementTexture
 {
+    // Authored model surfaces can occlude one another using their captured GTE
+    // depth. This is not inferred from screen position or texture appearance.
+    public bool ModelSurface;
     // Explicit ownership release for data-only suits; GPU deletion waits for a safe frame boundary.
     public bool Retired;
     public int Width, Height;

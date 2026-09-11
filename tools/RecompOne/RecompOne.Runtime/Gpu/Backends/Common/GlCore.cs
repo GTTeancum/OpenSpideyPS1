@@ -66,6 +66,7 @@ public sealed class GlCore : IGpuBackend
 
     GlDisplayRt? _kTarget;
     bool _kTransparent;
+    bool _kModelDepth, _pendingModelSurface;
     int _kImage = -1;
     int _kBlend, _kSetMask, _kCheckMask, _kBackground, _kIgnoreCoverage;
     byte _kClearR, _kClearG, _kClearB, _kDrawClearR, _kDrawClearG, _kDrawClearB;
@@ -403,19 +404,20 @@ public sealed class GlCore : IGpuBackend
             && _kClipX0 == _env.ClipX0 && _kClipY0 == _env.ClipY0 && _kClipX1 == _env.ClipX1 && _kClipY1 == _env.ClipY1;
     }
 
-    void Begin(in PrimFlags f, int vertsNeeded)
+    void Begin(in PrimFlags f, int vertsNeeded, bool modelDepth = false)
     {
         bool transparent = f.SemiTrans;
         int blend = f.BlendMode;
         int image = f.UseImage ? f.Image : -1;
         var target = Classify();
-        if (_count > 0 && (target != _kTarget ||
+        if (_count > 0 && (target != _kTarget || _kModelDepth != modelDepth ||
             !DesiredMatches(transparent, blend, image, f.Background,
                 f.IgnoreCoverage))) Flush();
         if (_count + vertsNeeded > MaxVerts) Flush();
         CheckTextureFeedback(f);
 
         _kTarget = target;
+        _kModelDepth = modelDepth;
         _kImage = image;
         _kBackground = f.Background ? 1 : 0;
         if (f.Background)
@@ -459,6 +461,7 @@ public sealed class GlCore : IGpuBackend
     {
         _pendingRepTex = 0;
         _pendingRepClut = 0;
+        _pendingModelSurface = false;
 
         if (!f.Textured || f.UseImage) return;
 
@@ -472,6 +475,7 @@ public sealed class GlCore : IGpuBackend
         if (res.Texture is { Mode: Assets.TextureMode.Rgba } tex)
         {
             _pendingRepTex = EnsureRepTexture(tex);
+            _pendingModelSurface = tex.ModelSurface;
             _pendingRepX = res.Rect.U0;
             _pendingRepY = res.Rect.V0;
             _pendingRepW = res.Rect.W;
@@ -619,7 +623,10 @@ public sealed class GlCore : IGpuBackend
         ResolveReplacement(f,
             (int)Math.Min(a.U, Math.Min(b.U, c.U)), (int)Math.Min(a.V, Math.Min(b.V, c.V)),
             (int)Math.Max(a.U, Math.Max(b.U, c.U)), (int)Math.Max(a.V, Math.Max(b.V, c.V)));
-        Begin(f, 3);
+        // Keep native ordering for scenery, effects and HUD. Only opaque suit
+        // surfaces with complete GTE provenance participate in self-occlusion.
+        Begin(f, 3, _pendingModelSurface && f.World && !f.SemiTrans &&
+            a.HasGteZ && b.HasGteZ && c.HasGteZ);
         _verts[_count++] = V(a, f); _verts[_count++] = V(b, f); _verts[_count++] = V(c, f);
     }
 
@@ -692,6 +699,7 @@ public sealed class GlCore : IGpuBackend
 
     void FillRtFull(GlDisplayRt rt, ushort color15)
     {
+        rt.ModelDepthFrame = long.MinValue;
         float r = (color15 & 0x1F) / 31f, g = ((color15 >> 5) & 0x1F) / 31f, b = ((color15 >> 10) & 0x1F) / 31f;
         float a = (color15 & 0x8000) != 0 ? 1f : 0f;
         _gl.BindFramebuffer(FramebufferTarget.Framebuffer, rt.Fbo);
@@ -914,6 +922,13 @@ public sealed class GlCore : IGpuBackend
         _gl.BindBuffer(BufferTargetARB.ArrayBuffer, _vbo);
         _gl.BufferSubData<GlVertex>(BufferTargetARB.ArrayBuffer, 0, _verts.AsSpan(0, _count));
 
+        if (_kModelDepth && rt != null)
+        {
+            rt.EnsureModelDepth(_gl, _frame);
+            _gl.Enable(EnableCap.DepthTest);
+            _gl.DepthFunc(DepthFunction.Lequal);
+            _gl.DepthMask(true);
+        }
         if (_legacy)
         {
             _gl.Disable(EnableCap.Blend);
@@ -949,6 +964,7 @@ public sealed class GlCore : IGpuBackend
             }
         }
 
+        _gl.Disable(EnableCap.DepthTest);
         if (rt is { CoverageFbo: not 0 } &&
             GpuHle.SourceAspect > GpuHle.BaseAspect + 0.001f)
         {

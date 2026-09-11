@@ -200,7 +200,7 @@ public sealed record SuitManifest(string Id, string Name, string Comments, strin
             var image = StbImageSharp.ImageResult.FromMemory(bytes, StbImageSharp.ColorComponents.RedGreenBlueAlpha);
             if (image.Width != size.Width || image.Height != size.Height || image.Data.Length != size.Width * size.Height * 4)
                 throw new InvalidDataException("PNG decode dimensions changed");
-            result.Add(id, new ReplacementTexture { Width = size.Width, Height = size.Height, Rgba = image.Data });
+            result.Add(id, new ReplacementTexture { Width = size.Width, Height = size.Height, Rgba = image.Data, ModelSurface = true });
         }
         return result;
     }

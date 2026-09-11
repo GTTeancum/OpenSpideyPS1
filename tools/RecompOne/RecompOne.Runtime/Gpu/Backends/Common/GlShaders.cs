@@ -83,7 +83,7 @@ internal static class GlShaders
         void main() {
             vec2 p = (inPos + uPosBias) * uFbInv - 1.0;
             float perspectiveW = max(inPerspectiveW, 1.0);
-            gl_Position = vec4(p * perspectiveW, 0.0, perspectiveW);
+            gl_Position = vec4(p * perspectiveW, perspectiveW - 2.0, perspectiveW);
             int inClut = int(inClutF + 0.5);
             int inTexpage = int(inTexpageF + 0.5);
             vUV = inUV;
@@ -363,7 +363,7 @@ internal static class GlShaders
         void main() {
             vec2 p = (inPos + uVertexOffset + uPosBias) * uFbInv - 1.0;
             float perspectiveW = max(inPerspectiveW, 1.0);
-            gl_Position = vec4(p * perspectiveW, 0.0, perspectiveW);
+            gl_Position = vec4(p * perspectiveW, perspectiveW - 2.0, perspectiveW);
 
             int inClut = int(inClutF + 0.5);
             int inTexpage = int(inTexpageF + 0.5);
@@ -579,7 +579,7 @@ internal static class GlShaders
         void main() {
             vec2 p = (inPos + uPosBias) * uFbInv - 1.0;
             float perspectiveW = max(inPerspectiveW, 1.0);
-            gl_Position = vec4(p * perspectiveW, 0.0, perspectiveW);
+            gl_Position = vec4(p * perspectiveW, perspectiveW - 2.0, perspectiveW);
             float tp = floor(inTexpageF + 0.5);
             float clut = floor(inClutF + 0.5);
             vUV = inUV;
@@ -860,7 +860,7 @@ internal static class GlShaders
         void main() {
             vec2 p = (inPos + uVertexOffset + uPosBias) * uFbInv - 1.0;
             float perspectiveW = max(inPerspectiveW, 1.0);
-            gl_Position = vec4(p * perspectiveW, 0.0, perspectiveW);
+            gl_Position = vec4(p * perspectiveW, perspectiveW - 2.0, perspectiveW);
 
             float tp = floor(inTexpageF + 0.5);
             float clut = floor(inClutF + 0.5);

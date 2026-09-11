@@ -69,9 +69,9 @@ def main():
         'Author: https://gamebanana.com/members/2685073\n'
         'Both spPark costume BMPs converted without pixel changes; ten other\n'
         'body textures remain original SM1 Peter Parker. The separate parker NPC\n'
-        'texture is not installed globally. Jacket/belt and ankle cuffs use the\n'
-        'rigid boundary treatment. Standard Spider-Man powers in both games.\n'
-        'Hidden waistband overlap removed and jacket hem tailored to the join.\n'
+        'texture is not installed globally. Original Dreamcast geometry and rigid\n'
+        'vertex assignments and source animation bank are preserved.\n'
+        'Standard Spider-Man powers in both games.\n'
         'Install this folder in mods/suits. Requires the 19-character name update.\n')
     print('Verified two original mod textures and ten unchanged base textures.')
 

@@ -7,6 +7,32 @@ public sealed class GlDisplayRt
     public int X, Y, W, H;
     public int Margin;
     public uint Tex, Fbo;
+    // PS1 ordering-table buckets cannot resolve intersecting clothing surfaces.
+    // Allocate depth only when a suit with exact vertex depth is actually drawn.
+    public uint ModelDepth;
+    public long ModelDepthFrame = long.MinValue;
+
+    public void EnsureModelDepth(GL gl, long frame)
+    {
+        if (ModelDepth == 0)
+        {
+            ModelDepth = gl.GenRenderbuffer();
+            gl.BindRenderbuffer(RenderbufferTarget.Renderbuffer, ModelDepth);
+            gl.RenderbufferStorage(RenderbufferTarget.Renderbuffer, InternalFormat.DepthComponent24,
+                (uint)TexW, (uint)TexH);
+            gl.FramebufferRenderbuffer(FramebufferTarget.Framebuffer, FramebufferAttachment.DepthAttachment,
+                RenderbufferTarget.Renderbuffer, ModelDepth);
+        }
+        if (ModelDepthFrame != frame)
+        {
+            gl.Disable(EnableCap.ScissorTest);
+            gl.DepthMask(true);
+            gl.ClearDepth(1.0);
+            gl.Clear(ClearBufferMask.DepthBufferBit);
+            gl.Enable(EnableCap.ScissorTest);
+            ModelDepthFrame = frame;
+        }
+    }
     /// <summary>
     /// R = touched by a visible submitted primitive, G = visible GTE/world geometry,
     /// B = visible HUD, A = an authored transparent texture cut-out. It is kept separate
@@ -101,6 +127,9 @@ public sealed class GlDisplayRt
 
     public void Destroy(GL gl)
     {
+        if (ModelDepth != 0) gl.DeleteRenderbuffer(ModelDepth);
+        ModelDepth = 0;
+        ModelDepthFrame = long.MinValue;
         if (Fbo != 0) gl.DeleteFramebuffer(Fbo);
         if (Tex != 0) gl.DeleteTexture(Tex);
         if (CoverageFbo != 0) gl.DeleteFramebuffer(CoverageFbo);

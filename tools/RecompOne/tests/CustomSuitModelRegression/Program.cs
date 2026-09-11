@@ -60,6 +60,8 @@ if (args.Length != 0)
 {
     string manifestPath = Path.Combine(Path.GetDirectoryName(Path.GetFullPath(args[0]))!, "suit.json");
     var suit = SuitManifest.Read(manifestPath);
+    if (suit.Decode().Values.Any(texture => !texture.ModelSurface))
+        throw new Exception("suit textures lost their model-surface classification");
     if (suit.CustomModel == null || !suit.Textures.Keys.All(suit.CustomModel.Materials.Contains))
         throw new Exception("custom manifest did not use its actor material IDs");
     Console.WriteLine("PASS: real custom manifest and actor material mapping");

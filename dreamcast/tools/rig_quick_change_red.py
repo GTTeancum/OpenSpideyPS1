@@ -1,18 +1,28 @@
-"""Tailor the stock civilian jacket joins and Quick Change's shoe collars."""
+"""Extract a civilian suit actor without changing its authored Dreamcast rig.
+
+Kept at the old command path for build compatibility. This no longer re-rigs,
+tailors, or removes geometry. Texture-only suits must preserve source ownership.
+"""
 import argparse
-from collections import Counter
 import json
-import math
 from pathlib import Path
 import struct
-import subprocess
-import sys
 import zipfile
+from restore_dc_animation_bank import restore
 
 ROOT = Path(__file__).resolve().parents[2]
-sys.path.insert(0, str(ROOT / 'spiderman/tools'))
-from port_dc_character import mesh_parts
-from pack_sm2_costume_to_dc import container_layout, resolve_multitool
+
+
+def rig_data(raw):
+    count = struct.unpack_from('<I', raw, 8)[0]
+    table = 12 + 36 * count
+    meshes = struct.unpack_from('<I', raw, table)[0]
+    streams = []
+    for i in range(meshes):
+        ptr = struct.unpack_from('<I', raw, table + 4 + 4*i)[0]
+        vertices = struct.unpack_from('<H', raw, ptr + 2)[0]
+        streams.append(raw[ptr + 28:ptr + 28 + 8*vertices])
+    return raw[12:table], streams
 
 
 def main():
@@ -20,169 +30,21 @@ def main():
     parser.add_argument('--output', type=Path, required=True)
     parser.add_argument('--donor', choices=('spquick.psx', 'sppark.psx'), default='spquick.psx')
     args = parser.parse_args()
-    args.output.mkdir(parents=True, exist_ok=True)
     with zipfile.ZipFile(ROOT / 'spiderman/port/bundled/runtime-assets.zip') as archive:
         raw = archive.read(args.donor)
-    donor = args.output / 'donor.psx'
-    donor.write_bytes(raw)
-    dump_path = args.output / 'donor-dump.json'
-    tool = resolve_multitool(None)
-    subprocess.run([str(tool), 'psx-mesh-dump', str(donor), '--json', str(dump_path)], check=True, stdout=subprocess.DEVNULL)
-    dump = json.loads(dump_path.read_text())
-    layout = container_layout(raw)
-    parts = [mesh_parts(raw, p) for p in layout['meshPointers']]
-    offsets = {o['ObjectIndex']: [round(p * 36) for p in o['Position'].values()] for o in dump['Objects']}
-    points, owners = {}, {}
-    keys = []
-    changes = []
-    for i, mesh in enumerate(dump['Meshes']):
-        mesh_keys = []
-        for v in mesh['Vertices']:
-            key = (v['SourceMeshIndex'], v['SourceVertexIndex'])
-            mesh_keys.append(key)
-            if key in points:
-                continue
-            p = tuple(round(n * 36) for n in v['WorldPosition'].values())
-            old = v['SourceObjectIndex']
-            owner = old
-            # Whole lower jacket band and belt/top trouser ring follow pelvis.
-            if old in (0, 2, 13, 16) and -400 <= p[1] <= 140:
-                owner = 0
-            # Each entire cuff follows its foot, including shared shoe-rim points.
-            if old in (12, 14) and p[1] >= 1340:
-                owner = 14
-            if old in (15, 17) and p[1] >= 1340:
-                owner = 17
-            points[key], owners[key] = p, owner
-            if owner != old:
-                changes.append(dict(source=list(key), position=p, before=old, after=owner))
-        keys.append(mesh_keys)
-    # Remove the buried layers that still sort through the garment in the
-    # game's painter renderer, even when they have identical rigid owners.
-    # Collapse the hidden waistband and the folded cuff/shoe collar to their
-    # joins. Shared source keys keep the shoe and trouser rim connected.
-    foot_material = Counter(f['TextureHash'] for f in dump['Meshes'][14]['Faces']).most_common(1)[0][0]
-    shoe_collar = {keys[i][v] for i in (12, 15) for f in dump['Meshes'][i]['Faces']
-                   if f['TextureHash'] == foot_material for v in f['Indices']}
-    adjustments = []
-    for k, p in list(points.items()):
-        x, y, z = p
-        if k[0] == 0 and y < -175:
-            y = -175
-        if k[0] == 2 and y > -210:
-            y = -175
-        if args.donor == 'spquick.psx' and k[0] in (12, 15) and y >= 1490:
-            y = 1600
-        if args.donor == 'spquick.psx' and k[0] in (14, 17) and y < 1600:
-            y = 1600
-        # Shoe uppers inside the shin are part of the same collapsed collar.
-        if args.donor == 'spquick.psx' and k in shoe_collar:
-            y = 1600
-        q = (x, y, z)
-        if p != q:
-            adjustments.append(dict(source=list(k), before=p, after=q))
-            points[k] = q
-    removed = []
-    # Native attachments can only reference earlier parts. Move faces crossing
-    # a reassigned cuff to the foot part, keeping raw UV/material/color records.
-    faces = [[] for _ in parts]
-    for i, mesh in enumerate(dump['Meshes']):
-        for f, raw_face in zip(mesh['Faces'], parts[i][3]):
-            ids = [keys[i][v] for v in f['Indices']]
-            if (i == 0 and all(points[k][1] == -175 for k in ids) or
-                args.donor == 'spquick.psx' and i in (12, 14, 15, 17) and f['TextureHash'] == foot_material
-                and all(points[k][1] == 1600 for k in ids)):
-                removed.append((i, f['FaceIndex']))
-                continue
-            destination = max(i, *(owners[k] for k in ids))
-            faces[destination].append((ids, raw_face, parts[i][2][f['NormalIndex']],
-                                       [parts[i][2][v] for v in f['Indices']]))
-    indices = []
-    for i in range(len(parts)):
-        indices.append(sorted({k for k in points if owners[k] == i} |
-                              {k for ids, *_ in faces[i] for k in ids}))
-    shared = {k for k in points if any(k in ids and owners[k] != i for i, ids in enumerate(indices))}
-    references = {}
-    for i, ids in enumerate(indices):
-        for k in ids:
-            if owners[k] == i and k in shared:
-                references[k] = len(references)
-    out = bytearray(raw[:min(layout['meshPointers'])])
-    stats = []
-    for i, ids in enumerate(indices):
-        if len(ids) > 256:
-            raise ValueError(f'Part {i} exceeds native vertex capacity')
-        lookup = {k: n for n, k in enumerate(ids)}
-        struct.pack_into('<I', out, layout['meshPointerTable'] + 4*i, len(out))
-        header = bytearray(parts[i][0])
-        struct.pack_into('<HHH', header, 2, len(ids), len(ids)+len(faces[i]), len(faces[i]))
-        local = [[points[k][j]-offsets[i][j] for j in range(3)] for k in ids]
-        struct.pack_into('<I', header, 8, math.ceil(max(math.dist(p, (0, 0, 0)) for p in local))*256)
-        for j in range(3):
-            struct.pack_into('<hh', header, 12+4*j, math.ceil(max(p[j] for p in local)/16), math.floor(min(p[j] for p in local)/16))
-        out.extend(header)
-        for k, p in zip(ids, local):
-            if owners[k] == i:
-                out.extend(struct.pack('<hhhH', *p, int(k in shared)))
-            else:
-                assert owners[k] < i
-                out.extend(struct.pack('<hHHH', 0, references[k], 0, 2))
-        # Preserve native normals while changing the rigid skin assignments.
-        normals = {k: parts[k[0]][2][k[1]] for k in ids}
-        for face_ids, _, _, face_normals in faces[i]:
-            for k, n in zip(face_ids, face_normals):
-                normals[k] = n
-        for k in ids:
-            out.extend(normals[k])
-        for _, _, n, _ in faces[i]:
-            out.extend(n)
-        for n, (face_ids, raw_face, _, _) in enumerate(faces[i]):
-            face = bytearray(raw_face)
-            for corner, k in enumerate(face_ids):
-                face[4+corner] = lookup[k]
-            struct.pack_into('<H', face, 12, len(ids)+n)
-            out.extend(face)
-        stats.append(dict(mesh=i, vertices=len(ids), faces=len(faces[i])))
-    oldmeta = struct.unpack_from('<I', raw, 4)[0]
-    meta = len(out)
-    out.extend(raw[oldmeta:])
-    struct.pack_into('<I', out, 4, meta)
-    delta = meta-oldmeta
-    for i in range(layout['textureCount']):
-        old = struct.unpack_from('<I', raw, layout['texturePointerTable']+4*i)[0]
-        struct.pack_into('<I', out, layout['texturePointerTable']+delta+4*i, old+delta)
-    actor = args.output / 'actor.psx'
-    actor.write_bytes(out)
-    result_path = args.output / 'native-dump.json'
-    subprocess.run([str(tool), 'psx-mesh-dump', str(actor), '--json', str(result_path)], check=True, stdout=subprocess.DEVNULL)
-    result = json.loads(result_path.read_text())
-    assert sum(m['FaceCount'] for m in result['Meshes']) == sum(m['FaceCount'] for m in dump['Meshes']) - len(removed)
-    assert not any(m['StitchFailureCount'] or any(f['RejectionReason'] for f in m['FaceReads']) for m in result['Meshes'])
-    def signatures(data):
-        return Counter((f['TextureHash'], tuple(tuple(round(x*36) for x in f['ResolvedWorldVertices'][v].values()) for v in corners),
-                        tuple((f['TextureCoordinates'][v]['U'],f['TextureCoordinates'][v]['V']) for v in corners))
-                       for m in data['Meshes'] for f in m['Faces']
-                       for corners in (((0, 1, 2), (2, 1, 3)) if f['IsQuad'] else ((0, 1, 2),)))
-    # Compare with the explicitly edited source, not with the rejected overlap.
-    for i, mesh in enumerate(dump['Meshes']):
-        mesh['Faces'] = [f for f in mesh['Faces'] if (i, f['FaceIndex']) not in removed]
-        for f in mesh['Faces']:
-            f['ResolvedWorldVertices'] = [dict(zip(('X','Y','Z'), (x/36 for x in points[keys[i][v]]))) for v in f['Indices']]
-    assert signatures(dump) == signatures(result), 'Unexpected geometry or UV change'
-    for i, mesh in enumerate(result['Meshes']):
-        for v in mesh['Vertices']:
-            k = indices[i][v['VertexIndex']]
-            assert v['SourceObjectIndex'] == owners[k]
-    assert all(p[1] >= -175 for k, p in points.items() if k[0] == 0)
-    if args.donor == 'spquick.psx':
-        assert all(points[k][1] == 1600 for k in shoe_collar)
-        assert all(p[1] >= 1600 for k, p in points.items() if k[0] in (14, 17))
-    report = dict(changedVertices=changes, parts=stats, faceCount=sum(m['FaceCount'] for m in result['Meshes']),
-                  surfaceAdjustments=adjustments, removedBuriedFaces=removed,
-                  editedGeometryAndUvsVerified=True, allOwnersVerified=True, stitchFailures=0)
-    (args.output / 'rig-report.json').write_text(json.dumps(report, indent=2))
-    print(f'{len(changes)} rigid-owner changes; {len(adjustments)} join vertices; '
-          f'{len(removed)} buried faces removed; UVs and attachments verified')
+    source = ROOT / 'dreamcast/extracted' / args.donor.upper()
+    source_raw = source.read_bytes()
+    if rig_data(raw) != rig_data(source_raw):
+        raise ValueError('Bundled actor does not preserve the original Dreamcast rig')
+    raw = restore(raw, source_raw)
+    args.output.mkdir(parents=True, exist_ok=True)
+    (args.output / 'actor.psx').write_bytes(raw)
+    report = dict(source=str(source.relative_to(ROOT)), originalDreamcastRigVerified=True,
+                  changedVertices=[], surfaceAdjustments=[], removedBuriedFaces=[],
+                  sourceObjectTableAndVertexStreamsUnchanged=True,
+                  originalDreamcastAnimationBank=True)
+    (args.output / 'rig-report.json').write_text(json.dumps(report, indent=2) + '\n')
+    print(f'{args.donor}: original Dreamcast object table and all vertex/attachment records verified')
 
 
 if __name__ == '__main__':

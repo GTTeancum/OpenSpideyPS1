@@ -65,9 +65,8 @@ def main():
         'Source: https://gamebanana.com/mods/249032 (Improved Quick Change Costume).\n'
         'Original red mask and glove BMPs converted to PNG without pixel changes.\n'
         'Remaining seven textures and body come from SM1 Quick Change.\n'
-        'Custom rig: jacket hem/belt follow pelvis; each ankle cuff follows its foot.\n'
-        'Hidden waistband and shoe-collar overlap removed; garment joins tailored\n'
-        'to prevent inner surfaces drawing through. Original textures retained.\n'
+        'Original Dreamcast geometry, rigid vertex assignments and source animation\n'
+        'bank are preserved.\n'
         'Uses standard Spider-Man powers in both games. Install in mods/suits.\n')
     print('Verified two original mod textures and seven unchanged base textures.')
 
