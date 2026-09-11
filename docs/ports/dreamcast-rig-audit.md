@@ -71,3 +71,38 @@ https://www.youtube.com/watch?v=QDu_hYTLFHM; one retained frame is
 The live SM1 attachment audit checked 11,160 batches with zero native-coordinate
 mismatches, zero projection mismatches and zero missing projections. This
 supports preserving the original shoulder geometry rather than re-rigging it.
+
+## Repeating the conversion process
+
+Run these commands from the repository root, supplying the downloaded author
+archives and fresh output folders. Each builder checks its expected archive MD5,
+preserves the mod's decoded texture pixels, verifies the donor rig, and restores
+the matching source animation bank:
+
+```powershell
+python dreamcast/tools/build_quick_change_red_suit.py --archive PATH_TO_QUICK_CHANGE_ZIP --output NEW_QUICK_CHANGE_FOLDER
+python dreamcast/tools/build_ben_reilly_street_suit.py --archive PATH_TO_BEN_REILLY_ZIP --output NEW_BEN_REILLY_FOLDER
+dotnet run --project tools/RecompOne/tests/CustomSuitModelRegression -c Release -- NEW_QUICK_CHANGE_FOLDER/actor.psx
+dotnet run --project tools/RecompOne/tests/CustomSuitModelRegression -c Release -- NEW_BEN_REILLY_FOLDER/actor.psx
+dotnet run --project tools/RecompOne/tests/RenderingRegression -c Release
+dotnet run --project tools/RecompOne/tests/Sm2RenderingRegression -c Release
+```
+
+For future Dreamcast texture conversions, start with the original donor geometry
+and attachment ownership. Diagnose overlap in the renderer before changing
+weights or deleting concealed faces. Compare decoded animation data before
+substituting banks; preserve each game's required slot layout and compatibility
+adaptations. Android model conversions are a separate process.
+
+Publish the two games sequentially because they share runtime build outputs.
+Use private test runtimes and the games' native `SPIDEY_SCRIPT`, `SPIDEY_SHOTS`
+and `SPIDEY_CAPTURE_PRESENTED` facilities. Never drive the desktop to obtain
+proofs. Review each captured pose individually, including deep crouch, airborne,
+landing and movement views that expose the jacket hem and ankle cuffs.
+
+After verification, copy each suit folder's contents into its matching
+`mods/suits/<id>` folder in both staged games and copy the published executables.
+Verify the staged files against the tested files, preserve `selected-suit.txt`,
+and confirm texture files remain unchanged. Rerun `audit_dc_rigs.py` against
+the stage. Keep direct links to the current proof PNGs, the audit report and
+staged hashes; remove discarded experimental packages and duplicate logs.
