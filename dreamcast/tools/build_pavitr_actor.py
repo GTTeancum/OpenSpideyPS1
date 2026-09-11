@@ -79,7 +79,7 @@ def main():
     shutil.copy2(output / 'assets/spidey.psx', mod / 'actor.psx')
     shutil.copy2(output / 'assets/packs' / args.id / 'textures/diffuse.png', mod / 'textures/diffuse.png')
     (mod / 'suit.json').write_text(json.dumps({'version': 1, 'id': args.id, 'name': args.name,
-        'comments': 'Spider-Man Unlimited', 'model': 'spiderman', 'modelFile': 'actor.psx',
+        'comments': 'By Gameloft', 'model': 'spiderman', 'modelFile': 'actor.psx',
         'abilities': {'profile': 'spiderman'}, 'textures': {report['materialId']: 'textures/diffuse.png'}}, indent=2)+'\n')
     report.update(opaqueDiffuse=args.opaque_diffuse, sourceFiles=sources, modId=args.id, modDirectory=str(mod), status='structural-pass-native-visual-review-required',
                   limitations=['Clown001 rig only; other rigs need mapping review',
