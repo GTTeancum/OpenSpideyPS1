@@ -133,12 +133,21 @@ The spawned actors exist only in the private test process. Closing it restores
 normal play; the asset overlay and diagnostic switches are not installed globally.
 This is roster stress coverage, not a playthrough of every level script.
 
-Latest full-roster result (2026-09-13): stock passed all nine records through
+Initial full-roster result (2026-09-13): stock passed all nine records through
 frame 7200, peaking at 235,064 command bytes. The Black Cat replacements reached
 five henchmen plus the player, then hit the 256 KiB command-pool guard at 261,788
 bytes after story record 100 activated. The diagnostic stopped the run; replacement
-records 113 and 138 remain untested. The full-roster baseline is **not passing**.
-Normal staged models, executable, settings, and saves were verified unchanged.
+records 113 and 138 were not reached in that run.
+
+The repaired SM1 build uses two bounded 512 KiB command pools, adding 512 KiB
+total compared with the previous allocation. Both stock and replacement runs now
+pass all nine records through frame 7200. Peak usage was 234,924 bytes stock and
+377,256 bytes with replacements, leaving 147,032 bytes of physical buffer space.
+Allocation padding, packet safety margins, unused arena, and actor-list checks
+passed at four snapshots. Allocator regressions also cover buffer switching,
+adjacent model memory, rejection at the new limit, and freeing/coalescing pools.
+The tested executable is staged; normal models, settings, and saves are unchanged.
+This passes the bounded full-roster baseline, not every level or animation.
 
 Example background test (set the executable paths for your system):
 

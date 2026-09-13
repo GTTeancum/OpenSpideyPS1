@@ -2961,5 +2961,276 @@
       "peakFramePacketBytes": 204956,
       "packetSafetyMarginsClean": true
     }
-  ]
+  ],
+  "fullRoster512KiB": {
+    "status": "PASS: bounded full L1A1 character roster",
+    "capacityPerBuffer": 524288,
+    "additionalTotalBytes": 524288,
+    "runs": [
+      {
+        "run": "stock",
+        "exitCode": 0,
+        "seconds": 133.68699999997625,
+        "peakPrivateBytes": 562020352,
+        "peakWorkingSetBytes": 480256000,
+        "peakFramePacketBytes": 234924,
+        "visitedCharacterRecords": [
+          9,
+          10,
+          11,
+          16,
+          19,
+          100,
+          113,
+          121,
+          138
+        ],
+        "nativeMemoryAudit": {
+          "blocks": [
+            {
+              "name": "SM1 frame packets",
+              "size": 524288,
+              "address": 2150629376
+            },
+            {
+              "name": "SM1 frame packets",
+              "size": 524288,
+              "address": 2151153664
+            },
+            {
+              "name": "spidey.psx",
+              "size": 376832,
+              "address": 2151677952
+            },
+            {
+              "name": "henchman.psx",
+              "size": 253952,
+              "address": 2152054784
+            },
+            {
+              "name": "blackcat.psx",
+              "size": 327680,
+              "address": 2152308736
+            }
+          ],
+          "allocatedBytes": 2007040,
+          "snapshots": [
+            {
+              "frame": 3300,
+              "enemyCount": 4,
+              "actorTypes": [
+                "0138",
+                "0138",
+                "0138",
+                "0138"
+              ],
+              "enemyPointers": [
+                "800dbc8c",
+                "800db908",
+                "800db368",
+                "800dafe4"
+              ],
+              "allocationPaddingClean": true,
+              "unusedArenaClean": true
+            },
+            {
+              "frame": 3900,
+              "enemyCount": 5,
+              "actorTypes": [
+                "0138",
+                "0138",
+                "0138",
+                "0138",
+                "0138"
+              ],
+              "enemyPointers": [
+                "80123f1c",
+                "800dbc8c",
+                "800db908",
+                "800db368",
+                "800dafe4"
+              ],
+              "allocationPaddingClean": true,
+              "unusedArenaClean": true
+            },
+            {
+              "frame": 6600,
+              "enemyCount": 5,
+              "actorTypes": [
+                "0138",
+                "0138",
+                "0138",
+                "0138",
+                "0138"
+              ],
+              "enemyPointers": [
+                "80123f1c",
+                "800dbc8c",
+                "800db908",
+                "800db368",
+                "800dafe4"
+              ],
+              "allocationPaddingClean": true,
+              "unusedArenaClean": true
+            },
+            {
+              "frame": 7080,
+              "enemyCount": 5,
+              "actorTypes": [
+                "0138",
+                "0138",
+                "0138",
+                "0138",
+                "0138"
+              ],
+              "enemyPointers": [
+                "80123f1c",
+                "800dbc8c",
+                "800db908",
+                "800db368",
+                "800dafe4"
+              ],
+              "allocationPaddingClean": true,
+              "unusedArenaClean": true
+            }
+          ]
+        },
+        "packetSafetyMarginsClean": true
+      },
+      {
+        "run": "blackcats",
+        "exitCode": 0,
+        "seconds": 140.31199999997625,
+        "peakPrivateBytes": 577298432,
+        "peakWorkingSetBytes": 493678592,
+        "peakFramePacketBytes": 377256,
+        "visitedCharacterRecords": [
+          9,
+          10,
+          11,
+          16,
+          19,
+          100,
+          113,
+          121,
+          138
+        ],
+        "nativeMemoryAudit": {
+          "blocks": [
+            {
+              "name": "SM1 frame packets",
+              "size": 524288,
+              "address": 2150629376
+            },
+            {
+              "name": "SM1 frame packets",
+              "size": 524288,
+              "address": 2151153664
+            },
+            {
+              "name": "spidey.psx",
+              "size": 358400,
+              "address": 2151677952
+            },
+            {
+              "name": "henchman.psx",
+              "size": 307200,
+              "address": 2152036352
+            },
+            {
+              "name": "blackcat.psx",
+              "size": 360448,
+              "address": 2152343552
+            }
+          ],
+          "allocatedBytes": 2074624,
+          "snapshots": [
+            {
+              "frame": 3300,
+              "enemyCount": 4,
+              "actorTypes": [
+                "0138",
+                "0138",
+                "0138",
+                "0138"
+              ],
+              "enemyPointers": [
+                "800dbf74",
+                "800dbbf0",
+                "800db650",
+                "800db2cc"
+              ],
+              "allocationPaddingClean": true,
+              "unusedArenaClean": true
+            },
+            {
+              "frame": 3900,
+              "enemyCount": 5,
+              "actorTypes": [
+                "0138",
+                "0138",
+                "0138",
+                "0138",
+                "0138"
+              ],
+              "enemyPointers": [
+                "801243fc",
+                "800dbf74",
+                "800dbbf0",
+                "800db650",
+                "800db2cc"
+              ],
+              "allocationPaddingClean": true,
+              "unusedArenaClean": true
+            },
+            {
+              "frame": 6600,
+              "enemyCount": 5,
+              "actorTypes": [
+                "0138",
+                "0138",
+                "0138",
+                "0138",
+                "0138"
+              ],
+              "enemyPointers": [
+                "801243fc",
+                "800dbf74",
+                "800dbbf0",
+                "800db650",
+                "800db2cc"
+              ],
+              "allocationPaddingClean": true,
+              "unusedArenaClean": true
+            },
+            {
+              "frame": 7080,
+              "enemyCount": 5,
+              "actorTypes": [
+                "0138",
+                "0138",
+                "0138",
+                "0138",
+                "0138"
+              ],
+              "enemyPointers": [
+                "801243fc",
+                "800dbf74",
+                "800dbbf0",
+                "800db650",
+                "800db2cc"
+              ],
+              "allocationPaddingClean": true,
+              "unusedArenaClean": true
+            }
+          ]
+        },
+        "packetSafetyMarginsClean": true
+      }
+    ],
+    "normalModelsSettingsSavesUnchanged": true,
+    "protectedFileCount": 98,
+    "executableSha256": "0ef5c5dbc37c86da1f23257fb1c65a6b770b45ae370126cb1ae250ad4f4ae336",
+    "scope": "All nine authored character records; five enemies drawn beside player; frame 7200; not a full mission playthrough or every-level certification"
+  }
 }

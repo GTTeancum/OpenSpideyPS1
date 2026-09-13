@@ -35,9 +35,17 @@ try
         FramePackets.SetLimit(context,memory);
         uint start=pool&0x7fffffff;
         Check(memory.ReadU32(0x800B4FE8)==start+FramePackets.Capacity-256,"selected buffer preserves safety slack");
-        memory.WriteU32(0x800B54B0,start+120000);
+        memory.WriteU32(0x800B54B0,start+300000);
         FramePackets.Audit(memory);
+        Check(start+FramePackets.Capacity<=0x780000,"pool remains inside expanded RAM arena");
     }
+    uint neighbor=LooseWadOverrides.AllocateScratch(4096,"neighbor model sentinel");
+    memory.WriteU32(neighbor,0x13579BDF);
+    memory.WriteU32(neighbor+4092,0x2468ACE0);
+    Check(neighbor==b+FramePackets.Capacity,"model allocation follows both pools without overlap");
+    memory.WriteU32(b+FramePackets.Capacity-260,0xA55AA55A);
+    Check(memory.ReadU32(neighbor)==0x13579BDF && memory.ReadU32(neighbor+4092)==0x2468ACE0,
+          "end-of-pool write preserves neighboring model allocation");
     foreach(uint cursor in new[]{(b&0x7fffffff)-8,(b&0x7fffffff)+FramePackets.Capacity-100})
     {
         memory.WriteU32(0x800B54B0,cursor);
@@ -50,5 +58,7 @@ try
     uint merged=LooseWadOverrides.AllocateScratch(FramePackets.Capacity*2,"coalescing check");
     Check(merged==a,"released adjacent pools coalesce");
     Check(LooseWadOverrides.TryFree(merged),"coalesced allocation releases");
+    Check(memory.ReadU32(neighbor)==0x13579BDF && LooseWadOverrides.TryFree(neighbor),
+          "pool lifecycle preserves and releases neighboring allocation");
 }
 finally { Directory.Delete(root,true); }

@@ -8,7 +8,9 @@ namespace Recompiled;
 /// <summary>Bounded native draw-command pools for dense character crowds.</summary>
 public static class FramePackets
 {
-    public const uint Capacity = 0x40000;
+    // Two bounded 512 KiB pools. Full L1A1 replacement crowds exceed 256 KiB.
+    // Both live in the tracked expanded arena, outside the retail heap/overlays.
+    public const uint Capacity = 0x80000;
     static readonly bool Trace = Environment.GetEnvironmentVariable("SPIDEY_PACKET_TRACE") == "1";
     static uint _base, _peak;
 
