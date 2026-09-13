@@ -7,8 +7,21 @@
     "sm2-4x3.png": "dreamcast/converted/sm2-costume-tests/runtime/default/runtime-wing-proof/frame_02979.png",
     "sm2-16x9.png": "proof_render/standalone-release/sm2/fresh-stock/frame_02990.png",
     "sm2-spdr-gameplay.png": "proof_render/readme-spdr/captures/frame_02990.png",
-    "sm2-spdr-menu.png": "proof_render/readme-spdr/captures/frame_00762.png"
+    "sm2-spdr-menu.png": "proof_render/readme-spdr/captures/frame_00762.png",
+    "sm1-last-stand-menu.png": "proof_render/readme-mod-gallery/sm1/last-stand-spiderman/captures/frame_00766.png",
+    "sm1-last-stand-gameplay.png": "proof_render/readme-mod-gallery/sm1/last-stand-spiderman/captures/frame_04300.png",
+    "sm1-spider-punk-menu.png": "proof_render/readme-mod-gallery/sm1/spider-punk/captures/frame_00724.png",
+    "sm1-spider-punk-gameplay.png": "proof_render/readme-mod-gallery/sm1/spider-punk/captures/frame_04300.png",
+    "sm1-noir-menu.png": "proof_render/readme-mod-gallery/sm1/noir/captures/frame_00776.png",
+    "sm1-noir-gameplay.png": "proof_render/readme-mod-gallery/sm1/noir/captures/frame_04300.png",
+    "sm2-infinity-war-menu.png": "proof_render/readme-mod-gallery/sm2/infinity-war/captures/frame_00762.png",
+    "sm2-infinity-war-gameplay.png": "proof_render/readme-mod-gallery/sm2/infinity-war/captures/frame_02990.png",
+    "sm2-hornet-menu.png": "proof_render/readme-mod-gallery/sm2/hornet/captures/frame_00762.png",
+    "sm2-hornet-gameplay.png": "proof_render/readme-mod-gallery/sm2/hornet/captures/frame_02990.png",
+    "sm2-ghost-spider-menu.png": "proof_render/readme-mod-gallery/sm2/ghost-spider/captures/frame_00762.png",
+    "sm2-ghost-spider-gameplay.png": "proof_render/readme-mod-gallery/sm2/ghost-spider/captures/frame_02990.png"
   },
   "processing": "PNG files copied unchanged. SVG overlays center the complete 4:3 image at the same height over 16:9, at 40% opacity. No scene content retouched. Separate captures are not frame synchronized.",
-  "spdrCapture": "Native GPU captures with RECOMP_CAPTURE_HIDDEN=1: invisible windowed OpenGL context, fullscreen disabled, process-local input only."
+  "spdrCapture": "Native GPU captures with RECOMP_CAPTURE_HIDDEN=1: invisible windowed OpenGL context, fullscreen disabled, process-local input only.",
+  "additionalModCaptures": "Six distinct mods, menu and gameplay each. Captured with capture_readme_mod_gallery.py in hidden, windowed OpenGL contexts; no desktop input."
 }

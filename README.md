@@ -19,29 +19,63 @@ shot at 40% opacity; the cyan outline marks its boundary.
 
 ### Spider-Man
 
-| 4:3 gameplay | 16:9 gameplay |
-|---|---|
-| [![Spider-Man rooftop gameplay in 4:3](docs/screenshots/gallery/sm1-4x3.png)](docs/screenshots/gallery/sm1-4x3.png) | [![Spider-Man rooftop gameplay in 16:9](docs/screenshots/gallery/sm1-16x9.png)](docs/screenshots/gallery/sm1-16x9.png) |
+<table>
+<tr><th width="50%">4:3 gameplay</th><th width="50%">16:9 gameplay</th></tr>
+<tr><td width="50%" align="center"><a href="docs/screenshots/gallery/sm1-4x3.png"><img src="docs/screenshots/gallery/sm1-4x3.png" width="480" alt="Spider-Man rooftop gameplay in 4:3"></a></td><td width="50%" align="center"><a href="docs/screenshots/gallery/sm1-16x9.png"><img src="docs/screenshots/gallery/sm1-16x9.png" width="480" alt="Spider-Man rooftop gameplay in 16:9"></a></td></tr>
+</table>
 
 [![Spider-Man: centered 4:3 capture over 16:9, with cyan boundary](docs/screenshots/gallery/sm1-comparison.svg)](docs/screenshots/gallery/sm1-comparison.svg)
 
-| Miles Morales mod — gameplay | Miles Morales mod — main menu |
-|---|---|
-| [![Miles Morales custom model in Spider-Man gameplay](docs/screenshots/gallery/sm1-miles-gameplay.png)](docs/screenshots/gallery/sm1-miles-gameplay.png) | [![Miles Morales custom model in the Spider-Man main menu](docs/screenshots/gallery/sm1-miles-menu.png)](docs/screenshots/gallery/sm1-miles-menu.png) |
+<table>
+<tr><th width="50%">Miles Morales - gameplay</th><th width="50%">Miles Morales - main menu</th></tr>
+<tr><td width="50%" align="center"><a href="docs/screenshots/gallery/sm1-miles-gameplay.png"><img src="docs/screenshots/gallery/sm1-miles-gameplay.png" width="480" alt="Miles Morales custom model in Spider-Man gameplay"></a></td><td width="50%" align="center"><a href="docs/screenshots/gallery/sm1-miles-menu.png"><img src="docs/screenshots/gallery/sm1-miles-menu.png" width="480" alt="Miles Morales custom model in the Spider-Man main menu"></a></td></tr>
+</table>
+
+<table>
+<tr><th width="50%">Last Stand - gameplay</th><th width="50%">Last Stand - main menu</th></tr>
+<tr><td width="50%" align="center"><a href="docs/screenshots/gallery/sm1-last-stand-gameplay.png"><img src="docs/screenshots/gallery/sm1-last-stand-gameplay.png" width="480" alt="Last Stand custom model in Spider-Man gameplay"></a></td><td width="50%" align="center"><a href="docs/screenshots/gallery/sm1-last-stand-menu.png"><img src="docs/screenshots/gallery/sm1-last-stand-menu.png" width="480" alt="Last Stand custom model in the Spider-Man main menu"></a></td></tr>
+</table>
+
+<table>
+<tr><th width="50%">Spider-Punk - gameplay</th><th width="50%">Spider-Punk - main menu</th></tr>
+<tr><td width="50%" align="center"><a href="docs/screenshots/gallery/sm1-spider-punk-gameplay.png"><img src="docs/screenshots/gallery/sm1-spider-punk-gameplay.png" width="480" alt="Spider-Punk custom model in Spider-Man gameplay"></a></td><td width="50%" align="center"><a href="docs/screenshots/gallery/sm1-spider-punk-menu.png"><img src="docs/screenshots/gallery/sm1-spider-punk-menu.png" width="480" alt="Spider-Punk custom model in the Spider-Man main menu"></a></td></tr>
+</table>
+
+<table>
+<tr><th width="50%">Spider-Noir - gameplay</th><th width="50%">Spider-Noir - main menu</th></tr>
+<tr><td width="50%" align="center"><a href="docs/screenshots/gallery/sm1-noir-gameplay.png"><img src="docs/screenshots/gallery/sm1-noir-gameplay.png" width="480" alt="Spider-Noir custom model in Spider-Man gameplay"></a></td><td width="50%" align="center"><a href="docs/screenshots/gallery/sm1-noir-menu.png"><img src="docs/screenshots/gallery/sm1-noir-menu.png" width="480" alt="Spider-Noir custom model in the Spider-Man main menu"></a></td></tr>
+</table>
 
 ### Spider-Man 2: Enter Electro
 
-| 4:3 gameplay | 16:9 gameplay |
-|---|---|
-| [![Spider-Man 2 rooftop gameplay in 4:3](docs/screenshots/gallery/sm2-4x3.png)](docs/screenshots/gallery/sm2-4x3.png) | [![Spider-Man 2 rooftop gameplay in 16:9](docs/screenshots/gallery/sm2-16x9.png)](docs/screenshots/gallery/sm2-16x9.png) |
+<table>
+<tr><th width="50%">4:3 gameplay</th><th width="50%">16:9 gameplay</th></tr>
+<tr><td width="50%" align="center"><a href="docs/screenshots/gallery/sm2-4x3.png"><img src="docs/screenshots/gallery/sm2-4x3.png" width="480" alt="Spider-Man 2: Enter Electro rooftop gameplay in 4:3"></a></td><td width="50%" align="center"><a href="docs/screenshots/gallery/sm2-16x9.png"><img src="docs/screenshots/gallery/sm2-16x9.png" width="480" alt="Spider-Man 2: Enter Electro rooftop gameplay in 16:9"></a></td></tr>
+</table>
 
-[![Spider-Man 2: centered 4:3 capture over 16:9, with cyan boundary](docs/screenshots/gallery/sm2-comparison.svg)](docs/screenshots/gallery/sm2-comparison.svg)
+[![Spider-Man 2: Enter Electro: centered 4:3 capture over 16:9, with cyan boundary](docs/screenshots/gallery/sm2-comparison.svg)](docs/screenshots/gallery/sm2-comparison.svg)
 
-| SP//DR mod — gameplay | SP//DR mod — main menu |
-|---|---|
-| [![SP//DR custom model in Spider-Man 2 gameplay](docs/screenshots/gallery/sm2-spdr-gameplay.png)](docs/screenshots/gallery/sm2-spdr-gameplay.png) | [![SP//DR custom model in the Spider-Man 2 main menu](docs/screenshots/gallery/sm2-spdr-menu.png)](docs/screenshots/gallery/sm2-spdr-menu.png) |
+<table>
+<tr><th width="50%">SP//DR - gameplay</th><th width="50%">SP//DR - main menu</th></tr>
+<tr><td width="50%" align="center"><a href="docs/screenshots/gallery/sm2-spdr-gameplay.png"><img src="docs/screenshots/gallery/sm2-spdr-gameplay.png" width="480" alt="SP//DR custom model in Spider-Man 2: Enter Electro gameplay"></a></td><td width="50%" align="center"><a href="docs/screenshots/gallery/sm2-spdr-menu.png"><img src="docs/screenshots/gallery/sm2-spdr-menu.png" width="480" alt="SP//DR custom model in the Spider-Man 2: Enter Electro main menu"></a></td></tr>
+</table>
 
-Miles Morales and SP//DR models and textures by **Gameloft**, converted from *Spider-Man Unlimited*.
+<table>
+<tr><th width="50%">MCU Infinity War - gameplay</th><th width="50%">MCU Infinity War - main menu</th></tr>
+<tr><td width="50%" align="center"><a href="docs/screenshots/gallery/sm2-infinity-war-gameplay.png"><img src="docs/screenshots/gallery/sm2-infinity-war-gameplay.png" width="480" alt="MCU Infinity War custom model in Spider-Man 2: Enter Electro gameplay"></a></td><td width="50%" align="center"><a href="docs/screenshots/gallery/sm2-infinity-war-menu.png"><img src="docs/screenshots/gallery/sm2-infinity-war-menu.png" width="480" alt="MCU Infinity War custom model in the Spider-Man 2: Enter Electro main menu"></a></td></tr>
+</table>
+
+<table>
+<tr><th width="50%">Hornet - gameplay</th><th width="50%">Hornet - main menu</th></tr>
+<tr><td width="50%" align="center"><a href="docs/screenshots/gallery/sm2-hornet-gameplay.png"><img src="docs/screenshots/gallery/sm2-hornet-gameplay.png" width="480" alt="Hornet custom model in Spider-Man 2: Enter Electro gameplay"></a></td><td width="50%" align="center"><a href="docs/screenshots/gallery/sm2-hornet-menu.png"><img src="docs/screenshots/gallery/sm2-hornet-menu.png" width="480" alt="Hornet custom model in the Spider-Man 2: Enter Electro main menu"></a></td></tr>
+</table>
+
+<table>
+<tr><th width="50%">Ghost Spider - gameplay</th><th width="50%">Ghost Spider - main menu</th></tr>
+<tr><td width="50%" align="center"><a href="docs/screenshots/gallery/sm2-ghost-spider-gameplay.png"><img src="docs/screenshots/gallery/sm2-ghost-spider-gameplay.png" width="480" alt="Ghost Spider custom model in Spider-Man 2: Enter Electro gameplay"></a></td><td width="50%" align="center"><a href="docs/screenshots/gallery/sm2-ghost-spider-menu.png"><img src="docs/screenshots/gallery/sm2-ghost-spider-menu.png" width="480" alt="Ghost Spider custom model in the Spider-Man 2: Enter Electro main menu"></a></td></tr>
+</table>
+
+Featured mod models and textures by **Gameloft**, converted from *Spider-Man Unlimited*.
 
 ## Current features
 
