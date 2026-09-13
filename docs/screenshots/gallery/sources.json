@@ -6,8 +6,9 @@
     "sm1-miles-menu.png": "proof_render/standalone-release/sm1/restart-mod/frame_00728.png",
     "sm2-4x3.png": "dreamcast/converted/sm2-costume-tests/runtime/default/runtime-wing-proof/frame_02979.png",
     "sm2-16x9.png": "proof_render/standalone-release/sm2/fresh-stock/frame_02990.png",
-    "sm2-miles-gameplay.png": "proof_render/standalone-release/sm2/restart-mod/frame_02990.png",
-    "sm2-miles-menu.png": "proof_render/standalone-release/sm2/restart-mod/frame_00762.png"
+    "sm2-spdr-gameplay.png": "proof_render/readme-spdr/captures/frame_02990.png",
+    "sm2-spdr-menu.png": "proof_render/readme-spdr/captures/frame_00762.png"
   },
-  "processing": "PNG files copied unchanged. SVG overlays center the complete 4:3 image at the same height over 16:9, at 40% opacity. No scene content retouched. Separate captures are not frame synchronized."
+  "processing": "PNG files copied unchanged. SVG overlays center the complete 4:3 image at the same height over 16:9, at 40% opacity. No scene content retouched. Separate captures are not frame synchronized.",
+  "spdrCapture": "Native GPU captures with RECOMP_CAPTURE_HIDDEN=1: invisible windowed OpenGL context, fullscreen disabled, process-local input only."
 }

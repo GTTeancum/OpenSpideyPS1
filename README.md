@@ -37,11 +37,11 @@ shot at 40% opacity; the cyan outline marks its boundary.
 
 [![Spider-Man 2: centered 4:3 capture over 16:9, with cyan boundary](docs/screenshots/gallery/sm2-comparison.svg)](docs/screenshots/gallery/sm2-comparison.svg)
 
-| Miles Morales mod — gameplay | Miles Morales mod — main menu |
+| SP//DR mod — gameplay | SP//DR mod — main menu |
 |---|---|
-| [![Miles Morales custom model in Spider-Man 2 gameplay](docs/screenshots/gallery/sm2-miles-gameplay.png)](docs/screenshots/gallery/sm2-miles-gameplay.png) | [![Miles Morales custom model in the Spider-Man 2 main menu](docs/screenshots/gallery/sm2-miles-menu.png)](docs/screenshots/gallery/sm2-miles-menu.png) |
+| [![SP//DR custom model in Spider-Man 2 gameplay](docs/screenshots/gallery/sm2-spdr-gameplay.png)](docs/screenshots/gallery/sm2-spdr-gameplay.png) | [![SP//DR custom model in the Spider-Man 2 main menu](docs/screenshots/gallery/sm2-spdr-menu.png)](docs/screenshots/gallery/sm2-spdr-menu.png) |
 
-Miles Morales model and textures by **Gameloft**, converted from *Spider-Man Unlimited*.
+Miles Morales and SP//DR models and textures by **Gameloft**, converted from *Spider-Man Unlimited*.
 
 ## Current features
 

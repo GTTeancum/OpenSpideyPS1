@@ -13,6 +13,8 @@ namespace RecompOne.Runtime.Host;
 
 public static class HostWindow
 {
+    // Native GPU captures without showing a window or taking desktop focus.
+    static readonly bool _captureHidden = Environment.GetEnvironmentVariable("RECOMP_CAPTURE_HIDDEN") == "1";
     static IWindow? _window;
     static GL? _gl;
     static ImGuiController? _imgui;
@@ -223,6 +225,7 @@ public static class HostWindow
     {
         Diagnostics.NativeAllocationProbe.Initialize();
         ConfigManager.Load();
+        if (_captureHidden) ConfigManager.View.Fullscreen = false;
         if(!ConfigManager.View.Fullscreen && ConfigManager.View.GetInt("VideoWidth")>0 && ConfigManager.View.GetInt("VideoHeight")>0)
             OutputPanel.RequestResolution(ConfigManager.View.GetInt("VideoWidth"),ConfigManager.View.GetInt("VideoHeight"));
         _baseTitle = title ?? "";
@@ -238,6 +241,7 @@ public static class HostWindow
                 {
                     Size = new Vector2D<int>(ConfigManager.View.WindowWidth, ConfigManager.View.WindowHeight),
                     Title = _baseTitle,
+                    IsVisible = !_captureHidden,
                     VSync = ConfigManager.View.VSync,
                     UpdatesPerSecond = 0,
                     FramesPerSecond = 0,
@@ -422,6 +426,7 @@ public static class HostWindow
     public static void SetFullscreen(bool on)
     {
         if (_window == null) return;
+        if (_captureHidden) { ConfigManager.View.Fullscreen = false; return; }
         _window.WindowState = on ? WindowState.Fullscreen : WindowState.Normal;
         Console.WriteLine($"[Host] fullscreen={on}; window state={_window.WindowState}");
         if (on) SetAutoIconify(false);
