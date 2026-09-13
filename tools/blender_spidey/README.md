@@ -122,6 +122,24 @@ there is no controller input after the opening wall climb. With the environment
 switch absent, the hook does nothing. This is a bounded baseline, not an exhaustive
 memory-safety or full-level gameplay certification.
 
+`--full-roster` enables `SPIDEY_BASELINE_ROSTER=1`. The SM1 L1A1 trigger table
+contains five henchman records (9, 10, 11, 16, 19) and four story Black Cat
+records (100, 113, 121, 138). The harness observes normal activation, then calls
+the native trigger parser for each remaining character record after the intro,
+300 frames apart. It draws all five henchmen beside the player and runs to frame
+7200. This exercises every authored character placement, including those normally
+gated by progression, without changing their record data or replacing scenery.
+The spawned actors exist only in the private test process. Closing it restores
+normal play; the asset overlay and diagnostic switches are not installed globally.
+This is roster stress coverage, not a playthrough of every level script.
+
+Latest full-roster result (2026-09-13): stock passed all nine records through
+frame 7200, peaking at 235,064 command bytes. The Black Cat replacements reached
+five henchmen plus the player, then hit the 256 KiB command-pool guard at 261,788
+bytes after story record 100 activated. The diagnostic stopped the run; replacement
+records 113 and 138 remain untested. The full-roster baseline is **not passing**.
+Normal staged models, executable, settings, and saves were verified unchanged.
+
 Example background test (set the executable paths for your system):
 
 ```powershell

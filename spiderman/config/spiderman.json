@@ -191,6 +191,12 @@
   "patches": [
     {
       "overlay": "main",
+      "function": "func_8005B014",
+      "mode": "pre",
+      "target": "Recompiled.CharacterBaseline.ObserveTrigger"
+    },
+    {
+      "overlay": "main",
       "function": "func_8002BB9C",
       "mode": "post",
       "target": "Recompiled.FramePackets.SetLimit"

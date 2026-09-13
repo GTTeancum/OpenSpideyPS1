@@ -16,6 +16,7 @@ p.add_argument('--assets',type=Path,required=True)
 p.add_argument('--output',type=Path,required=True)
 p.add_argument('--runs',nargs='+',choices=['stock','blackcats'],default=['stock','blackcats'])
 p.add_argument('--crowd',action='store_true',help='Use the opt-in native crowd draw fixture')
+p.add_argument('--full-roster',action='store_true',help='Activate all nine authored L1A1 character records and soak')
 a=p.parse_args()
 a.output=a.output.resolve()
 a.output.mkdir(parents=True,exist_ok=False)
@@ -39,6 +40,10 @@ for name in a.runs:
     if a.crowd:
         env.update(SPIDEY_BASELINE_CROWD='1',SPIDEY_SHOTS='3600,3800,4000',
                    SPIDEY_EXIT='4100',SPIDEY_RAMDUMP='3300,3900,4080')
+    if a.full_roster:
+        env.pop('SPIDEY_BASELINE_CROWD',None)
+        env.update(SPIDEY_BASELINE_ROSTER='1',SPIDEY_SHOTS='3900,4800,6600',
+                   SPIDEY_EXIT='7200',SPIDEY_RAMDUMP='3300,3900,6600,7080')
     (folder/'route.json').write_text(json.dumps({k:v for k,v in env.items() if k.startswith('SPIDEY_')},indent=2))
     samples=[]
     start=time.monotonic()
@@ -63,6 +68,11 @@ for name in a.runs:
     result['peakFramePacketBytes']=max(peaks,default=0)
     (folder/'metrics.json').write_text(json.dumps(result,indent=2))
     assert process.returncode==0 and '[capture] exit at frame' in text
+    if a.full_roster:
+        assert '[character-roster] COMPLETE records=9' in text
+        assert 'drawing 5 existing henchmen' in text
+        result['visitedCharacterRecords']=sorted(set(map(int,re.findall(r'\[character-roster\] visited record=(\d+)',text))))
+        assert len(result['visitedCharacterRecords'])==9
     for failure in ('Out of VRAM','CORRUPTED','bad node','arena exhausted','Unhandled exception','FATAL HALT','unmapped address'):
         assert failure not in text,failure
     if name=='blackcats':
@@ -92,11 +102,18 @@ for name in a.runs:
         assert not any(ram[end:0x780000]),'Unused expanded arena was overwritten'
         node=struct.unpack_from('<I',ram,0xb5234)[0]
         actors=[]
+        types=[]
         while node:
             assert node not in actors and 0x80000000<=node<0x80200000
             actors.append(node)
+            types.append(struct.unpack_from('<H',ram,(node&0x7fffff)+0x34)[0])
             node=struct.unpack_from('<I',ram,(node&0x7fffff)+0x1c)[0]
+        if a.full_roster:
+            expected=4 if int(path.stem[4:])<3600 else 5
+            assert types.count(0x138)==expected, 'Unexpected full-roster henchman count'
+            assert all(t in (0x138,0x13f) for t in types)
         snapshots.append(dict(frame=int(path.stem[4:]),enemyCount=len(actors),
+                              actorTypes=[f'{t:04x}' for t in types],
                               enemyPointers=[f'{x:08x}' for x in actors],
                               allocationPaddingClean=True,unusedArenaClean=True))
     result['nativeMemoryAudit']=dict(blocks=blocks,allocatedBytes=sum(b['size'] for b in blocks),snapshots=snapshots)
