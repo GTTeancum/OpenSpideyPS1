@@ -10,6 +10,39 @@ This is an active development project, not a claim of complete game compatibilit
 Both games reach gameplay; targeted menu, level, costume and renderer tests do not
 replace full playthroughs or long-duration stability testing.
 
+## Screenshots
+
+Native renderer captures from both games. Click any image for the full-size version.
+The 4:3 and 16:9 shots come from separate runs, so camera position, animation, and
+HUD state can differ. The overlays place the complete 4:3 capture over the wider
+shot at 40% opacity; the cyan outline marks its boundary.
+
+### Spider-Man
+
+| 4:3 gameplay | 16:9 gameplay |
+|---|---|
+| [![Spider-Man rooftop gameplay in 4:3](docs/screenshots/gallery/sm1-4x3.png)](docs/screenshots/gallery/sm1-4x3.png) | [![Spider-Man rooftop gameplay in 16:9](docs/screenshots/gallery/sm1-16x9.png)](docs/screenshots/gallery/sm1-16x9.png) |
+
+[![Spider-Man: centered 4:3 capture over 16:9, with cyan boundary](docs/screenshots/gallery/sm1-comparison.svg)](docs/screenshots/gallery/sm1-comparison.svg)
+
+| Miles Morales mod — gameplay | Miles Morales mod — main menu |
+|---|---|
+| [![Miles Morales custom model in Spider-Man gameplay](docs/screenshots/gallery/sm1-miles-gameplay.png)](docs/screenshots/gallery/sm1-miles-gameplay.png) | [![Miles Morales custom model in the Spider-Man main menu](docs/screenshots/gallery/sm1-miles-menu.png)](docs/screenshots/gallery/sm1-miles-menu.png) |
+
+### Spider-Man 2: Enter Electro
+
+| 4:3 gameplay | 16:9 gameplay |
+|---|---|
+| [![Spider-Man 2 rooftop gameplay in 4:3](docs/screenshots/gallery/sm2-4x3.png)](docs/screenshots/gallery/sm2-4x3.png) | [![Spider-Man 2 rooftop gameplay in 16:9](docs/screenshots/gallery/sm2-16x9.png)](docs/screenshots/gallery/sm2-16x9.png) |
+
+[![Spider-Man 2: centered 4:3 capture over 16:9, with cyan boundary](docs/screenshots/gallery/sm2-comparison.svg)](docs/screenshots/gallery/sm2-comparison.svg)
+
+| Miles Morales mod — gameplay | Miles Morales mod — main menu |
+|---|---|
+| [![Miles Morales custom model in Spider-Man 2 gameplay](docs/screenshots/gallery/sm2-miles-gameplay.png)](docs/screenshots/gallery/sm2-miles-gameplay.png) | [![Miles Morales custom model in the Spider-Man 2 main menu](docs/screenshots/gallery/sm2-miles-menu.png)](docs/screenshots/gallery/sm2-miles-menu.png) |
+
+Miles Morales model and textures by **Gameloft**, converted from *Spider-Man Unlimited*.
+
 ## Current features
 
 - **Modern rendering in both games:** perspective-correct textured geometry,
