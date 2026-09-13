@@ -316,7 +316,7 @@ def export_actor(template, target, image, output, repository, python, multitool,
         assert check['Objects'] == data['Objects'], 'Native hierarchy changed'
         assert len(check['Meshes']) == count
         assert all(m['LodNextMeshIndex'] == 65535 for m in check['Meshes'])
-        assert all(m['VertexCount'] <= 256 and not m['StitchFailureCount'] and
+        assert all(1 <= m['VertexCount'] <= 256 and not m['StitchFailureCount'] and
                    all(not f.get('RejectionReason') for f in m['FaceReads']) for m in check['Meshes'])
         extra = sum(check['Meshes'][int(i)]['FaceCount'] for i in fit['alternateParts'])
         assert sum(m['FaceCount'] for m in check['Meshes']) == len(fit['faces']) + extra
@@ -329,7 +329,10 @@ def export_actor(template, target, image, output, repository, python, multitool,
         original_tags = animation_tags(base64.b64decode(template['spidey_donor']))
         assert animation_tags((output / 'assets' / filename).read_bytes()) == original_tags
         report = {'status': 'structural-pass-native-review-required', 'sourcePolygons': original_triangles,
-                  'exportedTriangles': len(fit['faces']), 'partVertices': budgets,
+                  'exportedTriangles': len(fit['faces']),
+                  'partVertices': [m['VertexCount'] for m in check['Meshes']],
+                  'emptyJointsPadded': [i for i,n in enumerate(budgets) if n == 0
+                                        and str(i) not in fit['alternateParts']],
                   'reductionSteps': iterations, 'templateSha256': hashlib.sha256(base64.b64decode(template['spidey_donor'])).hexdigest(),
                   'decimationUvBoundaryClamps': clamped_uvs,
                   'actorSha256': hashlib.sha256((output / 'assets' / filename).read_bytes()).hexdigest(),

@@ -124,6 +124,7 @@ public static class OverlayPatches
     /// </summary>
     public static bool HeapAlloc(CpuContext c, IMemory m)
     {
+        if (FramePackets.TryAllocate(c)) return false;
         _allocSize = c.A0;
         if (_pendingName != null && _allocSize == _pendingSize)
         {

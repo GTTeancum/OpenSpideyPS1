@@ -191,6 +191,24 @@
   "patches": [
     {
       "overlay": "main",
+      "function": "func_8002BB9C",
+      "mode": "post",
+      "target": "Recompiled.FramePackets.SetLimit"
+    },
+    {
+      "overlay": "main",
+      "function": "func_80076480",
+      "mode": "pre",
+      "target": "Recompiled.CharacterBaseline.Enter"
+    },
+    {
+      "overlay": "main",
+      "function": "func_80076480",
+      "mode": "post",
+      "target": "Recompiled.CharacterBaseline.Exit"
+    },
+    {
+      "overlay": "main",
       "function": "CdWadFind",
       "mode": "pre",
       "target": "Recompiled.OverlayPatches.CdWadFind"

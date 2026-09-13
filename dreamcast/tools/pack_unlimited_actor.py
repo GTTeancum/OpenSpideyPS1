@@ -15,6 +15,12 @@ part_count=struct.unpack_from('<I',raw,8)[0] if args.template_layout else 18
 faces=[[] for _ in range(part_count)]
 for f in fit['faces']:faces[max(owner[v] for v in f['v'])].append(f)
 indices=[sorted(set(v for f in faces[i] for v in f['v'])|{v for v,b in enumerate(owner) if b==i}) for i in range(part_count)]
+if args.template_layout:
+ # Native lighting reads its first normal before testing the loop count. An
+ # empty joint still needs an inert vertex/normal pair; no faces are emitted.
+ for i,ids in enumerate(indices):
+  if not ids and str(i) not in fit.get('alternateParts',{}):
+   ids.append(len(verts));verts.append(offsets[str(i)]);owner.append(i)
 usedby={v:{i for i,ids in enumerate(indices) if v in ids} for v in range(len(verts))}
 shared={v for v,s in usedby.items() if len(s)>1};references={};n=0
 for i,ids in enumerate(indices):

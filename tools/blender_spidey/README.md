@@ -78,6 +78,9 @@ backend. Keep the repository and Multitool available while using it.
   not referenced by the original body, including player support textures.
 - Preserves the target's object table and animation-tag bytes. Spider-Man's known
   alternate hand records receive the same custom hand pose in both slots.
+- Gives unused joints one inert vertex/normal pair and no faces. The native
+  lighting loop reads its first normal even for a zero-count mesh, so emitting
+  a completely empty joint can cause an invalid memory read in the menu renderer.
 - Emits one terminal mesh per object. This follows the existing SM1 conversion
   strategy for stitched actors: mixing old reduced tiers with new seam references
   is invalid. There is no distance simplification in this release, so keep enemy
@@ -103,6 +106,21 @@ entrance and conversation play without further button presses.
 including unusual boss hierarchies and multi-tier enemies. It uses each template's
 own geometry and a neutral test atlas. This is structural roster coverage, not
 a claim that every character was replaced by Black Cat or visually reviewed.
+
+`test_level_blackcats.py` builds a temporary L1A1 set: the player, Black Cat,
+and the henchman model all use Unlimited Black Cat geometry. It maps the reviewed
+Black Cat weights onto these three known humanoid templates; this alignment fixture
+is separate from the artist-facing nearest-surface transfer tool.
+
+`compare_level_blackcats.py` runs stock and replacement assets sequentially and
+records private/working-set memory, native allocation ranges, allocation padding,
+unused expanded RAM, and the enemy linked list. `--crowd` requires a game built
+with the opt-in `CharacterBaseline` diagnostic hook. Between frames 3450 and 4050,
+the hook positions the four existing L1A1 thugs near the player for their draw call
+and restores their positions immediately afterward. AI and animations continue;
+there is no controller input after the opening wall climb. With the environment
+switch absent, the hook does nothing. This is a bounded baseline, not an exhaustive
+memory-safety or full-level gameplay certification.
 
 Example background test (set the executable paths for your system):
 
