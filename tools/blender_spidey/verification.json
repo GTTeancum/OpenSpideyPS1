@@ -1,0 +1,571 @@
+{
+  "blender": "4.5.8 LTS",
+  "templateCount": 75,
+  "templates": [
+    {
+      "name": "bc2.psx",
+      "sourceMeshRecords": 18,
+      "exportedMeshRecords": 18,
+      "templateSha256": "cd38f92aef9095eb1a15c15b43460aa16ba8694a344b78aa79bf800c42eec4ad",
+      "actorSha256": "74c04e288e9e4faf21ed887f4c6ff6a48bb7e2cf36b198ded86348d8c15a123c"
+    },
+    {
+      "name": "blackcat.psx",
+      "sourceMeshRecords": 18,
+      "exportedMeshRecords": 18,
+      "templateSha256": "cd38f92aef9095eb1a15c15b43460aa16ba8694a344b78aa79bf800c42eec4ad",
+      "actorSha256": "8a1cba0aebc95cc26481a4c882a7a49c182c333e11455d54039acf3231af1718"
+    },
+    {
+      "name": "brock.psx",
+      "sourceMeshRecords": 16,
+      "exportedMeshRecords": 16,
+      "templateSha256": "7d714ee74ddbda02dcfcede9bdd64542b21cf2cef62acc7d220ca4f293cedc98",
+      "actorSha256": "b9109ab83d68357992218f45ee5fb2c4faea6e3773f9dfc9b9327d0fa6437f3d"
+    },
+    {
+      "name": "captain.psx",
+      "sourceMeshRecords": 17,
+      "exportedMeshRecords": 17,
+      "templateSha256": "03ed27cd3d9bd3b745bb2504995ca039c76f8540143bde2504b95aaefad810a5",
+      "actorSha256": "5897ff78ff1a1e8f04e10e929a5d4ddf4ac795fc5521abe4baf5ed351c06ac6e"
+    },
+    {
+      "name": "carnage.psx",
+      "sourceMeshRecords": 19,
+      "exportedMeshRecords": 19,
+      "templateSha256": "6fa810bf5334771ecfe30e012d489024b0ee54dec75cf9b1c92477081eb39427",
+      "actorSha256": "b314b843a1feda7065022bf609dfebaae6d5eb3ebf854cbbadc4db726775dc09"
+    },
+    {
+      "name": "chopper.psx",
+      "sourceMeshRecords": 5,
+      "exportedMeshRecords": 5,
+      "templateSha256": "90debbcc56448726c77cbcb5d17f8b6dc3d413b42b04fde7af07c45981422e81",
+      "actorSha256": "f66d4c9baa828d5d91990ec7f17cbbae1870e98ff31fc999b15039db353b9cc9"
+    },
+    {
+      "name": "claw.psx",
+      "sourceMeshRecords": 1,
+      "exportedMeshRecords": 1,
+      "templateSha256": "2db3bc617ceee4ad9c3b01dbc7a2ae9f0d38994eefd5c207a15d344e1ecb3859",
+      "actorSha256": "5ae84a318e80602cd9af7e2b83896a1979af1c2175b590230dbb41d113cf62a9"
+    },
+    {
+      "name": "daredevl.psx",
+      "sourceMeshRecords": 16,
+      "exportedMeshRecords": 16,
+      "templateSha256": "86f4e5a15f9f071d1162206a5f42caaf60da205380f82d62115e2d922b873e9f",
+      "actorSha256": "a1a07be8e25e73db4309f7cdad1eec4d1846393a6e4390fc0bebef4f9eed5c79"
+    },
+    {
+      "name": "docock.psx",
+      "sourceMeshRecords": 46,
+      "exportedMeshRecords": 46,
+      "templateSha256": "2ad94a71570c2525ca10b319728745f0a0e981065a0d622011160ff17d3820b7",
+      "actorSha256": "733b6c82c89298984ebb0020c6d75c3fab516fce8575c4b5c807bcd8348eadd8"
+    },
+    {
+      "name": "goldfish.psx",
+      "sourceMeshRecords": 1,
+      "exportedMeshRecords": 1,
+      "templateSha256": "b7ed5cc05538609a6de798f638523901cd6d2d431abbe3c675820752288b4204",
+      "actorSha256": "c1bc10837a0205412cf5af54ae8cdb4cfc8497810d05eb11bf23cf6faf79f309"
+    },
+    {
+      "name": "henchman.psx",
+      "sourceMeshRecords": 15,
+      "exportedMeshRecords": 15,
+      "templateSha256": "68be326b9c1d1dc79e667ead07d4781dc9d691981c3269f32ba4dc5058ef2844",
+      "actorSha256": "808e6913da2eddf11d45357b09cc6a60c4342117af70660b41c6b1d4ee198668"
+    },
+    {
+      "name": "henchngt.psx",
+      "sourceMeshRecords": 15,
+      "exportedMeshRecords": 15,
+      "templateSha256": "edaad1f667057e8b6588a46f5fa3c35a0009b0c87f8e03a7c6f6f4142910d81a",
+      "actorSha256": "cbcbe2c8b21bf9858accfa331fe79884c9f150417cb3383b44792efec4d3cf51"
+    },
+    {
+      "name": "hostage.psx",
+      "sourceMeshRecords": 15,
+      "exportedMeshRecords": 15,
+      "templateSha256": "f2a4b3bf8b341b43129799e0d1c99f57f377f96fc283c982ec436cd93f564318",
+      "actorSha256": "274a5f633f2f5b05f096f06766b0400ad8e586c6b201594b0d87e939923f4fec"
+    },
+    {
+      "name": "hostagef.psx",
+      "sourceMeshRecords": 15,
+      "exportedMeshRecords": 15,
+      "templateSha256": "3fa357a5bcf0b099fe8f3989f1615e412ce4ceeae9ae04e135c980dc5d1f84bf",
+      "actorSha256": "dbe4f24cb37c60f9f98c883b905e6ec80cfc1dcb88804f68e8dfc916ca68ae4e"
+    },
+    {
+      "name": "jameson.psx",
+      "sourceMeshRecords": 16,
+      "exportedMeshRecords": 16,
+      "templateSha256": "94a012955472a3465b5cf0d466023fa097e226867939027b1a1e0c21b64d8838",
+      "actorSha256": "55f7637632dd362b9ae1721656d873bcb0880afc9551d133f578461c3a169e23"
+    },
+    {
+      "name": "jjjj.psx",
+      "sourceMeshRecords": 16,
+      "exportedMeshRecords": 16,
+      "templateSha256": "c4bcf6088280d1c0a8342e99b79a547bbfd955f8d42e1efb32e69b991f219569",
+      "actorSha256": "a66cb351afd1daa753e1fa9b5b9fa0cc7d726d07ab4c2949ab91bee60442791a"
+    },
+    {
+      "name": "jjviewer.psx",
+      "sourceMeshRecords": 16,
+      "exportedMeshRecords": 16,
+      "templateSha256": "1c1b66e1d4f698612c7daf3293769ece89cb8e7c64f83fe18c8638ed5488e8aa",
+      "actorSha256": "a36be7f625cfdb1f469341011b15d0002242c505b481e64e01174a178f351e51"
+    },
+    {
+      "name": "lizard.psx",
+      "sourceMeshRecords": 22,
+      "exportedMeshRecords": 22,
+      "templateSha256": "6e616f4e145ce08da24054538105bce868cb5bfa0008e93b86af9b6f12366de3",
+      "actorSha256": "9e3ba62b425595f04808cf2026ffb171ffd76b5d30750953e18a096796d034b1"
+    },
+    {
+      "name": "lizman.psx",
+      "sourceMeshRecords": 56,
+      "exportedMeshRecords": 19,
+      "templateSha256": "dbdbefa4a50790cb0a30e0dfffd49cfdc5e730f67909581ac29e4396be573f0b",
+      "actorSha256": "63df779f74fcf6782df2563cb26fd02b3269f4037e103623cd6b88c5a60aa22b"
+    },
+    {
+      "name": "lizman2.psx",
+      "sourceMeshRecords": 56,
+      "exportedMeshRecords": 19,
+      "templateSha256": "85f05f3d1121d84252d66270a75306c6b4d0ba69a22f23aa008e963398268b76",
+      "actorSha256": "d75b40ac7cf11fb4524b07c84d3b62e6e9ca3351348b82b19ae021f89ba91c81"
+    },
+    {
+      "name": "lizman2t.psx",
+      "sourceMeshRecords": 38,
+      "exportedMeshRecords": 19,
+      "templateSha256": "b3d1ea4b37c1eaec056bd579248fea7dee6031961001b1dc4f09f5cbde75784e",
+      "actorSha256": "d4065dee3a4cbcd87170081425a59e5318d13aa4561eb63cafbf6ed3b37be4c9"
+    },
+    {
+      "name": "lizmant.psx",
+      "sourceMeshRecords": 38,
+      "exportedMeshRecords": 19,
+      "templateSha256": "4e7159c4eed3a5caa3cceed4ca070c317e5fc26ed727b59a814b0d8d703c63e9",
+      "actorSha256": "d435dbf12470796cbec6b8d8029eef1c29359035dbaf7434984a9c911cd67525"
+    },
+    {
+      "name": "mariner.psx",
+      "sourceMeshRecords": 17,
+      "exportedMeshRecords": 17,
+      "templateSha256": "cf3b69221b4a1457e82d8943726fab21c28f5869049c899a1a007f314dc2a48c",
+      "actorSha256": "ac3e435a86c3fe9d2c9c00444b36b29fb42f60cdf2f93760a8ed701825fa0c27"
+    },
+    {
+      "name": "mj.psx",
+      "sourceMeshRecords": 18,
+      "exportedMeshRecords": 18,
+      "templateSha256": "b7d6343f02bd2b268c4f14ae0edc3d2e3ea1b7f1f101e1e8e7de6dfd360f56f2",
+      "actorSha256": "e9f9624bf3d7933c28bb065a0ab37c7b02677657b02a8a2b2419a1bc719c02f3"
+    },
+    {
+      "name": "mjviewer.psx",
+      "sourceMeshRecords": 18,
+      "exportedMeshRecords": 18,
+      "templateSha256": "b94721c40062275374a13b8815aca8064a841ff506db37cb7f0505714d004d01",
+      "actorSha256": "a075b0a4414ad182a84415ba8e77e1eb084a9bcf5d7daca92eb4fa6d5e7044f8"
+    },
+    {
+      "name": "mysterio.psx",
+      "sourceMeshRecords": 18,
+      "exportedMeshRecords": 18,
+      "templateSha256": "129c23b9539876a0132f553a3fa7371b8aeb12c11caa23776f03837fa8e65464",
+      "actorSha256": "3ad3f6e23aa12db690d6a03abdb57798a7d8e059156e8745635938fafa549eba"
+    },
+    {
+      "name": "mystview.psx",
+      "sourceMeshRecords": 18,
+      "exportedMeshRecords": 18,
+      "templateSha256": "1b7d3f0b2d4cd85f8bf91f488c8576e73078f919eec74bead3f608e9d2e3e741",
+      "actorSha256": "1dbca7f8b9b1420eb417fe7b359bc3ad61fd1c22b1031b6fb05f34c03de8cc40"
+    },
+    {
+      "name": "ock_suit.psx",
+      "sourceMeshRecords": 16,
+      "exportedMeshRecords": 16,
+      "templateSha256": "1db77fcc81da638b6d068d44acb2614be6e35477651eb1be9894e00686d27b34",
+      "actorSha256": "d2bed34655da2f6e742cbcbebd866deb403f7b2a1fef32f0c57e8b4707c5cd59"
+    },
+    {
+      "name": "parker.psx",
+      "sourceMeshRecords": 15,
+      "exportedMeshRecords": 15,
+      "templateSha256": "aff780f33f51aa9fb7c191b1d88b19884311d62674849e8142a071423ea609aa",
+      "actorSha256": "f2f04d5e5ce5521b8da30b60608c658d5e1b228d5870214d4b981b7c4ad33bfb"
+    },
+    {
+      "name": "police.psx",
+      "sourceMeshRecords": 16,
+      "exportedMeshRecords": 16,
+      "templateSha256": "497a7872b2a34c828143afa197d536ee0ab68459f250d37c4efadb1648126c4f",
+      "actorSha256": "5bdbe33d401e7fba06b5bf964e85d34b10eda3d5bb55c8079ce51e7a5de06fbb"
+    },
+    {
+      "name": "punisher.psx",
+      "sourceMeshRecords": 22,
+      "exportedMeshRecords": 22,
+      "templateSha256": "8f444c5ba54d81ddb03d41487cc99b4576d020710115d855f827e07d69d130d9",
+      "actorSha256": "c818e2b24dff89c6162405bc77ae428bbd95224f195d595fc9f979595c50dd87"
+    },
+    {
+      "name": "rhino.psx",
+      "sourceMeshRecords": 17,
+      "exportedMeshRecords": 17,
+      "templateSha256": "ed0b796bbbfa0d6c2a8f504e5fa868044657e94d62552ed7d3c171565d73063a",
+      "actorSha256": "a4a139bde6320638ee23c18fc7380ed22bb1d8ddf143e8307be49c3d6531609a"
+    },
+    {
+      "name": "scorpion.psx",
+      "sourceMeshRecords": 24,
+      "exportedMeshRecords": 24,
+      "templateSha256": "5ccd16ad078e2d18891c665252134aee58432ec8e70d3ebffe494fdf53b42b48",
+      "actorSha256": "56573f930c04bd896cc88eda5a289c7e98557c03adab3691e9d17b762bf6e3b1"
+    },
+    {
+      "name": "softeyes.psx",
+      "sourceMeshRecords": 2,
+      "exportedMeshRecords": 2,
+      "templateSha256": "5b8a52b7ae96ed73f75476f33d0844a176f583dbde651da34524316026cb2ab5",
+      "actorSha256": "881cfaf4c07b1b787ccc31b19046c3953b054b2aded024aed5cea49bd55aeb49"
+    },
+    {
+      "name": "softspot.psx",
+      "sourceMeshRecords": 4,
+      "exportedMeshRecords": 4,
+      "templateSha256": "817781edb84259247c1fb31cadc715504e6b37f8f1cadba1a0310afa6db51e99",
+      "actorSha256": "dfbb6da12ac231084a8b5d10eb5ee10f4cd34c7630160070e5b4cf0e0f444092"
+    },
+    {
+      "name": "softspt2.psx",
+      "sourceMeshRecords": 1,
+      "exportedMeshRecords": 1,
+      "templateSha256": "98065102b5908ae6ee25f1b5d4df70b75f4bb48faa9c599bdb14ddddd460ffc2",
+      "actorSha256": "18c93d262d8d1a06f2fdaa3bac2c8106d09db7a5cd7d43ef863beb83f5507eca"
+    },
+    {
+      "name": "softspt3.psx",
+      "sourceMeshRecords": 2,
+      "exportedMeshRecords": 2,
+      "templateSha256": "afeb1628c48f9fc6bb3f6032c5ecb766f67f06ef9560e98bfe43374d1d1d3dd2",
+      "actorSha256": "b2b02c16c89a538b0d960a7cea9debf48a023ee14af44369912acb692305fdfc"
+    },
+    {
+      "name": "sp2099.psx",
+      "sourceMeshRecords": 18,
+      "exportedMeshRecords": 18,
+      "templateSha256": "3ff3e9f2c4ce431449966ed06c41a670c5740f74f716691f0fe4332d9d036d17",
+      "actorSha256": "659f940ae5d0ee445e4559e8c50f60ea96e7322a69fda195b31e13ce5095b838"
+    },
+    {
+      "name": "sp2battle.psx",
+      "sourceMeshRecords": 18,
+      "exportedMeshRecords": 18,
+      "templateSha256": "b13556528da37c355f1770804a4c2de4b5a1faca5ea648fa389b6121a4944d44",
+      "actorSha256": "ce5b702809a6cc4daffb568743855fed973f4311045ed2b9699f2e155d89d779"
+    },
+    {
+      "name": "sp2body.psx",
+      "sourceMeshRecords": 18,
+      "exportedMeshRecords": 18,
+      "templateSha256": "76b2a6d9fee96c46a216bbbd7887dd63fb5ef7310f4939ae8346c724b66b6885",
+      "actorSha256": "ca01f7c51ffe01059a1d3ddd5c3ce363c58b761990aa255b8f1c651d653055ba"
+    },
+    {
+      "name": "sp2default.psx",
+      "sourceMeshRecords": 18,
+      "exportedMeshRecords": 18,
+      "templateSha256": "76b2a6d9fee96c46a216bbbd7887dd63fb5ef7310f4939ae8346c724b66b6885",
+      "actorSha256": "7b2327127af079be47a24a1465fa137960a0c213717ea7185381233cba1febc2"
+    },
+    {
+      "name": "sp2dusk.psx",
+      "sourceMeshRecords": 18,
+      "exportedMeshRecords": 18,
+      "templateSha256": "790089689690cfd7a23d0cc8605f66dff3b8869b10e3b01e5584582666258bf7",
+      "actorSha256": "99e0e380c9105a0c5c0b4a07d9cd84e8a4f6e80205a7e11c507f85b68d815ed3"
+    },
+    {
+      "name": "sp2insulated.psx",
+      "sourceMeshRecords": 18,
+      "exportedMeshRecords": 18,
+      "templateSha256": "ef9f140e6b0467ffaba9093cbb2a0142a705ebe606fd79a181fc58baf96b7479",
+      "actorSha256": "87f6650df9d53a9a307ca4e7128bfaf422621d362710746e56a38d198a863aa8"
+    },
+    {
+      "name": "sp2negative.psx",
+      "sourceMeshRecords": 18,
+      "exportedMeshRecords": 18,
+      "templateSha256": "a5e6430524a605300f83cfd1ae2cc4bdd3732e6fe37321422f638df7f514ad43",
+      "actorSha256": "1df4f1d2ededf698c735473496158f8d53df76a0da4aefa7d48d1805f93a22e8"
+    },
+    {
+      "name": "sp2phoenix.psx",
+      "sourceMeshRecords": 18,
+      "exportedMeshRecords": 18,
+      "templateSha256": "dcce8c9dc4aa583afc52d9a0531de1df459fe4bf17344313d032348c02d8dd3a",
+      "actorSha256": "c11bcef750bb9f4c149dba6664f4bd97e21d3f68402d5f3e13d9de0f351ae145"
+    },
+    {
+      "name": "sp2prodigy.psx",
+      "sourceMeshRecords": 18,
+      "exportedMeshRecords": 18,
+      "templateSha256": "d66d709a957515e6ff298b45f613850b82a53cdcafa6a29e538a675e1cb97076",
+      "actorSha256": "9be14c337e86e756b0471c29015e4d2ac568f59266eea37fd78b2e8caf2b8c58"
+    },
+    {
+      "name": "sp2rossred.psx",
+      "sourceMeshRecords": 18,
+      "exportedMeshRecords": 18,
+      "templateSha256": "a4b118394b6517e4a0bad9d1dfe3b29b53038ed2e0fff450326fcb59242d7b48",
+      "actorSha256": "1f842b27c53c7de39950e63884503ea00b6f52164fe2372c4c64dab7fbecc4bb"
+    },
+    {
+      "name": "sp2rosswhite.psx",
+      "sourceMeshRecords": 18,
+      "exportedMeshRecords": 18,
+      "templateSha256": "4cd6c46cb4a95e303c9a0e26acbd1c2e50babb79d9be29386bf569c461240da6",
+      "actorSha256": "d60994dae46f08c21ece1277de344603a6c496aaad398bbdc67b6ba1e556ab77"
+    },
+    {
+      "name": "sp2venomx.psx",
+      "sourceMeshRecords": 18,
+      "exportedMeshRecords": 18,
+      "templateSha256": "5a939188bf32d85c5cb4ff534428e902e2d0fab1ee62cbe3b5df39bfbfc54cd2",
+      "actorSha256": "541e7473030ca029ef10455ed9a5d8bca30eb31cdcc37402fcba7bc51a5dd549"
+    },
+    {
+      "name": "sparmor.psx",
+      "sourceMeshRecords": 18,
+      "exportedMeshRecords": 18,
+      "templateSha256": "5fc4e11fe1991afb2f2ac8aae127abdd8cc4c22eddd8fc276d6e23484fce4f20",
+      "actorSha256": "af7711a3d1cdb75d06af03f681fc47d57bdb12ba137ed9ae5422a691cc30671c"
+    },
+    {
+      "name": "spbagman.psx",
+      "sourceMeshRecords": 18,
+      "exportedMeshRecords": 18,
+      "templateSha256": "4df897e169c0a6b1e1f31072aea0dcb2b7bd3cedb4265beccee5c51a1e76a091",
+      "actorSha256": "0722cd808caf3b152187b301dc11f219e344d779c7c29dbc0c359be86fb49c90"
+    },
+    {
+      "name": "spidey.psx",
+      "sourceMeshRecords": 18,
+      "exportedMeshRecords": 18,
+      "templateSha256": "32df2221375ff373de29d13f4797621f2ac82736b2d10f58041fd3f6b1514fd6",
+      "actorSha256": "959c6d7aac5aa04816e370c2beaa2f6552168792980c563b215b704c4fcd12a0"
+    },
+    {
+      "name": "sppark.psx",
+      "sourceMeshRecords": 18,
+      "exportedMeshRecords": 18,
+      "templateSha256": "9474f7cf8d0ca4365613be1c2bbb157e8df930c1c27e697db3a2b07c9d9eed3c",
+      "actorSha256": "6264ad017fb67896b5e8533f8d89c55ad8c7a936625a5ee6a441c4af3d343981"
+    },
+    {
+      "name": "spquick.psx",
+      "sourceMeshRecords": 18,
+      "exportedMeshRecords": 18,
+      "templateSha256": "5b10facb62195ca502c712160a3ef5672b9441b5ad3fb7f55f55c31bb3714079",
+      "actorSha256": "837f645115249e627e145d0c6af11652b757f91243a847829b8d2dcaec03fc7a"
+    },
+    {
+      "name": "spreilly.psx",
+      "sourceMeshRecords": 18,
+      "exportedMeshRecords": 18,
+      "templateSha256": "83df3f4fc16481780eeb9b70e814f8283c43d9ccef9fcc115793056a3ded516b",
+      "actorSha256": "ffee8d797929c2e552bc3215c3ebc6bec07907e28056185174936cda63367ffe"
+    },
+    {
+      "name": "spscar.psx",
+      "sourceMeshRecords": 18,
+      "exportedMeshRecords": 18,
+      "templateSha256": "79e0ec627afc4fb3c9b40eef34a499fee1edd18755ed07ca90c5620e96729c68",
+      "actorSha256": "a07b6265b209c348ba9d8143dce8012b02ce46aab77e300385367020ebbd76bd"
+    },
+    {
+      "name": "spsymbi.psx",
+      "sourceMeshRecords": 18,
+      "exportedMeshRecords": 18,
+      "templateSha256": "aaf0114a6c825a9296478c8613750e01ddfa83c85b01300434d53c547e228103",
+      "actorSha256": "4e67739457072aadd89492cab6322446d74082bd77ad9249f12ba18130310b8e"
+    },
+    {
+      "name": "spuniv.psx",
+      "sourceMeshRecords": 18,
+      "exportedMeshRecords": 18,
+      "templateSha256": "c0382b3a321897de9ddc0105a93b9c50ee82ac6d897ceaca987c6f13091fd5a1",
+      "actorSha256": "d9c0e960cfa92b162cc167edddd13b6aff5b11f41dee6b60aa570029f5e914e7"
+    },
+    {
+      "name": "spunlim.psx",
+      "sourceMeshRecords": 18,
+      "exportedMeshRecords": 18,
+      "templateSha256": "09c5aa964027c1bc7a41a52633df9e9090c7085b1a4107ec19d490474838ba2d",
+      "actorSha256": "465057aea1c4dac1f95325b8cb11cda8e5ec281667c36c8359b86f372a641420"
+    },
+    {
+      "name": "sp_alt01.psx",
+      "sourceMeshRecords": 18,
+      "exportedMeshRecords": 18,
+      "templateSha256": "4caca3fc2e65a0a703f73cde89c800fa537c5bca912297c465f167b6a15fa1f1",
+      "actorSha256": "37803e78d414868e94b178ffd3bb7a96a1edddcabccac4b33f1f409361c4783c"
+    },
+    {
+      "name": "sp_alt02.psx",
+      "sourceMeshRecords": 18,
+      "exportedMeshRecords": 18,
+      "templateSha256": "f90bed8939eabff65c0bf25aea0239fae8c33fe53e42c20fdd17740b66714382",
+      "actorSha256": "af58fd52de21de7ee8c301292c80b3e5af57608c9fdebe6ec166dbb0e9d8cb1f"
+    },
+    {
+      "name": "sp_alt04.psx",
+      "sourceMeshRecords": 16,
+      "exportedMeshRecords": 16,
+      "templateSha256": "81a8eb5a7fef99ba07c6e3b25bae1560d9b4f01d330b78aa280b93ec74340755",
+      "actorSha256": "3246d005f986f6e8b188151d70d2bdcf21295a85f7bf9107bb6d63e62a281cb9"
+    },
+    {
+      "name": "sp_alt05.psx",
+      "sourceMeshRecords": 18,
+      "exportedMeshRecords": 18,
+      "templateSha256": "35ee0d44b0bfdf01dea8a44ab5d8b9e4d8bb059490f626845af704c74ae6f243",
+      "actorSha256": "3ed86054ad09628ca31dc2d2d691de4d64cf1fcad38936ab5158b7737f48e0f0"
+    },
+    {
+      "name": "superock.psx",
+      "sourceMeshRecords": 45,
+      "exportedMeshRecords": 45,
+      "templateSha256": "6319bd2f57ca5af29c59683e0efd41a1580f5e8fecdc5242d2560f483e0a120d",
+      "actorSha256": "8cb0b59c862c7683cdba69ab3132c7d1d8e978a1c17fa9c9df54ee9f55f27638"
+    },
+    {
+      "name": "swat.psx",
+      "sourceMeshRecords": 16,
+      "exportedMeshRecords": 16,
+      "templateSha256": "c17b2a44e7f976aeb61001f131773c7586215697d4e215367fa8af62ffea5c77",
+      "actorSha256": "45397a0a71ef2f78971d3a1dbb5eaa8aaf9127e8783362c38702c3f97d0ea211"
+    },
+    {
+      "name": "symbiote.psx",
+      "sourceMeshRecords": 32,
+      "exportedMeshRecords": 16,
+      "templateSha256": "c7c887fa69e9be91dd287f16a92e7426f5c3984e071bc16dbf5fc5390f3e90a4",
+      "actorSha256": "bfd9f2d1452bedd086296e55093f0296c31bd5cdf0b920347a253a21a199f081"
+    },
+    {
+      "name": "symbi_02.psx",
+      "sourceMeshRecords": 32,
+      "exportedMeshRecords": 16,
+      "templateSha256": "e878c1ccd59d79cd0a39fc10a3b761268355fc6a24a63369f365b724dabee596",
+      "actorSha256": "72620fd7aed71bd92fe596963031c6c891c7bbef57ecc4abfa06d7038f70fc2c"
+    },
+    {
+      "name": "sym_base.psx",
+      "sourceMeshRecords": 2,
+      "exportedMeshRecords": 2,
+      "templateSha256": "c9f5f794f2a3ea5c61dd36393b873f10d75e4b2a873f07d11bd7355f69a81c7b",
+      "actorSha256": "418f0400decac99250c83408bd8811bedaf291446a8ad67255c5e351f5d14471"
+    },
+    {
+      "name": "sym_dark.psx",
+      "sourceMeshRecords": 32,
+      "exportedMeshRecords": 16,
+      "templateSha256": "5016f1527cc450a2d6bcbcd82f0ef17caf928b1b09202f19c008b748f48763c2",
+      "actorSha256": "7fd2a5c019d265175c06d98fd2f1ec583860a338cf5c6473900dc257e75c9e22"
+    },
+    {
+      "name": "sym_gen.psx",
+      "sourceMeshRecords": 4,
+      "exportedMeshRecords": 4,
+      "templateSha256": "932bf85da00af20d73940c030df9ddb2a82aca042f18848463797c2a3a1a63dc",
+      "actorSha256": "f3207ab6f5bc5a869028faf15bf59a4146e93ad78397d23d790ceb4b3ba648f7"
+    },
+    {
+      "name": "thug.psx",
+      "sourceMeshRecords": 16,
+      "exportedMeshRecords": 16,
+      "templateSha256": "5abed7d34f2061a9e2e97cb95f93f045508c1d7c9ce45cc319d20068dfda06de",
+      "actorSha256": "52acab0de8e227ca25fd3acd1dec6d0a9da753a0a34b26fde49059d65a642678"
+    },
+    {
+      "name": "torch.psx",
+      "sourceMeshRecords": 28,
+      "exportedMeshRecords": 28,
+      "templateSha256": "075d83e527b6e1087b45b9c875ddf01b7a02350be4251403a488ff74d1442a10",
+      "actorSha256": "b69a4362b2249ce0e09375cc6b605c972acd1f1b0b3de752eab955eb2db74590"
+    },
+    {
+      "name": "turret.psx",
+      "sourceMeshRecords": 2,
+      "exportedMeshRecords": 2,
+      "templateSha256": "b27fc74fe790c71bf7b1fc2966649a78e5f4f62c12ed34872fa1a428d00a2358",
+      "actorSha256": "05106b64fd6538756e18b898a4b1c609634e3d8a1b21e1e26580b8daa6458afc"
+    },
+    {
+      "name": "venom.psx",
+      "sourceMeshRecords": 21,
+      "exportedMeshRecords": 21,
+      "templateSha256": "6cbb9c7fad1fa56ab449b479c409c39f82d2a85742dd6b7a075d7f2e495919ec",
+      "actorSha256": "286c484856ad8613d512c523e81376f7546f74219cf3f2c0d838d3945f4d19de"
+    },
+    {
+      "name": "venom2.psx",
+      "sourceMeshRecords": 21,
+      "exportedMeshRecords": 21,
+      "templateSha256": "6cbb9c7fad1fa56ab449b479c409c39f82d2a85742dd6b7a075d7f2e495919ec",
+      "actorSha256": "829cdbddfb6b12b0f7be11483e125f08d306035761d50be3f7efd399b27218da"
+    }
+  ],
+  "blackCat": {
+    "status": "structural-pass-native-review-required",
+    "sourcePolygons": 3313,
+    "exportedTriangles": 1727,
+    "partVertices": [
+      109,
+      49,
+      54,
+      34,
+      62,
+      55,
+      34,
+      76,
+      39,
+      81,
+      81,
+      36,
+      201,
+      80,
+      222,
+      0,
+      0,
+      77
+    ],
+    "reductionSteps": 4,
+    "templateSha256": "cd38f92aef9095eb1a15c15b43460aa16ba8694a344b78aa79bf800c42eec4ad",
+    "decimationUvBoundaryClamps": 0,
+    "actorSha256": "8e2882c4dc85a73b8b3ef0848fbe232b29f758edaedf7652f1981bec1c024b09",
+    "hierarchyPreserved": true,
+    "animationTagsPreserved": true,
+    "sourceMeshRecords": 18,
+    "exportedMeshRecords": 18,
+    "lodPolicy": "One terminal mesh per object; shared seams remain valid at every distance",
+    "animationTagsSha256": "4aca69dc5d945d2e278cabe4e7690803aa8b35609525fb6ba63c2edb20614ac3",
+    "policy": "Dominant rigid weights and shared native seam references",
+    "alignmentRoundTripMaxError": 1.7881393432617188e-07,
+    "nativeReview": "Opening entrance/conversation; six captures, no input after the wall-climb sequence begins"
+  },
+  "legacyMilesByteIdentical": true,
+  "legacyMilesSha256": "a84dc25d97e693c081f7c5d647531481acb0239a157af4080cad085c40c6289c"
+}
