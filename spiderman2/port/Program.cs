@@ -13,13 +13,9 @@ public static class Program
     const string BootFile = "SLUS_013.78";
     static readonly RecompOne.Runtime.Cdrom.DiscInstallProfile InstallProfile = new(
         Title,
-        "Spider-Man 2: Enter Electro (USA) (Rev 1)",
+        "Spider-Man 2: Enter Electro (USA)",
         "SLUS-01378",
         BootFile,
-        786432,
-        "C121FD42DBA9DC0694A83033DD17683149072C086C671DB3B9139CCD38F232EC",
-        "324BF4A37F78AE931AD3BD1F4930DCFCFEF39C0E8DEAB28F089B3315D9BB4D93",
-        305023,
         "OpenSpidey.BundledAssets.zip");
 
     /// <summary>
@@ -33,6 +29,7 @@ public static class Program
 
     public static int Main(string[] args)
     {
+        RecompOne.Runtime.Host.BundledNativeRuntime.Initialize();
         if (!AcquireRuntimeLease()) return 4;
 
         // Everything the game writes -- logs, saves, shots -- is resolved against the
@@ -246,6 +243,7 @@ public static class Program
             return null;
         }
 
+#if !STANDALONE_DISTRIBUTION
         foreach (var dir in CandidateDirs())
         {
             foreach (var candidate in new[]
@@ -259,6 +257,7 @@ public static class Program
                     return Path.GetFullPath(candidate);
         }
 
+#endif
         return null;
     }
 

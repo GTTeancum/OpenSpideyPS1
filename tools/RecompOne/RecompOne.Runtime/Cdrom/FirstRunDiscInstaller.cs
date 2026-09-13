@@ -1,7 +1,8 @@
 using System.Diagnostics;
 using System.Numerics;
 using System.Reflection;
-using System.Security.Cryptography;
+using System.Text;
+using System.Text.RegularExpressions;
 using ImGuiNET;
 using NativeFileDialogNET;
 using RecompOne.Runtime.Host;
@@ -13,17 +14,9 @@ public sealed record DiscInstallProfile(
     string CommonName,
     string DiscId,
     string BootFile,
-    int BootFileSize,
-    string BootSha256,
-    string SystemCnfSha256,
-    int LeadoutLba,
     string BundledAssetResource);
 
-/// <summary>
-/// Exact, content-based identification of the supported retail revision. The boot and
-/// SYSTEM.CNF hashes make the result independent of a user's dump filename, while the
-/// lead-out rejects partial or rebuilt images that happen to contain those two files.
-/// </summary>
+/// <summary>Identifies the game's USA boot ID, independently of dump names or revision hashes.</summary>
 public static class DiscRevisionValidator
 {
     public static string? Validate(string path, DiscInstallProfile profile)
@@ -31,29 +24,21 @@ public static class DiscRevisionValidator
         try
         {
             using var fs = DiscFs.Open(path);
-            if (!fs.Locate(profile.BootFile, out _, out uint bootSize))
-                return Required(profile, $"{profile.BootFile} was not found");
-            if (bootSize != profile.BootFileSize)
-                return Required(profile, $"{profile.BootFile} has the wrong size ({bootSize:N0} bytes)");
-            if (!Hash(fs.ReadFile(profile.BootFile)).Equals(profile.BootSha256, StringComparison.OrdinalIgnoreCase))
-                return Required(profile, $"{profile.BootFile} belongs to a different revision");
-            if (!fs.Exists("SYSTEM.CNF") ||
-                !Hash(fs.ReadFile("SYSTEM.CNF")).Equals(profile.SystemCnfSha256, StringComparison.OrdinalIgnoreCase))
-                return Required(profile, "SYSTEM.CNF belongs to a different revision");
-            if (fs.LeadoutLba != profile.LeadoutLba)
-                return Required(profile, $"disc length is {fs.LeadoutLba:N0} sectors, expected {profile.LeadoutLba:N0}");
+            if (!fs.Exists("SYSTEM.CNF"))
+                return Required(profile, "SYSTEM.CNF was not found");
+            string config = Encoding.ASCII.GetString(fs.ReadFile("SYSTEM.CNF"));
+            var boot = Regex.Match(config, @"(?im)^\s*BOOT\s*=\s*cdrom:\s*[\\/]?([^;\s]+)(?:;\d+)?\s*$");
+            if (!boot.Success || !boot.Groups[1].Value.Equals(profile.BootFile, StringComparison.OrdinalIgnoreCase))
+                return Required(profile, "SYSTEM.CNF does not identify this game's USA release");
+            if (!fs.Locate(profile.BootFile, out _, out uint size) || size == 0)
+                return Required(profile, $"{profile.BootFile} is missing or empty");
             return null;
         }
-        catch (Exception e)
-        {
-            return Required(profile, e.Message);
-        }
+        catch (Exception e) { return Required(profile, e.Message); }
     }
 
     static string Required(DiscInstallProfile profile, string problem) =>
-        $"{problem}. Select {profile.CommonName} [{profile.DiscId}] as a BIN/CUE dump.";
-
-    static string Hash(byte[] data) => Convert.ToHexString(SHA256.HashData(data));
+        $"{problem}. Select {profile.CommonName} [{profile.DiscId}] as BIN/CUE or ISO.";
 }
 
 /// <summary>
@@ -88,7 +73,7 @@ public static class FirstRunDiscInstaller
         {
             if (string.IsNullOrWhiteSpace(requestedImage))
                 throw new InvalidOperationException(
-                    $"No loose installation exists. Pass the CUE for {profile.CommonName} [{profile.DiscId}].");
+                    $"No loose installation exists. Pass the BIN/CUE or ISO for {profile.CommonName} [{profile.DiscId}].");
             string? error = DiscRevisionValidator.Validate(requestedImage, profile);
             if (error != null) throw new InvalidDataException(error);
             string imported = LooseDiscImporter.Import(requestedImage, output, profile.DiscId);
@@ -103,7 +88,7 @@ public static class FirstRunDiscInstaller
         {
             if (string.IsNullOrWhiteSpace(requestedImage))
                 throw new InvalidOperationException(
-                    $"No loose installation exists. Pass the CUE for {profile.CommonName} [{profile.DiscId}].");
+                    $"No loose installation exists. Pass the BIN/CUE or ISO for {profile.CommonName} [{profile.DiscId}].");
             string? error = DiscRevisionValidator.Validate(requestedImage, profile);
             if (error != null) throw new InvalidDataException(error);
             string imported = LooseDiscImporter.Import(requestedImage, output, profile.DiscId);
@@ -201,7 +186,7 @@ public static class FirstRunDiscInstaller
             ImGui.TextUnformatted(_profile.WindowTitle);
             ImGui.Separator();
             ImGui.Spacing();
-            ImGui.TextWrapped("First-time setup needs your original game dump. This is a one-time extraction; the BIN/CUE is not used after setup.");
+            ImGui.TextWrapped("First-time setup needs your original game dump. This is a one-time extraction; the disc image is not used after setup.");
             ImGui.Spacing();
             ImGui.TextUnformatted("Required disc:");
             ImGui.BulletText(_profile.CommonName);
@@ -263,7 +248,7 @@ public static class FirstRunDiscInstaller
             try
             {
                 string? directory = File.Exists(_path) ? Path.GetDirectoryName(Path.GetFullPath(_path)) : null;
-                using var dialog = new NativeFileDialog().SelectFile().AddFilter("PlayStation CUE sheet", "cue");
+                using var dialog = new NativeFileDialog().SelectFile().AddFilter("PlayStation disc image", "cue,bin,iso");
                 if (dialog.Open(out string? picked, directory) == DialogResult.Okay && !string.IsNullOrWhiteSpace(picked))
                 {
                     _path = picked;

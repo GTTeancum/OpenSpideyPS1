@@ -30,6 +30,7 @@
       build, which is slow and moves the folder logs and shots live in.
     -->
     <PropertyGroup Condition="'$(_IsPublishing)' == 'true'">
+        <DefineConstants>$(DefineConstants);STANDALONE_DISTRIBUTION</DefineConstants>
         <RuntimeIdentifier>win-x64</RuntimeIdentifier>
         <SelfContained>true</SelfContained>
         <PublishSingleFile>true</PublishSingleFile>
@@ -77,4 +78,5 @@
         </EmbeddedResource>
     </ItemGroup>
 
+    <Import Project="../../tools/RecompOne/native/win-x64/Runtime.props" />
 </Project>

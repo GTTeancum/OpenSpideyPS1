@@ -640,10 +640,31 @@ public static class HostWindow
         gl.BindFramebuffer(FramebufferTarget.Framebuffer, 0);
         gl.Viewport(0, 0, (uint)fbDef.X, (uint)fbDef.Y);
         _imgui.Render();
+        CaptureHostProof(gl, fbDef.X, fbDef.Y);
         NativeVideoSetup.SavePending();
         ProbeGpuQueue(gl);
         Diagnostics.NativeAllocationProbe.Flush();
         Diagnostics.NativeAllocationProbe.Phase(4); // following native window swap
+    }
+
+    // Opt-in proof of this application's own framebuffer; never captures the desktop.
+    static bool _hostProofWritten;
+    static readonly long _hostProofStart = Environment.TickCount64;
+    static unsafe void CaptureHostProof(GL gl, int width, int height)
+    {
+        string? path = Environment.GetEnvironmentVariable("RECOMP_HOST_PROOF");
+        if (_hostProofWritten || string.IsNullOrWhiteSpace(path) || width <= 0 || height <= 0) return;
+        int delay = int.TryParse(Environment.GetEnvironmentVariable("RECOMP_HOST_PROOF_DELAY_MS"), out int ms) ? ms : 1000;
+        if (Environment.TickCount64 - _hostProofStart < delay) return;
+        _hostProofWritten = true;
+        var pixels = new byte[checked(width * height * 4)];
+        fixed (byte* ptr = pixels)
+            gl.ReadPixels(0, 0, (uint)width, (uint)height, PixelFormat.Rgba, PixelType.UnsignedByte, ptr);
+        var flipped = new byte[pixels.Length];
+        for (int y = 0; y < height; y++)
+            Array.Copy(pixels, y * width * 4, flipped, (height - 1 - y) * width * 4, width * 4);
+        Directory.CreateDirectory(Path.GetDirectoryName(Path.GetFullPath(path))!);
+        Assets.PngWriter.WriteRgba(path, flipped, width, height);
     }
 
     static void DrawDockspace()

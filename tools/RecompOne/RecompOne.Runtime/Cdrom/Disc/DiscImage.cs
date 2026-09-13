@@ -18,6 +18,7 @@ public static class DiscImage
         {
             DiscFormat.Chd => ChdImage.Open(path),
             DiscFormat.CueBin => CueBinImage.Open(path),
+            DiscFormat.Iso => SectorImage.Open(path),
             _ => throw new NotSupportedException($"unsupported disc format: {path}"),
         };
     }
@@ -27,6 +28,8 @@ public static class DiscImage
         var ext = Path.GetExtension(path);
         if (ext.Equals(".chd", StringComparison.OrdinalIgnoreCase)) return DiscFormat.Chd;
         if (ext.Equals(".cue", StringComparison.OrdinalIgnoreCase)) return DiscFormat.CueBin;
+        if (ext.Equals(".bin", StringComparison.OrdinalIgnoreCase) ||
+            ext.Equals(".iso", StringComparison.OrdinalIgnoreCase)) return DiscFormat.Iso;
         if (Directory.Exists(path) && LooseDiscImage.IsLooseDirectory(path)) return DiscFormat.Loose;
         return HasChdMagic(path) ? DiscFormat.Chd : DiscFormat.Unknown;
     }
@@ -52,4 +55,5 @@ public enum DiscFormat
     CueBin,
     Chd,
     Loose,
+    Iso,
 }

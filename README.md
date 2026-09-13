@@ -101,17 +101,23 @@ in each game's `settings.json` and `interface.ini`.
 
 ## Run a published build
 
-Launch the game's executable and provide the requested retail BIN/CUE dump when
-prompted. Select its **CUE sheet**; the matching BIN files must be present.
+Extract the download, keeping `mods/` beside the EXE. Launch the game and select
+your USA **BIN/CUE or ISO** when prompted. For a CUE sheet, keep its referenced
+BIN files alongside it.
 
 | Executable | Required disc | ID |
 |---|---|---|
 | `SpiderMan.exe` | Spider-Man (USA) | SLUS-00875 |
-| `SpiderMan2.exe` | Spider-Man 2: Enter Electro (USA) (Rev 1) | SLUS-01378 |
+| `SpiderMan2.exe` | Spider-Man 2: Enter Electro (USA) | SLUS-01378 |
 
-The installer validates the exact supported dump before extraction. It does not
-open a command-prompt window. After installation, the original image is no longer
-needed for play.
+The installer checks the USA boot ID in `SYSTEM.CNF` and that its boot file exists.
+It does not check disc hashes, exact executable sizes, or revision-specific disc
+lengths. Extraction runs in the game window, then the game starts automatically.
+After installation, the original image is no longer needed for play.
+
+Both EXEs contain .NET, the native game libraries, and the Visual C++ runtime.
+No separate runtime installer or loose DLLs are required. Windows and your graphics
+driver supply the remaining system libraries.
 
 Game files live under `game/` beside the executable; bundled character replacements
 and texture packs live under `assets/builtin/`. User reskins belong in `mods/suits/`,

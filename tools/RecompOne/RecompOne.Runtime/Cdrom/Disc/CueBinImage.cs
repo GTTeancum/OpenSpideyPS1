@@ -78,6 +78,9 @@ public sealed class CueBinImage : IDiscImage
         int offset = t.SectorSize == 2352
             ? size switch { >= 2340 => 12, >= 2329 => 16, _ => 24 }
             : t.DataOffset;
+        if (t.Mode.Equals("MODE1/2352", StringComparison.OrdinalIgnoreCase) && size <= 2048)
+            offset = 16;
+        if (t.SectorSize == 2336 && size > 2048) offset = 0;
         long pos = t.FileOffset + (long)lba * t.SectorSize + offset;
         var buf = new byte[size];
         if (lba < 0) return buf;

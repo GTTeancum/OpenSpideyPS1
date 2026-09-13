@@ -11,12 +11,19 @@ retail dump by common name and disc ID:
 | Executable | Required dump | Disc ID |
 |---|---|---|
 | `SpiderMan.exe` | Spider-Man (USA) | SLUS-00875 |
-| `SpiderMan2.exe` | Spider-Man 2: Enter Electro (USA) (Rev 1) | SLUS-01378 |
+| `SpiderMan2.exe` | Spider-Man 2: Enter Electro (USA) | SLUS-01378 |
 
-The Browse button accepts the CUE sheet belonging to the BIN/CUE dump. Validation uses
-the boot executable size and SHA-256, `SYSTEM.CNF` SHA-256, and exact data-track
-lead-out; a different game, region, revision, partial dump, or rebuilt image is refused
-before anything is installed.
+The download contains the executable and `mods/suits/`; no retail disc or extracted
+game files are included. Browse accepts a CUE sheet, a single-track BIN, or an ISO.
+Validation reads the USA boot ID in `SYSTEM.CNF` and checks that its boot file exists.
+Other games and regions are rejected. There are no disc hashes, exact boot-size
+checks, or revision-specific lead-out checks.
+
+BIN/ISO layouts are detected from their ISO9660 volume descriptor: raw 2352-byte
+Mode 1/2, 2336-byte Mode 2, or cooked 2048-byte sectors. Raw Mode 2 images preserve
+XA/STR subheaders and audio/video payloads. A cooked ISO cannot restore XA bytes
+already discarded by the tool that produced it; use the original raw dump for
+complete audio/video. Multi-track dumps should be opened through their CUE sheet.
 
 Extraction stays in the game window and reports its current stage, current file, file
 count, elapsed time, and byte-accurate progress. Normal ISO files are written loose;
@@ -41,7 +48,7 @@ assets/
 settings.json
 ```
 
-After the manifest exists, the game opens only `game/`; the original BIN/CUE can be
+After the manifest exists, the game opens only `game/`; the original disc image can be
 archived. Bundled Dreamcast models, imported suits, and their host-resolution texture
 packs come from a deterministic ZIP resource inside the executable and are repaired or
 updated automatically under `assets/builtin`. Neither executable asks for a Dreamcast
@@ -75,3 +82,31 @@ The asset builder includes only root runtime `.psx` files and the selected textu
 trees. It fixes ZIP timestamps and ordering and records every extracted file's byte
 length and SHA-256 in `bundle.json`; proof renders, conversion logs, and source media
 are never embedded.
+
+## Standalone runtime and release smoke
+
+Both EXEs bundle the .NET runtime, GLFW, OpenAL, SDL, ImGui, native file dialogs,
+and the release x64 Visual C++ runtime. The payload self-extracts into .NET's per-user
+cache; it needs no separate DLL download or VC++ installer. Windows/UCRT and the
+installed graphics driver remain OS dependencies. See
+[the native payload provenance](../tools/RecompOne/native/win-x64/README.md).
+Published builds never search parent folders for a developer's existing extraction.
+
+Run the disc-validation regression with:
+
+```powershell
+dotnet run --project tools/RecompOne/tests/DiscInstallRegression -c Release
+```
+
+`dreamcast/tools/smoke_standalone_release.py --game sm1` (then `sm2`) creates an
+EXE-plus-mods ZIP and a fresh test installation, passes the retail image through the
+normal in-window installer, and captures the main menu and gameplay. Run each again
+with `--restart` to verify a custom Miles Morales suit and launch without an image
+argument. The harness records the paths of loaded CRT libraries, which must come
+from that EXE's extraction cache. It uses only process-local game input and native
+render captures. `RECOMP_HOST_PROOF` optionally captures one frame from the target
+application's own framebuffer, including its installer; it never reads the desktop.
+
+Release proofs are under `proof_render/standalone-release/`. Do not distribute its
+extracted test `package/game/` directories. Only the explicitly created release ZIPs
+are download artifacts. Remove disposable test installations after verification.

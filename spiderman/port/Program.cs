@@ -16,10 +16,6 @@ public static class Program
         "Spider-Man (USA)",
         "SLUS-00875",
         BootFile,
-        749568,
-        "D2270E35581BA083D9441166E9A45EAD4F869AB07E890F9A512AD7EE4CC0B15B",
-        "527804F26A9E9B459E2BD378D2AA36FA3EA5DDE18C6EC9456BF58772EEDEB9D2",
-        310262,
         "OpenSpidey.BundledAssets.zip");
 
     /// <summary>
@@ -32,6 +28,7 @@ public static class Program
 
     public static int Main(string[] args)
     {
+        RecompOne.Runtime.Host.BundledNativeRuntime.Initialize();
         if (!AcquireRuntimeLease()) return 4;
 
         // Everything the game writes -- logs, saves, shots -- is resolved against the
@@ -252,7 +249,7 @@ public static class Program
         return string.IsNullOrEmpty(exe) ? AppContext.BaseDirectory : Path.GetDirectoryName(exe);
     }
 
-    // Development builds may reuse a known loose tree. Shipped builds naturally fall
+    // Development builds may reuse a known loose tree. Shipped builds only fall
     // through to the executable-relative game directory managed by the installer.
     static string ResolveExistingGameData(string[] args)
     {
@@ -263,6 +260,7 @@ public static class Program
             return null;
         }
 
+#if !STANDALONE_DISTRIBUTION
         foreach (var dir in CandidateDirs())
         {
             foreach (var candidate in new[]
@@ -276,6 +274,7 @@ public static class Program
                     return Path.GetFullPath(candidate);
         }
 
+#endif
         return null;
     }
 
