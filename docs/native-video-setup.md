@@ -1,8 +1,9 @@
 # Native Video Setup
 
 Both games replace OPTIONS → Screen Adjust with Video Setup. The implementation
-runs each game's original three-row OPTIONS screen, temporarily substituting its
-title, row strings and help strings. Native drawing, menu animation, font,
+runs each game's original OPTIONS screen, temporarily substituting its
+title, row strings and help strings and appending a fourth native row for Apply.
+The rows are Aspect, Resolution, Fullscreen On/Off, and Apply. Native drawing, menu animation, font,
 selection highlight, up/down handling, select/cancel sounds and Triangle return
 remain in the original game code.
 
@@ -19,17 +20,21 @@ remain in the original game code.
 The shared input pre-hook only handles Video Setup while that screen is active
 and the caller is its OPTIONS list. It consumes Left/Right and confirm pulses
 before the native list sees them. Other lists retain their original behavior.
-The screen uses one tracked 864-byte guest allocation for nine 96-byte text slots;
+The screen uses one tracked 960-byte guest allocation for ten 96-byte text slots;
 all nine language pointers are restored and that allocation is freed on return.
+The native lists already reserve at least 40 rows. Four rows at 18-pixel spacing
+fit the same panel as the original three rows at 24-pixel spacing.
 The permanent English entry/help replacements are shorter than their retail
 strings and are written only when the complete original strings match.
 
 `VideoSetupState` owns pending selections. Apply changes the gameplay aspect,
-requests an exact window output area, and schedules settings persistence after
+applies Fullscreen On/Off, requests an exact output area when windowed, and schedules settings persistence after
 the host UI frame. The output panel uses its actual available area when sizing
 the window, accounting for chrome and padding. Triangle leaves applied settings
 alone and discards subsequent pending selections. Saved windowed sizes are
 restored at startup; an explicitly saved fullscreen setting takes precedence.
+Window-fitting requests are ignored while fullscreen, including automatic
+widescreen fitting on the first gameplay frame.
 
 These controls select windowed output size, not internal GPU rendering scale or
 exclusive monitor modes. Menus retain their authored 4:3 layout and gameplay
@@ -46,6 +51,10 @@ python dreamcast/tools/validate_video_setup_runtime.py --game sm1 --scenario wid
 python dreamcast/tools/validate_video_setup_runtime.py --game sm1 --scenario minimum
 python dreamcast/tools/validate_video_setup_runtime.py --game sm2 --scenario wide
 python dreamcast/tools/validate_video_setup_runtime.py --game sm2 --scenario minimum
+python dreamcast/tools/validate_video_setup_runtime.py --game sm1 --scenario fullscreen-on
+python dreamcast/tools/validate_video_setup_runtime.py --game sm1 --scenario fullscreen-off
+python dreamcast/tools/validate_video_setup_runtime.py --game sm2 --scenario fullscreen-on
+python dreamcast/tools/validate_video_setup_runtime.py --game sm2 --scenario fullscreen-off
 ```
 
 The native harness temporarily installs isolated settings beside the published
@@ -60,3 +69,5 @@ aspect without applying, and verifies that reopening retains 1280×720. The
 minimum scenario launches a new process with those saved settings, applies
 640×480, and reopens it again. Review the native captures for title, rows, help
 and restored OPTIONS layout; automated assertions do not replace visual review.
+The fullscreen pair verifies applying On, cancelling a pending Off, restarting
+with On persisted, applying Off, and restoring the exact 640×480 windowed output.

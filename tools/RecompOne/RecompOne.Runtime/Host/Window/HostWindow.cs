@@ -208,7 +208,7 @@ public static class HostWindow
     /// </summary>
     public static void GrowWindow(int dx, int dy)
     {
-        if (_window == null) return;
+        if (_window == null || ConfigManager.View.Fullscreen) return;
         var size = _window.Size;
         int w = Math.Clamp(size.X + dx, 320, 7680);
         int h = Math.Clamp(size.Y + dy, 240, 4320);
@@ -423,6 +423,7 @@ public static class HostWindow
     {
         if (_window == null) return;
         _window.WindowState = on ? WindowState.Fullscreen : WindowState.Normal;
+        Console.WriteLine($"[Host] fullscreen={on}; window state={_window.WindowState}");
         if (on) SetAutoIconify(false);
     }
 

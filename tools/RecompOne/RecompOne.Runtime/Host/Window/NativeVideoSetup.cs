@@ -11,7 +11,7 @@ namespace RecompOne.Runtime.Host.Window;
 public static class NativeVideoSetup
 {
     public sealed record Bindings(uint Options, uint Strings, uint Pad, uint InputReturn, uint Sound,
-        uint AspectOffset, uint ScreenOffset, uint TitleOffset, uint HelpOffset);
+        uint AspectOffset, uint ScreenOffset, uint TitleOffset, uint HelpOffset, uint AddRow);
     static Bindings? _active;
     static VideoSetupState? _state;
     static uint _text;
@@ -39,7 +39,8 @@ public static class NativeVideoSetup
     {
         Write(m, _text, $"aspect: {(_state!.Widescreen ? "16:9" : "4:3")}");
         Write(m, _text + 96, $"resolution: {_state.Selected}");
-        Write(m, _text + 192, _state.Applied ? "applied" : "apply");
+        Write(m, _text + 192, $"fullscreen: {(_state.Fullscreen ? "on" : "off")}");
+        Write(m, _text + 864, _state.Applied ? "applied" : "apply");
     }
     public static void Run(CpuContext c, IMemory m, Bindings b)
     {
@@ -49,19 +50,19 @@ public static class NativeVideoSetup
         uint[] offsets = [b.AspectOffset,0x40,b.ScreenOffset,b.TitleOffset,
             b.HelpOffset,b.HelpOffset+4,b.HelpOffset+8,b.HelpOffset+12,b.HelpOffset+16];
         uint[] original = offsets.Select(o => m.ReadU32(b.Strings + o)).ToArray();
-        _text = LooseWadOverrides.AllocateScratch(96u * (uint)offsets.Length, "native video menu labels");
+        _text = LooseWadOverrides.AllocateScratch(960, "native video menu labels");
         _active = b;
         _state = new(ConfigManager.Game.Widescreen ?? Hle.GpuHle.WidescreenDefault,
             ConfigManager.View.GetInt("VideoWidth", ConfigManager.View.WindowWidth),
-            ConfigManager.View.GetInt("VideoHeight", ConfigManager.View.WindowHeight));
+            ConfigManager.View.GetInt("VideoHeight", ConfigManager.View.WindowHeight), ConfigManager.View.Fullscreen);
         try
         {
             for (int i = 0; i < offsets.Length; i++) m.WriteU32(b.Strings + offsets[i], _text + (uint)i * 96);
             Labels(m);
             string[] help = ["video setup","left or right changes aspect","triangle discards pending changes",
-                "left or right changes resolution","640x480 and higher","apply window size and aspect"];
+                "left or right changes resolution","windowed output size","left or right toggles fullscreen"];
             for (int i = 0; i < help.Length; i++) Write(m, _text + (uint)(i + 3) * 96, help[i]);
-            Console.WriteLine($"[video-menu] opened {_state.Selected} wide={_state.Widescreen}");
+            Console.WriteLine($"[video-menu] opened {_state.Selected} wide={_state.Widescreen} fullscreen={_state.Fullscreen}");
             c.A0 = 14;
             Dispatcher.Call(c, m, b.Options);
         }
@@ -78,6 +79,16 @@ public static class NativeVideoSetup
     {
         var b = _active;
         if (b == null || c.RA != b.InputReturn) return;
+        if (m.ReadU8(c.A0 + 0x14) == 3)
+        {
+            // Retail lists reserve at least 40 rows. Four rows at 18-pixel spacing
+            // fit the same native panel as the original three at 24 pixels.
+            var context = c.Snapshot();
+            m.WriteU32(c.A0 + 0x24, 18);
+            c.A1 = _text + 864;
+            Dispatcher.Call(c, m, b.AddRow);
+            c.Restore(context);
+        }
         int row = m.ReadU8(c.A0 + 0xE);
         bool left = m.ReadU8(b.Pad + 0x81) != 0, right = m.ReadU8(b.Pad + 0x91) != 0;
         bool select = m.ReadU8(b.Pad + 0x31) != 0 || m.ReadU8(b.Pad + 0xE1) != 0;
@@ -86,19 +97,19 @@ public static class NativeVideoSetup
         m.WriteU8(b.Pad + 0x81, 0); m.WriteU8(b.Pad + 0x91, 0);
         if (row == 0) _state!.ChangeAspect();
         if (row == 1) _state!.ChangeResolution(left ? -1 : 1);
-        if (row == 2 && select)
+        if (row == 2) _state!.ChangeFullscreen();
+        if (row == 3 && select)
         {
             var res = _state!.Selected;
             ConfigManager.Game.Widescreen = _state.Widescreen;
             ConfigManager.View.SetInt("VideoWidth", res.Width);
             ConfigManager.View.SetInt("VideoHeight", res.Height);
-            // Explicit window-size choices use windowed presentation; no monitor mode is changed.
-            HostWindow.SetFullscreen(false);
-            ConfigManager.View.Fullscreen = false;
-            OutputPanel.RequestResolution(res.Width, res.Height);
+            ConfigManager.View.Fullscreen = _state.Fullscreen;
+            HostWindow.SetFullscreen(_state.Fullscreen);
+            if (!_state.Fullscreen) OutputPanel.RequestResolution(res.Width, res.Height);
             _requestSave = true;
             _state.Applied = true;
-            Console.WriteLine($"[video-menu] apply {res} wide={_state.Widescreen}");
+            Console.WriteLine($"[video-menu] apply {res} wide={_state.Widescreen} fullscreen={_state.Fullscreen}");
         }
         Labels(m);
         var saved = c.Snapshot();

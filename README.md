@@ -92,9 +92,10 @@ changes and returns to OPTIONS.
 | 4:3 | 640×480, 800×600, 1024×768, 1280×960, 1600×1200, 1920×1440 |
 | 16:9 | 960×540, 1280×720, 1600×900, 1920×1080, 2560×1440, 3840×2160 |
 
-Apply sizes the window's game output area and sets the gameplay aspect immediately.
-These are windowed output sizes, including when Apply is used from fullscreen;
-the existing internal rendering scale remains a separate Display setting. Menus
+**FULLSCREEN: ON/OFF** switches between fullscreen and windowed presentation when
+you select Apply. Fullscreen uses the monitor's output area; turning it off restores
+the selected windowed resolution. Apply also sets the gameplay aspect immediately.
+The existing internal rendering scale remains a separate Display setting. Menus
 retain their original 4:3 proportions. Applied choices are remembered on restart
 in each game's `settings.json` and `interface.ini`.
 
