@@ -7,7 +7,7 @@ internal sealed class OutputPanel : IPanel
 {
     public string Name => "Output";
     public string TitleKey => "panel.output";
-    
+
     public bool IsOpen { get => true; set { } }
     static uint _texId;
     static int _texW, _texH;
@@ -39,6 +39,7 @@ internal sealed class OutputPanel : IPanel
             var avail = ImGui.GetContentRegionAvail();
             FitWindowOnce(avail);
             FitRequestedWindow(avail);
+            FitRequestedResolution(avail);
             var imageSize = FitAspect(new Vector2(_aspect, 1f), avail);
             var offset = (avail - imageSize) * 0.5f;
             ImGui.SetCursorPos(ImGui.GetCursorPos() + offset);
@@ -53,6 +54,25 @@ internal sealed class OutputPanel : IPanel
 
     static bool _fitted;
     static float _requestedWindowAspect;
+    static int _requestedWidth, _requestedHeight;
+    static int _verifyWidth, _verifyHeight, _verifyFrames;
+
+    public static void RequestResolution(int width, int height)
+    {
+        _requestedWidth = width; _requestedHeight = height;
+        _requestedWindowAspect = 0; _fitted = true;
+    }
+    static void FitRequestedResolution(Vector2 avail)
+    {
+        if (_verifyFrames > 0 && --_verifyFrames == 0)
+            Console.WriteLine($"[video-menu] output area {avail.X:F0}x{avail.Y:F0}; selected {_verifyWidth}x{_verifyHeight}");
+        if (_requestedWidth == 0 || avail.X < 16 || avail.Y < 16) return;
+        int w = _requestedWidth, h = _requestedHeight;
+        _requestedWidth = _requestedHeight = 0;
+        HostWindow.GrowWindow((int)MathF.Round(w - avail.X), (int)MathF.Round(h - avail.Y));
+        _verifyWidth = w; _verifyHeight = h; _verifyFrames = 5;
+        Console.WriteLine($"[video-menu] output size requested {w}x{h}");
+    }
 
     /// <summary>
     /// Resize a windowed host when the player explicitly changes the gameplay aspect.

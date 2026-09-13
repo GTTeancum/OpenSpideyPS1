@@ -190,6 +190,24 @@
   ],
   "patches": [
     {
+      "overlay": "shell",
+      "function": "func_8025AA84",
+      "mode": "pre",
+      "target": "Recompiled.VideoSetup.Options"
+    },
+    {
+      "overlay": "shell",
+      "function": "func_8025D0C4",
+      "mode": "replace",
+      "target": "Recompiled.VideoSetup.Run"
+    },
+    {
+      "overlay": "main",
+      "function": "func_800174CC",
+      "mode": "pre",
+      "target": "RecompOne.Runtime.Host.Window.NativeVideoSetup.Input"
+    },
+    {
       "overlay": "main",
       "function": "func_8005B014",
       "mode": "pre",

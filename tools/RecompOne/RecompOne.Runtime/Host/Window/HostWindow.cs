@@ -223,6 +223,8 @@ public static class HostWindow
     {
         Diagnostics.NativeAllocationProbe.Initialize();
         ConfigManager.Load();
+        if(!ConfigManager.View.Fullscreen && ConfigManager.View.GetInt("VideoWidth")>0 && ConfigManager.View.GetInt("VideoHeight")>0)
+            OutputPanel.RequestResolution(ConfigManager.View.GetInt("VideoWidth"),ConfigManager.View.GetInt("VideoHeight"));
         _baseTitle = title ?? "";
         _fpsWindowStart = 0;
         _fpsFrames = 0;
@@ -637,6 +639,7 @@ public static class HostWindow
         gl.BindFramebuffer(FramebufferTarget.Framebuffer, 0);
         gl.Viewport(0, 0, (uint)fbDef.X, (uint)fbDef.Y);
         _imgui.Render();
+        NativeVideoSetup.SavePending();
         ProbeGpuQueue(gl);
         Diagnostics.NativeAllocationProbe.Flush();
         Diagnostics.NativeAllocationProbe.Phase(4); // following native window swap

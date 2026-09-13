@@ -178,6 +178,24 @@
   ],
   "patches": [
     {
+      "overlay": "shell",
+      "function": "func_80243854",
+      "mode": "pre",
+      "target": "Recompiled.VideoSetup.Options"
+    },
+    {
+      "overlay": "shell",
+      "function": "func_80246118",
+      "mode": "replace",
+      "target": "Recompiled.VideoSetup.Run"
+    },
+    {
+      "overlay": "main",
+      "function": "func_80018D70",
+      "mode": "pre",
+      "target": "RecompOne.Runtime.Host.Window.NativeVideoSetup.Input"
+    },
+    {
       "overlay": "main",
       "function": "CdWadFind",
       "mode": "pre",

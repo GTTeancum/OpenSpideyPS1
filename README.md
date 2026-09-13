@@ -79,6 +79,25 @@ original model or texture allocations. This reskin loader does not accept arbitr
 models or executable code. See [developer notes](docs/magenta-man-mod-development.md)
 for validation rules and regression tests.
 
+## In-game video setup (SM1 and SM2)
+
+Open **OPTIONS → VIDEO SETUP**. This replaces the old Screen Adjust entry and
+uses the game's original menu graphics, text, highlights, sounds, and controls.
+Use Up/Down to select a row and Left/Right to change its value (Cross also cycles
+the value). Select **APPLY** with Cross to save; Triangle discards any pending
+changes and returns to OPTIONS.
+
+| Aspect | Output resolutions |
+|---|---|
+| 4:3 | 640×480, 800×600, 1024×768, 1280×960, 1600×1200, 1920×1440 |
+| 16:9 | 960×540, 1280×720, 1600×900, 1920×1080, 2560×1440, 3840×2160 |
+
+Apply sizes the window's game output area and sets the gameplay aspect immediately.
+These are windowed output sizes, including when Apply is used from fullscreen;
+the existing internal rendering scale remains a separate Display setting. Menus
+retain their original 4:3 proportions. Applied choices are remembered on restart
+in each game's `settings.json` and `interface.ini`.
+
 ## Run a published build
 
 Launch the game's executable and provide the requested retail BIN/CUE dump when
