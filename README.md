@@ -100,7 +100,7 @@ Featured mod models and textures by **Gameloft**, converted from *Spider-Man Unl
   and host-resolution FXAA enabled by default. Both 4:3 and 16:9 use the modern
   renderer; legacy rendering is reserved for developer reference.
 - **Widescreen gameplay:** wider projection and HUD handling in both games.
-  SM2 defaults to 16:9; SM1 currently enables it with `SPIDEY_WIDE=1`.
+  Choose 4:3 or 16:9 in OPTIONS > VIDEO SETUP.
   Menus retain their original 4:3 layout.
 - **Dreamcast character upgrades:** SM1 uses converted DC actors where applicable;
   SM2's upgrade work focuses on Spider-Man and costumes, not matching every NPC.
@@ -110,57 +110,48 @@ Featured mod models and textures by **Gameloft**, converted from *Spider-Man Unl
   entries. Imported suits use SM1 animations and copied SM1 ability profiles, with
   paired existing unlock events. The winged default SM2 suit is available from
   the start. Original SM1 default Spider-Man remains visually wingless.
-- **Data-only reskin mods in both games:** external PNGs, custom names and comments,
-  a choice of that game's existing power profiles, and one of six fixed built-in
-  Dreamcast models. Mod suits are always unlocked and do not replace built-ins.
+- **Costume mods in both games:** external PNGs, custom names and author credits,
+  independent donor powers, built-in bodies, and validated custom native models.
+  Mod suits are always unlocked and do not replace built-ins. Each game supports
+  60 total costumes.
 - **First-run disc setup:** published builds are self-contained executables with
   an embedded installer. Extraction runs inside the game window with progress
   and elapsed time, then subsequent launches use loose files.
 
-## Make a reskin
+## Make or customize a costume
 
-[![Magenta Man in the costume selector](docs/screenshots/magenta-man-costume-selector.png)](docs/screenshots/magenta-man-costume-selector.png)
+The selector supports **60 total costumes**: 20 built-ins plus 40 mod slots in
+SM1, and 19 built-ins plus 41 mod slots in SM2. Version 1.0 includes 34 SM1 mods
+and 35 SM2 mods, leaving **six free slots in each game**. Magenta Man is not in
+the release roster.
 
-**Proof of reskin mod capability:** Magenta Man uses the Dreamcast Spider-Man
-model with external PNG textures. The costume viewer displays `COSTUME:` from
-the JSON name, `GAME POWERS:` from the selected SM1 ability profile, and
-`COMMENTS:` from the author's text.
+1. Copy a complete installed suit folder under `mods/suits/` beside the executable.
+2. Give the copy a unique folder name and `id` in `suit.json`; edit its name and
+   comments while preserving author credits. Names support 19 printable ASCII characters.
+3. Edit the referenced PNG textures, keeping their UV layout and texture keys.
+   Keep any referenced `modelFile` with its matching textures.
+4. Choose a supported `abilities.profile` for the destination game. Appearance
+   and donor powers are independent; profiles do not combine powers.
+5. Restart and select the costume under **SPECIAL > COSTUME VIEWER** in SM1 or
+   **SPECIAL > COSTUMES** in SM2.
 
-**Maximum: 12 custom mod costumes**, including Magenta Man, alongside the 20
-built-in SM1 suits (32 costumes total). SM2 also supports 12 mod costumes alongside
-its 19 built-ins (31 total).
+Every packaged suit includes instructions. The shared
+[mod instructions](mods/suit-instructions.txt) cover all donor profiles,
+model choices, moving suits between games, and troubleshooting. Move unwanted
+suits to `mods/inactive-suits` to free slots while preserving their files.
 
-1. Copy [Magenta Man](mods/samples/magenta-man) into
-   `mods/suits/magenta-man` beside `SpiderMan.exe`.
-2. Follow [instructions.txt](mods/samples/magenta-man/instructions.txt): paint the
-   PNGs and edit `suit.json` to name your costume and choose its powers.
-3. Restart and select it under **SPECIAL â†’ COSTUME VIEWER**.
+The `model` field selects a built-in body: `spiderman`, `scarlet-spider`,
+`symbiote`, `quick-change`, `peter-parker`, or `sm2-spiderman`.
+`spiderman` uses the wingless SM1 body in either game. An optional `modelFile`
+references a validated native `.psx` actor in the suit folder; raw FBX, OBJ,
+or GLB models cannot be installed directly. PNGs support up to 4096 pixels per
+side within a 64 MiB decoded texture budget per suit.
 
-For SM2, use [the SM2 Magenta Man example](mods/samples/magenta-man-sm2) beside
-`SpiderMan2.exe` instead; its [instructions](mods/samples/magenta-man-sm2/instructions.txt)
-list SM2's power choices. It includes web wings. Texture layouts depend on the selected
-model, so use its matching example and Blender UV templates. Existing SM1 reskins
-can use the wingless SM1 body in SM2 by setting `"model": "spiderman"`.
-In SM2 the menu entry is **SPECIAL â†’ COSTUMES**.
-
-The [TEMPLATE folder](mods/samples/magenta-man/TEMPLATE) contains texture copies
-stamped with Blender-exported UV layouts; `TEMPLATE/UV` contains the original SVG
-outlines for separate editing layers. The game ignores these guides. Keep their
-lines out of the finished textures.
-
-The optional `model` field accepts only `spiderman`, `scarlet-spider`, `symbiote`,
-`quick-change`, `peter-parker`, or `sm2-spiderman`; omitting it keeps the original
-per-game default. Model paths and
-custom model binaries are rejected, and each base accepts only its own material IDs.
-The mod-count maximum is an explicit selector capacity, not a texture-resolution limit. Only the
-active reskin's textures are decoded. PNGs can be up to 4096Ã—4096 within a 64 MiB
-decoded-pixel budget per suit; Magenta Man includes a 2048Ã—2048 example. That
-example is enlarged source art, not newly painted HD detail.
-
-Textures stay in host memory and GPU storage rather than overwriting the game's
-original model or texture allocations. This reskin loader does not accept arbitrary
-models or executable code. See [developer notes](docs/magenta-man-mod-development.md)
-for validation rules and regression tests.
+For custom geometry, use [Blender Character Tools](tools/blender_spidey/README.md)
+to import a native template, transfer and edit weights, and export a native
+character package. The add-on requires the repository conversion backend,
+external Python with Pillow, and NeversoftMultitool. Always check the result in
+native gameplay; automatic weight transfer still needs artist review.
 
 ## In-game video setup (SM1 and SM2)
 

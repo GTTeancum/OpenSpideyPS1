@@ -7,7 +7,9 @@ and animation data; the exporter does not assume Spider-Man's skeleton.
 
 ## Install
 
-Build the add-on ZIP from this checkout:
+Download the [version 1.0 add-on ZIP](https://github.com/GTTeancum/OpenSpideyPS1/releases/download/blender-v1.0/OpenSpidey-Character-Tools-1.0.zip) and install it through Blender Preferences > Add-ons > Install from Disk.
+
+To build the add-on ZIP from this checkout instead:
 
 ```powershell
 python tools/blender_spidey/build_zip.py --output OpenSpidey-Character-Tools.zip
