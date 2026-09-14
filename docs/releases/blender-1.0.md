@@ -1,12 +1,12 @@
 ## Installation
 
-1. Download OpenSpidey-Character-Tools.zip. Keep this ZIP intact for Blender installation.
+1. Download [OpenSpidey-Character-Tools-1.0.zip](https://github.com/GTTeancum/OpenSpideyPS1/releases/download/blender-v1.0/OpenSpidey-Character-Tools-1.0.zip). Keep this ZIP intact for Blender installation.
 2. Obtain the OpenSpideyPS1 repository checkout and NeversoftMultitool. Install a separate Python with Pillow (python -m pip install Pillow).
 3. In Blender, open Edit > Preferences > Add-ons and use Install from Disk to select the ZIP. Enable OpenSpidey Character Tools. Tested with Blender 4.5.8 LTS.
 4. In the add-on preferences, configure the repository folder, external Python executable, and NeversoftMultitool executable.
 5. Open the Spidey sidebar in the 3D Viewport. Import a native v4 character template from your configured game assets, or use File > Import for a native v4 .psx.
 
-## Blender Character Tools 1.0 — Included
+## Blender Character Tools 1.0 â€” Included
 
 - Installable Blender add-on for native character template import and replacement export.
 - Template mesh, joint hierarchy, rigid weight groups, and seam ownership import.

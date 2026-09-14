@@ -10,6 +10,22 @@ This is an active development project, not a claim of complete game compatibilit
 Both games reach gameplay; targeted menu, level, costume and renderer tests do not
 replace full playthroughs or long-duration stability testing.
 
+## Download and install version 1.0
+
+1. Download the package for your game below and extract it. Open the extracted game folder.
+2. Launch SpiderMan.exe or SpiderMan2.exe, keeping the included mods folder beside it.
+3. Select your USA PlayStation BIN/CUE or ISO. Setup extracts the assets and starts the game.
+
+| Package | Download | Installation and included contents |
+|---|---|---|
+| Spider-Man 1.0 — 34 costume mods | [Windows x64 ZIP](https://github.com/GTTeancum/OpenSpideyPS1/releases/download/sm1-v1.0/Spider-Man-1.0-Windows-x64.zip) | [Release notes](https://github.com/GTTeancum/OpenSpideyPS1/releases/tag/sm1-v1.0) |
+| Spider-Man 2 1.0 — 35 costume mods | [Windows x64 ZIP](https://github.com/GTTeancum/OpenSpideyPS1/releases/download/sm2-v1.0/Spider-Man-2-1.0-Windows-x64.zip) | [Release notes](https://github.com/GTTeancum/OpenSpideyPS1/releases/tag/sm2-v1.0) |
+| Blender Character Tools 1.0 | [Installable add-on ZIP](https://github.com/GTTeancum/OpenSpideyPS1/releases/download/blender-v1.0/OpenSpidey-Character-Tools-1.0.zip) | [Installation and requirements](https://github.com/GTTeancum/OpenSpideyPS1/releases/tag/blender-v1.0) |
+
+Each package includes Readme.txt. Install the Blender ZIP through Blender's add-on preferences; its repository and conversion-tool requirements are listed in its release notes.
+
+Use the downloads above for ready-to-run games. GitHub's **Source code (zip)** and the ZIP links on the **Tags** tab contain developer source files.
+
 ## Screenshots
 
 Native renderer captures from both games. Click any image for the full-size version.
@@ -118,14 +134,14 @@ its 19 built-ins (31 total).
    `mods/suits/magenta-man` beside `SpiderMan.exe`.
 2. Follow [instructions.txt](mods/samples/magenta-man/instructions.txt): paint the
    PNGs and edit `suit.json` to name your costume and choose its powers.
-3. Restart and select it under **SPECIAL → COSTUME VIEWER**.
+3. Restart and select it under **SPECIAL â†’ COSTUME VIEWER**.
 
 For SM2, use [the SM2 Magenta Man example](mods/samples/magenta-man-sm2) beside
 `SpiderMan2.exe` instead; its [instructions](mods/samples/magenta-man-sm2/instructions.txt)
 list SM2's power choices. It includes web wings. Texture layouts depend on the selected
 model, so use its matching example and Blender UV templates. Existing SM1 reskins
 can use the wingless SM1 body in SM2 by setting `"model": "spiderman"`.
-In SM2 the menu entry is **SPECIAL → COSTUMES**.
+In SM2 the menu entry is **SPECIAL â†’ COSTUMES**.
 
 The [TEMPLATE folder](mods/samples/magenta-man/TEMPLATE) contains texture copies
 stamped with Blender-exported UV layouts; `TEMPLATE/UV` contains the original SVG
@@ -137,8 +153,8 @@ The optional `model` field accepts only `spiderman`, `scarlet-spider`, `symbiote
 per-game default. Model paths and
 custom model binaries are rejected, and each base accepts only its own material IDs.
 The mod-count maximum is an explicit selector capacity, not a texture-resolution limit. Only the
-active reskin's textures are decoded. PNGs can be up to 4096×4096 within a 64 MiB
-decoded-pixel budget per suit; Magenta Man includes a 2048×2048 example. That
+active reskin's textures are decoded. PNGs can be up to 4096Ã—4096 within a 64 MiB
+decoded-pixel budget per suit; Magenta Man includes a 2048Ã—2048 example. That
 example is enlarged source art, not newly painted HD detail.
 
 Textures stay in host memory and GPU storage rather than overwriting the game's
@@ -148,7 +164,7 @@ for validation rules and regression tests.
 
 ## In-game video setup (SM1 and SM2)
 
-Open **OPTIONS → VIDEO SETUP**. This replaces the old Screen Adjust entry and
+Open **OPTIONS â†’ VIDEO SETUP**. This replaces the old Screen Adjust entry and
 uses the game's original menu graphics, text, highlights, sounds, and controls.
 Use Up/Down to select a row and Left/Right to change its value (Cross also cycles
 the value). Select **APPLY** with Cross to save; Triangle discards any pending
@@ -156,8 +172,8 @@ changes and returns to OPTIONS.
 
 | Aspect | Output resolutions |
 |---|---|
-| 4:3 | 640×480, 800×600, 1024×768, 1280×960, 1600×1200, 1920×1440 |
-| 16:9 | 960×540, 1280×720, 1600×900, 1920×1080, 2560×1440, 3840×2160 |
+| 4:3 | 640Ã—480, 800Ã—600, 1024Ã—768, 1280Ã—960, 1600Ã—1200, 1920Ã—1440 |
+| 16:9 | 960Ã—540, 1280Ã—720, 1600Ã—900, 1920Ã—1080, 2560Ã—1440, 3840Ã—2160 |
 
 **FULLSCREEN: ON/OFF** switches between fullscreen and windowed presentation when
 you select Apply. Fullscreen uses the monitor's output area; turning it off restores
