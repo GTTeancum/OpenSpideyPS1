@@ -23,5 +23,10 @@
   },
   "processing": "PNG files copied unchanged. SVG overlays center the complete 4:3 image at the same height over 16:9, at 40% opacity. No scene content retouched. Separate captures are not frame synchronized.",
   "spdrCapture": "Native GPU captures with RECOMP_CAPTURE_HIDDEN=1: invisible windowed OpenGL context, fullscreen disabled, process-local input only.",
-  "additionalModCaptures": "Six distinct mods, menu and gameplay each. Captured with capture_readme_mod_gallery.py in hidden, windowed OpenGL contexts; no desktop input."
+  "additionalModCaptures": "Six distinct mods, menu and gameplay each. Captured with capture_readme_mod_gallery.py in hidden, windowed OpenGL contexts; no desktop input.",
+  "comparisonPngs": {
+    "sm1-comparison.png": "sm1-comparison.svg",
+    "sm2-comparison.png": "sm2-comparison.svg"
+  },
+  "comparisonRendering": "SVG layouts rasterized at their native 1707x1048 size using headless Edge, device scale 1. SVG files retained as editable sources; README displays only PNGs."
 }

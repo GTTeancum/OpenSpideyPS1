@@ -24,7 +24,7 @@ shot at 40% opacity; the cyan outline marks its boundary.
 <tr><td width="50%" align="center"><a href="docs/screenshots/gallery/sm1-4x3.png"><img src="docs/screenshots/gallery/sm1-4x3.png" width="480" alt="Spider-Man rooftop gameplay in 4:3"></a></td><td width="50%" align="center"><a href="docs/screenshots/gallery/sm1-16x9.png"><img src="docs/screenshots/gallery/sm1-16x9.png" width="480" alt="Spider-Man rooftop gameplay in 16:9"></a></td></tr>
 </table>
 
-[![Spider-Man: centered 4:3 capture over 16:9, with cyan boundary](docs/screenshots/gallery/sm1-comparison.svg)](docs/screenshots/gallery/sm1-comparison.svg)
+[![Spider-Man: centered 4:3 capture over 16:9, with cyan boundary](docs/screenshots/gallery/sm1-comparison.png)](docs/screenshots/gallery/sm1-comparison.png)
 
 <table>
 <tr><th width="50%">Miles Morales - gameplay</th><th width="50%">Miles Morales - main menu</th></tr>
@@ -53,7 +53,7 @@ shot at 40% opacity; the cyan outline marks its boundary.
 <tr><td width="50%" align="center"><a href="docs/screenshots/gallery/sm2-4x3.png"><img src="docs/screenshots/gallery/sm2-4x3.png" width="480" alt="Spider-Man 2: Enter Electro rooftop gameplay in 4:3"></a></td><td width="50%" align="center"><a href="docs/screenshots/gallery/sm2-16x9.png"><img src="docs/screenshots/gallery/sm2-16x9.png" width="480" alt="Spider-Man 2: Enter Electro rooftop gameplay in 16:9"></a></td></tr>
 </table>
 
-[![Spider-Man 2: Enter Electro: centered 4:3 capture over 16:9, with cyan boundary](docs/screenshots/gallery/sm2-comparison.svg)](docs/screenshots/gallery/sm2-comparison.svg)
+[![Spider-Man 2: Enter Electro: centered 4:3 capture over 16:9, with cyan boundary](docs/screenshots/gallery/sm2-comparison.png)](docs/screenshots/gallery/sm2-comparison.png)
 
 <table>
 <tr><th width="50%">SP//DR - gameplay</th><th width="50%">SP//DR - main menu</th></tr>
