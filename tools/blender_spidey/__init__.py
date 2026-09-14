@@ -1,6 +1,6 @@
 """Blender template-based authoring for native OpenSpidey character actors."""
 bl_info = {'name': 'OpenSpidey Character Tools', 'author': 'OpenSpideyPS1 contributors',
-           'version': (0, 1, 0), 'blender': (4, 5, 0), 'location': 'View3D > Sidebar > Spidey',
+           'version': (1, 0, 0), 'blender': (4, 5, 0), 'location': 'View3D > Sidebar > Spidey',
            'description': 'Import native templates, transfer weights and export segmented actors',
            'category': 'Import-Export'}
 
